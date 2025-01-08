@@ -1,7 +1,7 @@
 from typing import *
 import requests, json
 from abc import abstractmethod, ABC
-from fmcore.util.language import Parameters, Registry, safe_validate_arguments, get_default, format_exception_msg
+from fmcore.util.language import Parameters, Registry, safe_validate_arguments, get_default, String
 from fmcore.util.language import String
 from fmcore.constants.DataProcessingConstants import Status
 from pydantic import constr, BaseModel, root_validator
@@ -53,7 +53,7 @@ class Notifier(Parameters, Registry, ABC):
             try:
                 return NotifierClass(**kwargs)
             except Exception as e:
-                raise ValueError(f'Cannot create notifier with kwargs:\n{kwargs}\nError: {format_exception_msg(e)}')
+                raise ValueError(f'Cannot create notifier with kwargs:\n{kwargs}\nError: {String.format_exception_msg(e)}')
         raise NotImplementedError(
             f'Unsupported value for `notifier`; '
             f'found {type(notifier)} with following value:\n{notifier}'

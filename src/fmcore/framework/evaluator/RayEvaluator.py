@@ -21,7 +21,7 @@ from fmcore.framework.predictions import Predictions
 from fmcore.framework.task_data import Dataset
 from fmcore.framework.tracker.Tracker import Tracker
 from fmcore.util import RayInitConfig, max_num_resource_actors, RayActorComposite, RequestCounter
-from fmcore.util import set_param_from_alias, safe_validate_arguments, format_exception_msg, String, \
+from fmcore.util import set_param_from_alias, safe_validate_arguments, String, String, \
     Timer, get_default, run_concurrent, \
     Timeout, as_list, accumulate, get_result, wait, AutoEnum, auto, ProgressBar, only_item, \
     ignore_all_output, ignore_logging, ignore_warnings, ignore_stdout, LoadBalancingStrategy
@@ -223,7 +223,7 @@ if _IS_RAY_INSTALLED:
                 except Exception as e:
                     if failure_action is FailureAction.ERROR:
                         with algorithm_evaluator_verbosity(self.verbosity):
-                            logging.error(format_exception_msg(e))
+                            logging.error(String.format_exception_msg(e))
                         ## Error immediately
                         raise e
                     elif failure_action is FailureAction.ERROR_DELAYED:
@@ -231,7 +231,7 @@ if _IS_RAY_INSTALLED:
                         error_to_raise: Exception = e
                     elif failure_action is FailureAction.WARN:
                         with algorithm_evaluator_verbosity(self.verbosity):
-                            logging.warning(format_exception_msg(e))
+                            logging.warning(String.format_exception_msg(e))
                     elif failure_action is FailureAction.IGNORE:
                         pass
                     else:
@@ -247,7 +247,7 @@ if _IS_RAY_INSTALLED:
             self.request_counter.completed_request.remote()
             if error_to_raise is not None:
                 with algorithm_evaluator_verbosity(self.verbosity):
-                    logging.error(format_exception_msg(error_to_raise))
+                    logging.error(String.format_exception_msg(error_to_raise))
                 raise error_to_raise
             if return_predictions:
                 # print(f'Size of predictions dataframe: {preds_df.memory_usage(deep=True)}')
@@ -747,7 +747,7 @@ if _IS_RAY_INSTALLED:
                         try:
                             pred: Optional[Predictions] = get_result(pred, wait=10.0)
                         except Exception as e:
-                            main_logger(f'Error while collecting prediction#{pred_i}:\n{format_exception_msg(e)}')
+                            main_logger(f'Error while collecting prediction#{pred_i}:\n{String.format_exception_msg(e)}')
                             raise e
                         if pred is None:
                             debug_logger(f'Collected prediction#{pred_i}: found None.')

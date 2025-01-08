@@ -5,7 +5,7 @@ from pandas.core.groupby import DataFrameGroupBy as PandasDataFrameGroupBy
 from math import inf, exp, log
 from copy import deepcopy
 from fmcore.util import is_list_like, set_param_from_alias, MappedParameters, Parameters, get_default, as_list, \
-    is_dict_like, as_set, is_even, type_str, ignore_warnings, str_format_args, Alias, format_exception_msg
+    is_dict_like, as_set, is_even, type_str, ignore_warnings, Alias, String
 from fmcore.constants import Task, MLType, MLTypeSchema, DataLayout, DataSplit, FailureAction
 from fmcore.data import ScalableDataFrame, ScalableSeries, ScalableSeriesRawType, ScalableDataFrameRawType, FileMetadata
 from fmcore.framework import Algorithm, Dataset, Predictions
@@ -191,7 +191,7 @@ class ICLSampler(Parameters):
                 raise ValueError(
                     f'Error while selecting from filtered ICL set '
                     f'of {len(icl_df_filtered)} rows and columns: {icl_df_filtered.columns}:\n'
-                    f'{format_exception_msg(e)}'
+                    f'{String.format_exception_msg(e)}'
                 )
         return shot_i_icl_examples
 
@@ -347,7 +347,7 @@ def _create_prompt(prompt_template: str, prompt_prefix: str, **data) -> str:
     except Exception as e:
         raise ValueError(
             f'Could not populate prompt with data:\n{data}\nprompt_template:"""\n{prompt_template}\n"""'
-            f'\nError obtained:\n{format_exception_msg(e)}'
+            f'\nError obtained:\n{String.format_exception_msg(e)}'
         )
 
 
@@ -436,7 +436,7 @@ def apply_prompt_template(batch: 'Prompts', prompt_prefix: str) -> 'Prompts':
 def to_second_level_prompt_template(prompt_template: str, *, exclude: Optional[Union[Set[str], str]] = None) -> str:
     """Convert '{name} {age}' to '{{name}} {{age}}'. """
     exclude: Set[str] = as_set(get_default(exclude, []))
-    template_args: Set[str] = set(str_format_args(prompt_template)) - exclude
+    template_args: Set[str] = set(String.str_format_args(prompt_template)) - exclude
     for template_arg in template_args:
         ## If prompt_template is like: '''Is "{query}" a search-query about {label}?''', convert it to:
         ## '''Is "{{query}}" a search-query about {label}?'''

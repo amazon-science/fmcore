@@ -13,7 +13,7 @@ from fmcore.data.writer.Writer import Writer
 from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType
 from fmcore.data.sdf.DaskScalableDataFrame import DaskScalableDataFrame
 from fmcore.util import multiple_are_not_none, any_are_not_none, all_are_none, FileSystemUtil, Schema, AutoEnum, auto, \
-    accumulate, dispatch, get_default, Future, format_exception_msg, Log, \
+    accumulate, dispatch, get_default, Future, String, Log, \
     String, set_param_from_alias, create_progress_bar, safe_validate_arguments, TqdmProgressBar
 from fmcore.util.aws import S3Util
 from fmcore.constants import FileContents, FileFormat, DataLayout, MLTypeSchema, Storage, Parallelize
@@ -427,7 +427,7 @@ class DataFrameWriter(Writer, ABC):
             except Exception as e:
                 Log.error(
                     f'Error {type(sdf)} to file "{chunk_file_path}":\n'
-                    f'{format_exception_msg(e, short=False)}\n'
+                    f'{String.format_exception_msg(e, short=False)}\n'
                     f'Kwargs used: {kwargs}'
                 )
                 failed_chunk_paths.add(chunk_file_path)

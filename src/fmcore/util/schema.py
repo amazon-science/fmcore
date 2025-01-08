@@ -4,8 +4,7 @@ import re
 import numpy as np
 ## These must be imported separately from the file since we are in the same dir.
 from fmcore.util.language import AutoEnum, as_list, auto, as_set, is_list_like, Parameters, get_default, \
-    str_format_args, \
-    safe_validate_arguments, format_exception_msg, keep_keys, is_empty_list_like, assert_not_empty_dict, remove_keys
+    safe_validate_arguments, String, keep_keys, is_empty_list_like, assert_not_empty_dict, remove_keys
 from fmcore.constants.MLConstants import MLType, MLTypeSchema, PREDICTED_ML_TYPES, GROUND_TRUTH_ML_TYPES, \
     DATA_ML_TYPES
 from fmcore.constants.FileConstants import FileContents
@@ -35,7 +34,7 @@ class ColTemplate(Parameters):
     def of(cls, template: str, regex_fill: str = '.+?', regex_flags: int = re.IGNORECASE) -> ColTemplate:
         return ColTemplate(
             template=template,
-            args=tuple(str_format_args(template)),
+            args=tuple(String.str_format_args(template)),
             regex=re.compile(cls.as_regex(template, fill=regex_fill), flags=regex_flags),
         )
 
@@ -45,7 +44,7 @@ class ColTemplate(Parameters):
 
     @classmethod
     def as_regex(cls, template: str, fill: str = '.+?') -> str:
-        return template.format(**{arg: fill for arg in str_format_args(template)})
+        return template.format(**{arg: fill for arg in String.str_format_args(template)})
 
     def populate(
             self,
@@ -69,7 +68,7 @@ class ColTemplate(Parameters):
                         f'Column is templatized even after populating arguments. '
                         f'Column template: "{self.template}"; '
                         f'column after populating: "{col}"; '
-                        f'detected args: {str_format_args(col)}; '
+                        f'detected args: {String.str_format_args(col)}; '
                         f'kwargs: {kwargs}'
                     )
                 return None
@@ -98,7 +97,7 @@ class ColTemplate(Parameters):
                             f'Column is templatized even after populating arguments. '
                             f'Column template: "{self.template}"; '
                             f'column after populating: "{col}"; '
-                            f'detected args: {str_format_args(col)}; '
+                            f'detected args: {String.str_format_args(col)}; '
                             f'kwargs: {kwargs}'
                         )
                 else:
@@ -481,7 +480,7 @@ class Schema(Parameters):
             params['features_schema'] = MLType.convert_values(params.get('features_schema', {}))
             return params
         except Exception as e:
-            raise ValueError(format_exception_msg(e))
+            raise ValueError(String.format_exception_msg(e))
 
     def index(self) -> str:
         return self.index_col

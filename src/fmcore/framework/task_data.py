@@ -4,7 +4,7 @@ from abc import ABC
 from fmcore.data.sdf import ScalableDataFrame, ScalableDataFrameOrRaw, ScalableSeries, ScalableOrRaw, to_sdf
 from fmcore.util import Parameters, Registry, FractionalBool, resolve_fractional_bool, Schema, SchemaTemplate, \
     String, safe_validate_arguments, get_default, run_concurrent, accumulate, as_list, \
-    str_normalize, optional_dependency, set_param_from_alias, any_are_none, remove_keys, format_exception_msg
+    optional_dependency, set_param_from_alias, any_are_none, remove_keys
 from fmcore.constants import DataSplit, DataLayout, MLTypeSchema, Parallelize, FileFormat, MLType, ASSET_ML_TYPES, \
     FILE_FORMAT_TO_FILE_ENDING_MAP
 from fmcore.data import FileMetadata, Asset
@@ -101,7 +101,7 @@ class Dataset(InputOutputDataMixin, Registry, ABC):
                 if params.get('data_split') is None:
                     raise ValueError(
                         f'Schema inference failed; try passing split=... when creating the Dataset instance. '
-                        f'Schema inference error: {format_exception_msg(e)}'
+                        f'Schema inference error: {String.format_exception_msg(e)}'
                     )
                 raise e
         assert isinstance(data_schema, Schema)
@@ -162,7 +162,7 @@ class Datasets(Parameters):
         try:
             return cls(datasets=datasets)
         except Exception as e:
-            raise ValueError(f'Error creating {cls.class_name}:\n{format_exception_msg(e)}')
+            raise ValueError(f'Error creating {cls.class_name}:\n{String.format_exception_msg(e)}')
 
     @root_validator(pre=True)
     def set_datasets(cls, params: Dict):

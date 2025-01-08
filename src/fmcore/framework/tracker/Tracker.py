@@ -7,7 +7,7 @@ from functools import partial
 from fmcore.data import FileMetadata
 from fmcore.util import Parameters, MutableParameters, Registry, FractionalBool, safe_validate_arguments, String, \
     all_are_true, all_are_false, any_are_not_none, any_are_none, Log, as_list, get_default, as_set, \
-    set_param_from_alias, random_sample, format_exception_msg, optional_dependency, FileSystemUtil, Alias
+    set_param_from_alias, random_sample, String, optional_dependency, FileSystemUtil, Alias
 from pydantic import root_validator, Extra, conint, constr
 from fmcore.constants import _LIBRARY_NAME
 

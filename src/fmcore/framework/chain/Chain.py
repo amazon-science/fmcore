@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 import time, traceback, pickle, gc, os, json
 from fmcore.util import Registry, MutableParameters, Parameters, set_param_from_alias, is_list_like, as_list, \
-    random_sample, safe_validate_arguments, format_exception_msg, String, get_fn_spec, Timer, type_str, \
+    random_sample, safe_validate_arguments, String, String, get_fn_spec, Timer, type_str, \
     run_concurrent, get_result, Future, get_default, FunctionSpec, dispatch, is_function, remove_keys, \
     ProgressBar, stop_executor, only_item, dispatch_executor, Executor, accumulate, accumulate_iter, Alias
 from fmcore.data import FileMetadata, ScalableDataFrame, ScalableSeries, Asset
@@ -472,7 +472,7 @@ class Chain(MutableParameters):
                         error_msg += f'\n{"-" * 40}' \
                                      f'\nError in Step ({String.pad_zeros(step_i + 1, self.num_steps)}/{self.num_steps}) ' \
                                      f'"{step_exn.step_template.class_name}":' \
-                                     f'\n{format_exception_msg(step_exn_error)}'
+                                     f'\n{String.format_exception_msg(step_exn_error)}'
                     elif step_exn.outputs is None:
                         raise RuntimeError(
                             f'Error in Step ({String.pad_zeros(step_i + 1, self.num_steps)}/{self.num_steps}) '
@@ -503,7 +503,7 @@ class Chain(MutableParameters):
                 chain_exn.outputs = {**all_kwargs}
         except Exception as e:
             chain_exn.status = Status.FAILED
-            error_logger(f'Error in {exn_name}:\n{format_exception_msg(e)}')
+            error_logger(f'Error in {exn_name}:\n{String.format_exception_msg(e)}')
             chain_exn.error = e
         finally:
             timer.stop()

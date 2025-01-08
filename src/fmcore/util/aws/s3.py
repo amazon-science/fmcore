@@ -1,7 +1,7 @@
 from typing import *
 import io, random, re, math, os, time, boto3, botocore, fnmatch, pickle
 from urllib.parse import urlparse, ParseResult
-from fmcore.util.language import as_list, is_list_like, format_exception_msg, any_are_none, remove_values
+from fmcore.util.language import as_list, is_list_like, String, any_are_none, remove_values
 from fmcore.util import Utility, String, FileSystemUtil, Log, Timer, shuffle_items
 from fmcore.constants import _LIBRARY_NAME
 
@@ -247,7 +247,7 @@ class S3Util(Utility):
                 stream = obj.get()['Body']
                 return stream
             except Exception as e:
-                Log.debug(format_exception_msg(e))
+                Log.debug(String.format_exception_msg(e))
                 if retry_wait_time != retry_wait_times[-1]:
                     Log.debug(f'Retrying retrieval of object at bucket "{s3_bucket}" with key "{object_key}"...')
         raise IOError(f'Cannot retrieve S3 object after {retry} attempts; bucket="{s3_bucket}", key="{object_key}"')
@@ -273,7 +273,7 @@ class S3Util(Utility):
                     raise IOError(f'Could not put object at bucket {s3_bucket} and key {object_key}')
                 return True
             except Exception as e:
-                Log.error(format_exception_msg(e))
+                Log.error(String.format_exception_msg(e))
                 if retry_wait_time != retry_wait_times[-1]:
                     Log.info(f'Retrying put of object at bucket {s3_bucket} and key {object_key}...')
         raise IOError('Could not successfully put object at bucket %s and key %s, after %s attempts' % (
@@ -301,7 +301,7 @@ class S3Util(Utility):
                     raise IOError(f'Could not put object at bucket {s3_bucket} and key {object_key}')
                 return True
             except Exception as e:
-                Log.error(format_exception_msg(e))
+                Log.error(String.format_exception_msg(e))
                 if retry_wait_time != retry_wait_times[-1]:
                     Log.info(f'Retrying put of object at bucket {s3_bucket} and key {object_key}...')
         raise IOError('Could not successfully put object at bucket %s and key %s, after %s attempts' % (
@@ -325,7 +325,7 @@ class S3Util(Utility):
             assert cls.s3_object_exists(destination_s3_path), f'Could not find file {destination_s3_path} after copying'
             return True
         except Exception as e:
-            Log.error(format_exception_msg(e))
+            Log.error(String.format_exception_msg(e))
         return False
 
     @classmethod
@@ -360,7 +360,7 @@ class S3Util(Utility):
                         f'in {timer.time_taken_str}.'
                     )
             except Exception as e:
-                Log.error(format_exception_msg(e))
+                Log.error(String.format_exception_msg(e))
                 return False
         return True
 
@@ -382,7 +382,7 @@ class S3Util(Utility):
             FileSystemUtil.check_file_exists(destination_local_path)
             return True
         except Exception as e:
-            Log.error(format_exception_msg(e))
+            Log.error(String.format_exception_msg(e))
         return False
 
     @classmethod
@@ -469,7 +469,7 @@ class S3Util(Utility):
             assert cls.s3_object_exists(destination_s3_path), f'Could not find file {destination_s3_path} after copying'
             return True
         except Exception as e:
-            Log.error(format_exception_msg(e))
+            Log.error(String.format_exception_msg(e))
         return False
 
     @classmethod
@@ -492,7 +492,7 @@ class S3Util(Utility):
                 cls.copy_file_between_s3_locations(source_s3_fpath, destination_s3_fpath, extra_args=extra_args)
             return True
         except Exception as e:
-            Log.error(format_exception_msg(e))
+            Log.error(String.format_exception_msg(e))
             return False
 
     @staticmethod

@@ -3,7 +3,7 @@ from typing import *
 import pandas as pd
 from copy import deepcopy
 from fmcore.util import Registry, as_list, Schema, SchemaTemplate, equal, safe_validate_arguments, get_default, \
-    String, accumulate, run_concurrent, any_are_none, remove_keys, format_exception_msg
+    String, accumulate, run_concurrent, any_are_none, remove_keys, String
 from fmcore.data.FileMetadata import FileMetadata
 from fmcore.data.sdf import ScalableDataFrame, ScalableSeries, ScalableSeriesOrRaw, ScalableOrRaw, is_scalable
 from fmcore.constants import MLTypeSchema, DataLayout, TaskOrStr, Task, DataSplit, FILE_FORMAT_TO_FILE_ENDING_MAP, \
@@ -76,7 +76,7 @@ class Predictions(InputOutputDataMixin, Registry, ABC):
         #         if params.get('data_split') is None:
         #             raise ValueError(
         #                 f'Schema inference failed; try passing split=... when creating the Dataset instance. '
-        #                 f'Schema inference error: {format_exception_msg(e)}'
+        #                 f'Schema inference error: {String.format_exception_msg(e)}'
         #             )
         #         raise e
         # assert isinstance(data_schema, Schema)

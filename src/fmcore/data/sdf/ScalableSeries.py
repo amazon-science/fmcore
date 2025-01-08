@@ -6,7 +6,7 @@ from pandas.core.frame import Series as PandasSeries, DataFrame as PandasDataFra
 import dask.dataframe as dd
 from dask.dataframe.core import Scalar as DaskScalar, Series as DaskSeries, DataFrame as DaskDataFrame
 from fmcore.util import Registry, resolve_sample_size, SampleSizeType, optional_dependency, MutableParameters, \
-    get_true, safe_validate_arguments, str_normalize, only_item
+    get_true, safe_validate_arguments, String, only_item
 from fmcore.constants import DataLayout, SS_DATA_LAYOUT_PRIORITY, TENSOR_SS_DATA_LAYOUT_PRIORITY, \
     SHORTHAND_TO_TENSOR_LAYOUT_MAP
 from pydantic import conint
@@ -499,7 +499,7 @@ class ScalableSeries(Registry, ABC):
         return self.as_tensor(tensor_type=tensor_type, **kwargs)
 
     def as_tensor(self, *, tensor_type: str, **kwargs) -> Optional[Any]:
-        tensor_layout: DataLayout = SHORTHAND_TO_TENSOR_LAYOUT_MAP[str_normalize(tensor_type)]
+        tensor_layout: DataLayout = SHORTHAND_TO_TENSOR_LAYOUT_MAP[String.str_normalize(tensor_type)]
         if tensor_layout is DataLayout.NUMPY:
             return self.numpy(**kwargs)
         if tensor_layout is DataLayout.TORCH:

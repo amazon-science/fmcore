@@ -3,7 +3,7 @@ from typing import *
 from abc import abstractmethod, ABC
 import io, numpy as np, pandas as pd
 from fmcore.util import is_list_like, String, run_concurrent, run_parallel, run_parallel_ray, accumulate, Log, \
-    format_exception_msg, as_list, retry, dispatch
+    String, as_list, retry, dispatch
 from fmcore.constants import FileContents, Parallelize, Storage, TensorShortHand, SHORTHAND_TO_TENSOR_LAYOUT_MAP, \
     MLType, MLTypeSchema
 from fmcore.data.reader.Reader import Reader
@@ -128,7 +128,7 @@ class AssetReader(Reader, ABC):
             try:
                 assets.append(accumulate(asset_future))
             except Exception as e:
-                Log.error(f'Error reading from file "{file_path}":\n{format_exception_msg(e, short=True)}')
+                Log.error(f'Error reading from file "{file_path}":\n{String.format_exception_msg(e, short=True)}')
                 failed_read_file_paths.append(file_path)
 
         if len(failed_read_file_paths) > 0:

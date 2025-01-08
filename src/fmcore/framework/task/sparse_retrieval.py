@@ -4,7 +4,7 @@ import math
 import multiprocessing as mp
 from collections import Counter
 from typing import *
-
+from abc import abstractmethod, ABC
 import numpy as np
 import pandas as pd
 from pydantic import Extra, root_validator, conint, confloat
@@ -19,7 +19,7 @@ from fmcore.util import RayActorComposite
 from fmcore.util import is_list_like, Parameters, MappedParameters, append_to_keys, \
     MutableParameters, Schema, only_item, set_param_from_alias, wait, INDEX_COL_DEFAULT_NAME, AutoEnum, auto, \
     safe_validate_arguments, type_str, Timer, String, get_default, \
-    dispatch, dispatch_executor, accumulate, accumulate_iter, ProgressBar, best_k, format_exception_msg, \
+    dispatch, dispatch_executor, accumulate, accumulate_iter, ProgressBar, best_k, String, \
     Executor, get_result, check_isinstance, Log, Alias
 from fmcore.util.language._import import _IS_RAY_INSTALLED
 
@@ -98,7 +98,7 @@ def _make_bm25_docs_batch(
         except Exception as e:
             raise ValueError(
                 f'Error creating document [{doc_data_i}/{len(docs_df)}]:\n'
-                f'{format_exception_msg(e)}'
+                f'{String.format_exception_msg(e)}'
             )
     return _bm25_docs_batch
 
@@ -786,7 +786,7 @@ if _IS_RAY_INSTALLED:
                 self.index_shard.concat_index(index_store_update, recalc_token_idfs=False)
                 return index_store_update.index_size
             except Exception as e:
-                return format_exception_msg(e)
+                return String.format_exception_msg(e)
 
         def get_top_k_batch(
                 self,

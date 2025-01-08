@@ -13,7 +13,7 @@ from pydantic.fields import Undefined
 
 from ._autoenum import AutoEnum
 from ._function import get_fn_spec, params_to_call_str, is_function, call_str_to_params
-from ._string import format_exception_msg, str_normalize, NeverFailJsonEncoder
+from ._string import String, NeverFailJsonEncoder
 from ._structs import as_list, as_set, is_list_like
 from ._utils import get_default
 
@@ -76,7 +76,7 @@ def safe_validate_arguments(f):
     except Exception as e:
         raise ValueError(
             f'Error creating model for function {get_fn_spec(f).resolved_name}.'
-            f'\nEncountered Exception: {format_exception_msg(e)}'
+            f'\nEncountered Exception: {String.format_exception_msg(e)}'
         )
 
 
@@ -275,11 +275,11 @@ class Registry(ABC):
         subclass_name: str = subclass.__name__
         if isinstance(key, (str, AutoEnum)):
             ## Case-insensitive matching:
-            keys_to_register: List[str] = [str_normalize(key)]
+            keys_to_register: List[str] = [String.str_normalize(key)]
         elif isinstance(key, tuple):
             keys_to_register: List[Tuple] = [tuple(
                 ## Case-insensitive matching:
-                str_normalize(k) if isinstance(k, (str, AutoEnum)) else k
+                String.str_normalize(k) if isinstance(k, (str, AutoEnum)) else k
                 for k in key
             )]
         else:
@@ -320,7 +320,7 @@ class Registry(ABC):
             **kwargs,
     ) -> Optional[Union[Type, List[Type]]]:
         if isinstance(key, (str, AutoEnum)):
-            Subclass: Optional[Dict[str, Type]] = cls._registry.get(str_normalize(key))
+            Subclass: Optional[Dict[str, Type]] = cls._registry.get(String.str_normalize(key))
         else:
             Subclass: Optional[Dict[str, Type]] = cls._registry.get(key)
         if Subclass is None:
@@ -354,7 +354,7 @@ class Registry(ABC):
             name: str = subclass.__name__
         for k, d in cls._registry.items():
             for subclass_name, subclass in list(d.items()):
-                if str_normalize(subclass_name) == str_normalize(name):
+                if String.str_normalize(subclass_name) == String.str_normalize(name):
                     d.pop(subclass_name, None)
 
     @classmethod
@@ -392,7 +392,7 @@ class Parameters(BaseModel, ABC):
         except Exception as e:
             raise ValueError(
                 f'Cannot create Pydantic instance of type "{self.class_name}".'
-                f'\nEncountered exception: {format_exception_msg(e)}'
+                f'\nEncountered exception: {String.format_exception_msg(e)}'
             )
 
     @classproperty
@@ -518,13 +518,13 @@ class MappedParameters(Parameters, ABC):
         for key, val in list(cls._mapping.items()):
             if is_list_like(key):
                 for k in key:
-                    cls._mapping[str_normalize(k)] = val
+                    cls._mapping[String.str_normalize(k)] = val
             else:
-                cls._mapping[str_normalize(key)] = val
+                cls._mapping[String.str_normalize(key)] = val
 
     @root_validator(pre=True)
     def check_mapped_params(cls, params: Dict) -> Dict:
-        if not str_normalize(params['name']) in cls._mapping:
+        if not String.str_normalize(params['name']) in cls._mapping:
             raise ValueError(
                 f'''`name`="{params['name']}" was not found in the lookup. '''
                 f'''Valid values for `name`: {set(cls._mapping.keys())}'''
@@ -550,7 +550,7 @@ class MappedParameters(Parameters, ABC):
         return cls(args=args, **kwargs)
 
     def mapped_callable(self) -> Any:
-        return self._mapping[str_normalize(self.name)]
+        return self._mapping[String.str_normalize(self.name)]
 
     @property
     def kwargs(self) -> Dict:

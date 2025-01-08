@@ -3,7 +3,7 @@ from abc import abstractmethod, ABC
 import time, io, json, pathlib, numpy as np
 from math import inf
 from fmcore.constants import FileFormat, Storage, FileContents, MLTypeSchema, FILE_FORMAT_TO_FILE_ENDING_MAP
-from fmcore.util.language import as_list, classproperty, format_exception_msg, safe_validate_arguments, filter_kwargs, \
+from fmcore.util.language import as_list, classproperty, String, safe_validate_arguments, filter_kwargs, \
     get_default, shuffle_items
 from fmcore.util import String, FileSystemUtil, Parameters, Registry, Log, Alias
 from fmcore.util.aws import S3Util
@@ -146,7 +146,7 @@ class Reader(Parameters, Registry, ABC):
                 Log.debug(f'Took {String.readable_seconds(end - start)} to read from stream.')
             return obj
         except Exception as e:
-            Log.error(format_exception_msg(e))
+            Log.error(String.format_exception_msg(e))
         raise IOError(f'Cannot read from stream of type "{type(stream)}"')
 
     @abstractmethod
@@ -194,7 +194,7 @@ class Reader(Parameters, Registry, ABC):
                 Log.debug(f'Took {String.readable_seconds(end - start)} to read from url: "{url}"')
             return obj
         except Exception as e:
-            Log.error(format_exception_msg(e))
+            Log.error(String.format_exception_msg(e))
         raise IOError(f'Cannot read from url: "{url}"')
 
     @abstractmethod
@@ -292,7 +292,7 @@ class Reader(Parameters, Registry, ABC):
                 )
             return obj
         except Exception as e:
-            Log.error(format_exception_msg(e))
+            Log.error(String.format_exception_msg(e))
             raise IOError(f'Cannot read from local path "{local_path}"')
 
     @abstractmethod
@@ -372,8 +372,8 @@ class Reader(Parameters, Registry, ABC):
                 )
             return obj
         except Exception as e:
-            Log.error(format_exception_msg(e))
-            raise IOError(f'Cannot read file from S3 path "{s3_path}":\n{format_exception_msg(e)}')
+            Log.error(String.format_exception_msg(e))
+            raise IOError(f'Cannot read file from S3 path "{s3_path}":\n{String.format_exception_msg(e)}')
 
     @abstractmethod
     @safe_validate_arguments

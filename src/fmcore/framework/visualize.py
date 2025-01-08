@@ -1,7 +1,7 @@
 from typing import *
 from abc import ABC, abstractmethod
 from fmcore.constants import VisualizationBackend, AVAILABLE_VISUALIZATION_BACKENDS, VISUALIZATION_BACKEND_DEPENDENCIES
-from fmcore.util import Parameters, Registry, optional_dependency, safe_validate_arguments, as_list, str_normalize, \
+from fmcore.util import Parameters, Registry, optional_dependency, safe_validate_arguments, as_list, String, \
     is_abstract, all_are_not_none, all_are_none, get_default
 from fmcore.framework.task_data import Dataset
 from fmcore.framework.predictions import Predictions
@@ -73,7 +73,7 @@ class Visualization(Parameters, Registry, ABC):
     @classmethod
     def _registry_keys(cls) -> Optional[Union[List[Any], Any]]:
         return [
-            (str_normalize(name), cls.backend)
+            (String.str_normalize(name), cls.backend)
             for name in (cls.class_name,) + cls.aliases
         ]
 
@@ -86,14 +86,14 @@ class Visualization(Parameters, Registry, ABC):
         if isinstance(key, tuple) and len(key) == 2:
             if (isinstance(key[0], (str, type))) and VisualizationBackend.matches_any(key[1]):
                 key = (
-                    str_normalize(key[0].__name__ if isinstance(key[0], type) else key[0]),
-                    str_normalize(VisualizationBackend.from_str(key[1])),
+                    String.str_normalize(key[0].__name__ if isinstance(key[0], type) else key[0]),
+                    String.str_normalize(VisualizationBackend.from_str(key[1])),
                 )
         elif isinstance(key, str):
             ## Assume it is the class name:
             Subclasses: Set[Type] = set()
             for registry_key, class_dict in cls._registry.items():
-                if str_normalize(key) == str_normalize(registry_key[0]):
+                if String.str_normalize(key) == String.str_normalize(registry_key[0]):
                     for Subclass in class_dict.values():
                         Subclasses.add(Subclass)
             if len(Subclasses) == 1:

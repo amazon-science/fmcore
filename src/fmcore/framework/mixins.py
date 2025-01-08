@@ -13,8 +13,8 @@ from fmcore.data.reader import AssetReader, DataFrameReader
 from fmcore.data.sdf import TensorScalableSeries
 from fmcore.util import MutableParameters, Registry, FractionalBool, resolve_fractional_bool, Schema, SchemaTemplate, \
     String, random_sample, safe_validate_arguments, get_default, run_concurrent, accumulate, as_list, \
-    str_normalize, optional_dependency, create_progress_bar, TqdmProgressBar, is_null, \
-    format_exception_msg, is_abstract, only_item, is_list_or_set_like, accumulate, equal, as_set, \
+    optional_dependency, create_progress_bar, TqdmProgressBar, is_null, \
+    String, is_abstract, only_item, is_list_or_set_like, accumulate, equal, as_set, \
     pd_partial_column_order, get_fn_args, ProgressBar, Alias
 from fmcore.util.schema import Schema, SchemaTemplate
 from fmcore.constants import Task, TaskOrStr, MLTypeSchema, MLType, DataLayout, MLTypeOrStr, DataPosition, \
@@ -50,17 +50,17 @@ class TaskRegistryMixin(MutableParameters, ABC):
                 ## Key = (TaskOrStr, class name)
                 if Task.matches_any(key[0]) and (isinstance(key[1], (str, type))):
                     key = (
-                        str_normalize(Task.from_str(key[0])),
-                        str_normalize(key[1].__name__ if isinstance(key[1], type) else key[1]),
+                        String.str_normalize(Task.from_str(key[0])),
+                        String.str_normalize(key[1].__name__ if isinstance(key[1], type) else key[1]),
                     )
                 elif isinstance(key[0], str) and isinstance(key[1], (str, type)):
                     key = (
-                        str_normalize(str_normalize(key[0])),
-                        str_normalize(key[1].__name__ if isinstance(key[1], type) else key[1]),
+                        String.str_normalize(String.str_normalize(key[0])),
+                        String.str_normalize(key[1].__name__ if isinstance(key[1], type) else key[1]),
                     )
             return super().get_subclass(key=key, **kwargs)
         elif task is not None:
-            task: str = str_normalize(task)
+            task: str = String.str_normalize(task)
             concrete_subclasses: Dict[str, Type] = {}
             for key, subclasses_dict in cls._registry.items():
                 if not isinstance(key, tuple) or len(key) != 2:
@@ -73,7 +73,7 @@ class TaskRegistryMixin(MutableParameters, ABC):
                     concrete_subclasses[Subclass.__class__.__name__] = Subclass
             return only_item(list(concrete_subclasses.values()), raise_error=False)
         elif name is not None:
-            name: str = str_normalize(name)
+            name: str = String.str_normalize(name)
             concrete_subclasses: Dict[str, Type] = {}
             for key, subclasses_dict in cls._registry.items():
                 for subclass_name, Subclass in subclasses_dict.items():
@@ -188,7 +188,7 @@ class InputOutputDataMixin(TaskRegistryMixin, ABC):
                 raise ValueError(
                     f"Invalid value for param `data_schema`:\n"
                     f"{params['data_schema']}:\nStacktrace:\n"
-                    f"{format_exception_msg(e)}"
+                    f"{String.format_exception_msg(e)}"
                 )
             try:
                 cls.validate_data(data=params['data'], data_schema=params['data_schema'])
@@ -196,7 +196,7 @@ class InputOutputDataMixin(TaskRegistryMixin, ABC):
                 raise ValueError(
                     f"Invalid value for param `data`:\n"
                     f"{params['data']}:\nStacktrace:\n"
-                    f"{format_exception_msg(e)}"
+                    f"{String.format_exception_msg(e)}"
                 )
         return params
 
@@ -309,7 +309,7 @@ class InputOutputDataMixin(TaskRegistryMixin, ABC):
     def _registry_keys(cls) -> Optional[Union[List[Any], Any]]:
         tasks: List = as_list(cls.tasks)
         return tasks + [
-            (task, str_normalize(cls.class_name))
+            (task, String.str_normalize(cls.class_name))
             for task in tasks
         ]
 
@@ -741,7 +741,7 @@ class InputOutputDataMixin(TaskRegistryMixin, ABC):
         self.in_memory(raise_error=raise_error)
         asset_readers: Dict[str, Optional[AssetReader]] = get_default(asset_readers, {})
         assets: Dict[str, ScalableSeries] = {}
-        tensor_layout: Optional[DataLayout] = SHORTHAND_TO_TENSOR_LAYOUT_MAP.get(str_normalize(tensor_type), None)
+        tensor_layout: Optional[DataLayout] = SHORTHAND_TO_TENSOR_LAYOUT_MAP.get(String.str_normalize(tensor_type), None)
         ## Create futures to read all assets:
         for asset_mltype in ASSET_ML_TYPES:
             for col, col_mltype in self.columns(mltypes=asset_mltype, return_mltypes=True):
@@ -810,7 +810,7 @@ class InputOutputDataMixin(TaskRegistryMixin, ABC):
             **kwargs,
     ) -> InputOutputDataMixin:
         self.in_memory(raise_error=raise_error)
-        tensor_layout: Optional[DataLayout] = SHORTHAND_TO_TENSOR_LAYOUT_MAP.get(str_normalize(tensor_type), None)
+        tensor_layout: Optional[DataLayout] = SHORTHAND_TO_TENSOR_LAYOUT_MAP.get(String.str_normalize(tensor_type), None)
         if tensor_layout is None:
             raise ValueError(f'Must pass a valid value of `tensor_type`; found `tensor_type`={tensor_type}')
         for asset_mltype in ASSET_ML_TYPES:

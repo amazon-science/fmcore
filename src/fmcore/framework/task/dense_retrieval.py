@@ -2,7 +2,7 @@ from typing import *
 from abc import ABC, abstractmethod
 import time, glob, os, sys, boto3, numpy as np, pandas as pd, json, requests, gc, math, multiprocessing as mp
 from fmcore.util import is_list_like, Parameters, MappedParameters, optional_dependency, Registry, append_to_keys, \
-    MutableParameters, Schema, only_item, set_param_from_alias, random_sample, as_tuple, as_list, str_normalize, \
+    MutableParameters, Schema, only_item, set_param_from_alias, random_sample, as_tuple, as_list, \
     INDEX_COL_DEFAULT_NAME, AutoEnum, auto, safe_validate_arguments, type_str, Timer, String, get_default, Alias
 from fmcore.data import ScalableDataFrame, ScalableSeries, ScalableSeriesRawType, ScalableDataFrameRawType, \
     FileMetadata
@@ -91,9 +91,9 @@ with optional_dependency('faiss'):
                 'vector_dim', 'vector_size', 'ndim', 'dim', 'd', 'embedding_size', 'embedding_dim', 'embedding_ndim',
             ])
 
-            index_name: str = str_normalize(params['name'])
+            index_name: str = String.str_normalize(params['name'])
             index_to_distance_metrics: Dict[str, DistanceMetric] = {
-                str_normalize(k): v for k, v in cls._INDEX_TO_DISTANCE_METRICS.items()
+                String.str_normalize(k): v for k, v in cls._INDEX_TO_DISTANCE_METRICS.items()
             }
             distance_metric: Optional[DistanceMetric] = params.get('distance_metric')
             if distance_metric is None:

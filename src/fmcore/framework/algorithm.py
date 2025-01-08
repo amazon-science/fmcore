@@ -5,8 +5,8 @@ import numpy as np
 import time, traceback, pickle, gc, os, tempfile
 from fmcore.constants import FileFormat, DataLayout, MLType, DataSplit, MLTypeSchema, Storage
 from fmcore.util import Registry, MutableParameters, Parameters, FractionalBool, resolve_fractional_bool, as_list, \
-    random_sample, safe_validate_arguments, Log, any_are_none, as_set, str_normalize, \
-    all_are_none, all_are_not_none, is_abstract, flatten1d, get_default, Schema, format_exception_msg, \
+    random_sample, safe_validate_arguments, Log, any_are_none, as_set, String, \
+    all_are_none, all_are_not_none, is_abstract, flatten1d, get_default, Schema, String, \
     remove_nulls, String, is_function, get_fn_args
 from fmcore.util.aws import S3Util
 from fmcore.data import FileMetadata, ScalableDataFrame, ScalableSeries, Asset, ScalableDataFrameOrRaw
@@ -50,9 +50,9 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
     def _registry_keys(cls) -> Optional[Union[List[Any], Any]]:
         tasks: List = as_list(cls.tasks)
         return tasks + \
-               [(task, str_normalize(cls.class_name)) for task in tasks] + \
+               [(task, String.str_normalize(cls.class_name)) for task in tasks] + \
                [
-                   (task, str_normalize(alias))
+                   (task, String.str_normalize(alias))
                    for task in tasks
                    for alias in cls.aliases
                ]
@@ -185,7 +185,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
                 raise ValueError(
                     f'Cannot load algorithm and task from "{model_dir.path}"; '
                     f'found model params file with contents:\n{model_params}.'
-                    f'\nError: {format_exception_msg(e)}'
+                    f'\nError: {String.format_exception_msg(e)}'
                 )
         if all_are_not_none(name, task):
             if isinstance(name, type):
@@ -394,7 +394,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
                 self.num_steps_trained += 1
                 self.num_rows_trained += len(batch)
             except Exception as e:
-                Log.error(format_exception_msg(e))
+                Log.error(String.format_exception_msg(e))
                 raise e
             train_step_metrics: Dict = get_default(train_step_metrics, {})
             if not isinstance(train_step_metrics, dict):
@@ -511,7 +511,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
                 # print(f'(pid={os.getpid()}): predicting on batch of size {len(batch)}')
                 predictions: Any = self.predict_step(batch, **kwargs)  ## Actually predict on the batch.
             except Exception as e:
-                Log.error(format_exception_msg(e))
+                Log.error(String.format_exception_msg(e))
                 raise e
             predictions: Predictions = self._create_predictions(
                 batch,
@@ -645,7 +645,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
         try:
             return metric.evaluate(predictions, inplace=False)
         except Exception as e:
-            Log.error(format_exception_msg(e))
+            Log.error(String.format_exception_msg(e))
             Log.warning(
                 f'\nError, please see stack trace above. Could not calculate metric for "{metric.display_name}"'
                 f'\nThis metric will not be included in the output. Calculating other metrics...'

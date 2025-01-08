@@ -59,89 +59,6 @@ _PUNCTUATION_REMOVAL_TABLE_WITH_LOWERCASE_AND_SPACE_AND_NUMBERS = str.maketrans(
 )
 
 
-def punct_normalize(x: str, *, lowercase: bool = True, space: bool = True, numbers: bool = False) -> str:
-    punct_table = {
-        (False, False, False): _PUNCTUATION_REMOVAL_TABLE,
-        (True, False, False): _PUNCTUATION_REMOVAL_TABLE_WITH_LOWERCASE,
-        (False, True, False): _PUNCTUATION_REMOVAL_TABLE_WITH_SPACE,
-        (True, True, False): _PUNCTUATION_REMOVAL_TABLE_WITH_LOWERCASE_AND_SPACE,
-
-        (False, False, True): _PUNCTUATION_REMOVAL_TABLE_WITH_NUMBERS,
-        (True, False, True): _PUNCTUATION_REMOVAL_TABLE_WITH_LOWERCASE_AND_NUMBERS,
-        (False, True, True): _PUNCTUATION_REMOVAL_TABLE_WITH_SPACE_AND_NUMBERS,
-        (True, True, True): _PUNCTUATION_REMOVAL_TABLE_WITH_LOWERCASE_AND_SPACE_AND_NUMBERS,
-    }[(lowercase, space, numbers)]
-    return str(x).translate(punct_table)
-
-
-def whitespace_normalize(text: str, remove_newlines: bool = False):
-    ## Remove trailing whitespace at the end of each line
-    text: str = re.sub(r'\s+$', '', text, flags=re.MULTILINE)
-
-    if remove_newlines:
-        text: str = text.replace('\n', '')
-    else:
-        ## Replace double newlines with single newlines
-        text: str = re.sub(r'\n\n+', '\n', text)
-
-    ## Replace double spaces with single spaces
-    text: str = re.sub(r'  +', ' ', text)
-    return text.strip()
-
-
-def format_exception_msg(ex: Exception, short: bool = False, prefix: str = '[ERROR]') -> str:
-    ## Ref: https://stackoverflow.com/a/64212552
-    tb = ex.__traceback__
-    trace = []
-    while tb is not None:
-        trace.append({
-            "filename": tb.tb_frame.f_code.co_filename,
-            "function_name": tb.tb_frame.f_code.co_name,
-            "lineno": tb.tb_lineno
-        })
-        tb = tb.tb_next
-    out = f'{prefix}: {type(ex).__name__}: "{str(ex)}"'
-    if short:
-        out += '\nTrace: '
-        for trace_line in trace:
-            out += f'{trace_line["filename"]}#{trace_line["lineno"]}; '
-    else:
-        out += '\nTraceback:'
-        for trace_line in trace:
-            out += f'\n\t{trace_line["filename"]} line {trace_line["lineno"]}, in {trace_line["function_name"]}...'
-    return out.strip()
-
-
-def str_format_args(x: str, named_only: bool = True) -> List[str]:
-    ## Ref: https://stackoverflow.com/a/46161774/4900327
-    args: List[str] = [
-        str(tup[1]) for tup in string.Formatter().parse(x)
-        if tup[1] is not None
-    ]
-    if named_only:
-        args: List[str] = [
-            arg for arg in args
-            if not arg.isdigit() and len(arg) > 0
-        ]
-    return args
-
-
-def str_normalize(x: str, *, remove: Optional[Union[str, Tuple, List, Set]] = (' ', '-', '_')) -> str:
-    ## Found to be faster than .translate() and re.sub() on Python 3.10.6
-    if remove is None:
-        remove: Set[str] = set()
-    if isinstance(remove, str):
-        remove: Set[str] = set(remove)
-    assert isinstance(remove, (list, tuple, set))
-    if len(remove) == 0:
-        return str(x).lower()
-    out: str = str(x)
-    for rem in set(remove).intersection(set(out)):
-        out: str = out.replace(rem, '')
-    out: str = out.lower()
-    return out
-
-
 class NeverFailJsonEncoder(json.JSONEncoder):
     def default(self, obj):
         # print(f'Running NeverFailJsonEncoder')
@@ -182,6 +99,55 @@ class NeverFailJsonEncoder(json.JSONEncoder):
                 obj_members.append(f'{k_str}={v_str}')
             obj_members_str: str = ', '.join(obj_members)
             return f'{obj.__class__.__name__}({obj_members_str})'
+
+
+## Taken from: https://github.com/django/django/blob/master/django/utils/baseconv.py#L101
+class BaseConverter:
+    decimal_digits: str = '0123456789'
+
+    def __init__(self, digits, sign='-'):
+        self.sign = sign
+        self.digits = digits
+        if sign in self.digits:
+            raise ValueError('Sign character found in converter base digits.')
+
+    def __repr__(self):
+        return "<%s: base%s (%s)>" % (self.__class__.__name__, len(self.digits), self.digits)
+
+    def encode(self, i):
+        neg, value = self.convert(i, self.decimal_digits, self.digits, '-')
+        if neg:
+            return self.sign + value
+        return value
+
+    def decode(self, s):
+        neg, value = self.convert(s, self.digits, self.decimal_digits, self.sign)
+        if neg:
+            value = '-' + value
+        return int(value)
+
+    def convert(self, number, from_digits, to_digits, sign):
+        if str(number)[0] == sign:
+            number = str(number)[1:]
+            neg = 1
+        else:
+            neg = 0
+
+        # make an integer out of the number
+        x = 0
+        for digit in str(number):
+            x = x * len(from_digits) + from_digits.index(digit)
+
+        # create the result in base 'len(to_digits)'
+        if x == 0:
+            res = to_digits[0]
+        else:
+            res = ''
+            while x > 0:
+                digit = x % len(to_digits)
+                res = to_digits[digit] + res
+                x = int(x // len(to_digits))
+        return neg, res
 
 
 class String:
@@ -246,60 +212,12 @@ class String:
     ALPHABET_CAPS: Tuple[str, ...] = tuple('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')
     ALPHABET_CAPS_NO_DIGITS: Tuple[str, ...] = tuple('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
 
-    ## Taken from: https://github.com/django/django/blob/master/django/utils/baseconv.py#L101
     BASE2_ALPHABET: str = '01'
     BASE16_ALPHABET: str = '0123456789ABCDEF'
     BASE56_ALPHABET: str = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz'
     BASE36_ALPHABET: str = '0123456789abcdefghijklmnopqrstuvwxyz'
     BASE62_ALPHABET: str = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
     BASE64_ALPHABET: str = BASE62_ALPHABET + '-_'
-
-    class BaseConverter:
-        decimal_digits: str = '0123456789'
-
-        def __init__(self, digits, sign='-'):
-            self.sign = sign
-            self.digits = digits
-            if sign in self.digits:
-                raise ValueError('Sign character found in converter base digits.')
-
-        def __repr__(self):
-            return "<%s: base%s (%s)>" % (self.__class__.__name__, len(self.digits), self.digits)
-
-        def encode(self, i):
-            neg, value = self.convert(i, self.decimal_digits, self.digits, '-')
-            if neg:
-                return self.sign + value
-            return value
-
-        def decode(self, s):
-            neg, value = self.convert(s, self.digits, self.decimal_digits, self.sign)
-            if neg:
-                value = '-' + value
-            return int(value)
-
-        def convert(self, number, from_digits, to_digits, sign):
-            if str(number)[0] == sign:
-                number = str(number)[1:]
-                neg = 1
-            else:
-                neg = 0
-
-            # make an integer out of the number
-            x = 0
-            for digit in str(number):
-                x = x * len(from_digits) + from_digits.index(digit)
-
-            # create the result in base 'len(to_digits)'
-            if x == 0:
-                res = to_digits[0]
-            else:
-                res = ''
-                while x > 0:
-                    digit = x % len(to_digits)
-                    res = to_digits[digit] + res
-                    x = int(x // len(to_digits))
-            return neg, res
 
     BASE_CONVERTER_MAP: Dict[int, BaseConverter] = {
         2: BaseConverter(BASE2_ALPHABET),
@@ -309,6 +227,89 @@ class String:
         62: BaseConverter(BASE62_ALPHABET),
         64: BaseConverter(BASE64_ALPHABET, sign='$'),
     }
+
+    @classmethod
+    def str_normalize(cls, x: str, *, remove: Optional[Union[str, Tuple, List, Set]] = (' ', '-', '_')) -> str:
+        ## Found to be faster than .translate() and re.sub() on Python 3.10.6
+        if remove is None:
+            remove: Set[str] = set()
+        if isinstance(remove, str):
+            remove: Set[str] = set(remove)
+        assert isinstance(remove, (list, tuple, set))
+        if len(remove) == 0:
+            return str(x).lower()
+        out: str = str(x)
+        for rem in set(remove).intersection(set(out)):
+            out: str = out.replace(rem, '')
+        out: str = out.lower()
+        return out
+
+    @classmethod
+    def punct_normalize(cls, x: str, *, lowercase: bool = True, space: bool = True, numbers: bool = False) -> str:
+        punct_table = {
+            (False, False, False): _PUNCTUATION_REMOVAL_TABLE,
+            (True, False, False): _PUNCTUATION_REMOVAL_TABLE_WITH_LOWERCASE,
+            (False, True, False): _PUNCTUATION_REMOVAL_TABLE_WITH_SPACE,
+            (True, True, False): _PUNCTUATION_REMOVAL_TABLE_WITH_LOWERCASE_AND_SPACE,
+
+            (False, False, True): _PUNCTUATION_REMOVAL_TABLE_WITH_NUMBERS,
+            (True, False, True): _PUNCTUATION_REMOVAL_TABLE_WITH_LOWERCASE_AND_NUMBERS,
+            (False, True, True): _PUNCTUATION_REMOVAL_TABLE_WITH_SPACE_AND_NUMBERS,
+            (True, True, True): _PUNCTUATION_REMOVAL_TABLE_WITH_LOWERCASE_AND_SPACE_AND_NUMBERS,
+        }[(lowercase, space, numbers)]
+        return str(x).translate(punct_table)
+
+    @classmethod
+    def whitespace_normalize(cls, text: str, remove_newlines: bool = False):
+        ## Remove trailing whitespace at the end of each line
+        text: str = re.sub(r'\s+$', '', text, flags=re.MULTILINE)
+
+        if remove_newlines:
+            text: str = text.replace('\n', '')
+        else:
+            ## Replace double newlines with single newlines
+            text: str = re.sub(r'\n\n+', '\n', text)
+
+        ## Replace double spaces with single spaces
+        text: str = re.sub(r'  +', ' ', text)
+        return text.strip()
+
+    @classmethod
+    def format_exception_msg(cls, ex: Exception, short: bool = False, prefix: str = '[ERROR]') -> str:
+        ## Ref: https://stackoverflow.com/a/64212552
+        tb = ex.__traceback__
+        trace = []
+        while tb is not None:
+            trace.append({
+                "filename": tb.tb_frame.f_code.co_filename,
+                "function_name": tb.tb_frame.f_code.co_name,
+                "lineno": tb.tb_lineno
+            })
+            tb = tb.tb_next
+        out = f'{prefix}: {type(ex).__name__}: "{str(ex)}"'
+        if short:
+            out += '\nTrace: '
+            for trace_line in trace:
+                out += f'{trace_line["filename"]}#{trace_line["lineno"]}; '
+        else:
+            out += '\nTraceback:'
+            for trace_line in trace:
+                out += f'\n\t{trace_line["filename"]} line {trace_line["lineno"]}, in {trace_line["function_name"]}...'
+        return out.strip()
+
+    @classmethod
+    def str_format_args(cls, x: str, named_only: bool = True) -> List[str]:
+        ## Ref: https://stackoverflow.com/a/46161774/4900327
+        args: List[str] = [
+            str(tup[1]) for tup in string.Formatter().parse(x)
+            if tup[1] is not None
+        ]
+        if named_only:
+            args: List[str] = [
+                arg for arg in args
+                if not arg.isdigit() and len(arg) > 0
+            ]
+        return args
 
     @classmethod
     def assert_not_empty_and_strip(cls, string: str, error_message: str = '') -> str:

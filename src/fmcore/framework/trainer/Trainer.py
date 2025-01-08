@@ -12,7 +12,7 @@ from fmcore.framework.predictions import Predictions, save_predictions
 from fmcore.framework.tracker import Tracker, DEFAULT_TRACKER_PARAMS
 from fmcore.util import Parameters, Registry, FractionalBool, random_sample, safe_validate_arguments, String, \
     any_are_not_none, any_are_none, is_function, as_list, get_default, set_param_from_alias, classproperty, \
-    optional_dependency, all_are_not_none, all_are_none, Timer, type_str, format_exception_msg, NeverFailJsonEncoder, Alias
+    optional_dependency, all_are_not_none, all_are_none, Timer, type_str, String, NeverFailJsonEncoder, Alias
 from pydantic import root_validator, Extra, conint
 from pydantic.typing import Literal
 
@@ -59,7 +59,7 @@ class SaveDatasetOrPredictions(Metric):
                     raise NotImplementedError(f'Cannot save object of type: {type_str(data)}')
             return data
         except Exception as e:
-            return format_exception_msg(e, short=True, prefix='Failed')
+            return String.format_exception_msg(e, short=True, prefix='Failed')
 
 
 class CompressPredictions(Metric):  ## Hack to get predictions out of Ray Tune.

@@ -6,8 +6,7 @@ from fmcore.constants import Parallelize, Task, DataSplit, TaskOrStr, MLType, St
 from fmcore.util import Alias, type_str, optional_dependency, ignore_stdout_and_stderr, dispatch, accumulate, \
     as_list, flatten1d, iter_batches, accumulate_iter, get_default, parameterized_flatten, remove_nulls, \
     only_key, dispatch_executor, Timer, EnvUtil, set_param_from_alias, all_are_none, all_are_not_none, \
-    ignore_warnings_and_stdout, best_k, whitespace_normalize, str_normalize, punct_normalize, remove_keys, String, \
-    multiple_are_not_none, format_exception_msg, entropy, plotsum
+    ignore_warnings_and_stdout, best_k, remove_keys, multiple_are_not_none, String, entropy, plotsum
 from fmcore.framework import Dataset, Predictions, TabularMetric, Metric, CountingMetric, PercentageMetric, Evaluator, \
     Metrics, Datasets, Trainer, FileMetadata, SaveDatasetOrPredictions, load_predictions, Chain, ChainExecution, \
     RayTuneTrainer, RayTuneTrainerFinalModelsError, RayTuneTrainerTuneError
@@ -154,7 +153,7 @@ class RagasMetricBase(TabularMetric, ABC):
 
     def _create_llm_evaluator(self) -> Evaluator:
         evaluator_class: str = 'ray'
-        if str_normalize(self.params.algorithm) in {str_normalize('langchain'), str_normalize('bedrock')}:
+        if String.str_normalize(self.params.algorithm) in {String.str_normalize('langchain'), String.str_normalize('bedrock')}:
             evaluator_class: str = 'local'
 
         llm_evaluator: Evaluator = Evaluator.of(
@@ -263,8 +262,8 @@ Supported: """.strip() + ' '
 
         @root_validator(pre=False)
         def _set_faithfulness_params(cls, params: Dict) -> Dict:
-            if punct_normalize(params['algorithm']) in {punct_normalize('bedrock')} \
-                    and punct_normalize('anthropic.claude') in punct_normalize(
+            if String.punct_normalize(params['algorithm']) in {String.punct_normalize('bedrock')} \
+                    and String.punct_normalize('anthropic.claude') in String.punct_normalize(
                 params['hyperparams'].get('model_name', '')):
                 for repl in as_list(params['claude_replacements']):
                     params['statement_extraction_prompt']: str = params['statement_extraction_prompt'].replace(
@@ -410,14 +409,14 @@ Supported: """.strip() + ' '
 
     @staticmethod
     def _statement_parser(statements: str, *, ignore_prefixes: List[str]) -> Optional[List[str]]:
-        statements: str = whitespace_normalize(statements)
+        statements: str = String.whitespace_normalize(statements)
         statements_list: List[str] = []
         for stmt in statements.split('\n'):
             include_stmt: bool = True
-            if len(punct_normalize(stmt)) == 0:
+            if len(String.punct_normalize(stmt)) == 0:
                 include_stmt: bool = False
             for prefix in ignore_prefixes:
-                if punct_normalize(stmt).startswith(punct_normalize(prefix)):
+                if String.punct_normalize(stmt).startswith(String.punct_normalize(prefix)):
                     include_stmt: bool = False
             if include_stmt is True:
                 statements_list.append(stmt)
@@ -513,14 +512,14 @@ Supported: """.strip() + ' '
         from bs4 import BeautifulSoup as BS
         verdict: Optional[Any] = BS(verification_text).find('verdict')
         if verdict is not None:
-            verdict: str = punct_normalize(verdict.text).strip().capitalize()
+            verdict: str = String.punct_normalize(verdict.text).strip().capitalize()
             if len(verdict) == 0:
                 return None
         else:
             verdict_idx: int = verification_text.lower().find(verdict_prefix)
             if verdict_idx == -1:
                 return None
-            verdict: str = punct_normalize(verification_text[verdict_idx + len(verdict_prefix):]).strip().capitalize()
+            verdict: str = String.punct_normalize(verification_text[verdict_idx + len(verdict_prefix):]).strip().capitalize()
         if verdict.startswith('Yes'):
             return 'Yes'
         if verdict.startswith('No'):
@@ -542,7 +541,7 @@ Supported: """.strip() + ' '
             return isinstance(single_statement_parsed, str) and len(single_statement_parsed) > 0
 
         def parsed_verdict_is_valid(verdict: Optional[str]):
-            return punct_normalize(verdict) in {punct_normalize('Yes'), punct_normalize('No')}
+            return String.punct_normalize(verdict) in {String.punct_normalize('Yes'), String.punct_normalize('No')}
 
         def parsed_thinking_is_valid(thinking: Optional[str]):
             return isinstance(thinking, str) and len(thinking) > 0
@@ -550,7 +549,7 @@ Supported: """.strip() + ' '
         def is_faithful(verdict: Optional[str]):
             if verdict is None:
                 return None
-            return punct_normalize(verdict) in {punct_normalize('Yes')}
+            return String.punct_normalize(verdict) in {String.punct_normalize('Yes')}
 
         faithfulness_df: pd.DataFrame = rag_gens_verification.data.pandas()
         faithfulness_df[self.FAITHFUL] = faithfulness_df[
@@ -569,7 +568,7 @@ Supported: """.strip() + ' '
 
         faithfulness_metrics['num_yes_verdicts']: int = faithfulness_df[
             self.VERIFICATION_VERDICT
-        ].value_counts().get(punct_normalize('Yes').capitalize(), 0)
+        ].value_counts().get(String.punct_normalize('Yes').capitalize(), 0)
 
         # faithfulness_metrics['faithful_avg']: float = faithfulness_df[
         #     self.FAITHFUL
@@ -638,8 +637,8 @@ Relevant Sentences: """.strip() + ' '
 
         @root_validator(pre=False)
         def _set_context_relevance_params(cls, params: Dict) -> Dict:
-            if punct_normalize(params['algorithm']) in {punct_normalize('bedrock')} \
-                    and punct_normalize('anthropic.claude') in punct_normalize(
+            if String.punct_normalize(params['algorithm']) in {String.punct_normalize('bedrock')} \
+                    and String.punct_normalize('anthropic.claude') in String.punct_normalize(
                 params['hyperparams'].get('model_name', '')):
                 for repl in as_list(params['claude_replacements']):
                     params['relevant_context_extraction_prompt']: str = params[
@@ -880,7 +879,7 @@ Relevant Sentences: """.strip() + ' '
     def _context_parser(cls, context: str) -> Optional[List[str]]:
         if not isinstance(context, str):
             return None
-        context: str = whitespace_normalize(context).strip()
+        context: str = String.whitespace_normalize(context).strip()
         if len(context) == 0:
             return None
         context_sentences_list: List[str] = context.split('\n')
@@ -892,10 +891,10 @@ Relevant Sentences: """.strip() + ' '
     def _relevant_context_parser(cls, relevant_context: str) -> Optional[Union[List[str], str]]:
         if not isinstance(relevant_context, str):
             return None
-        relevant_context: str = whitespace_normalize(relevant_context).strip()
+        relevant_context: str = String.whitespace_normalize(relevant_context).strip()
         if len(relevant_context) == 0:
             return None
-        if punct_normalize(relevant_context) == punct_normalize(cls.INSUFFICIENT_INFORMATION):
+        if String.punct_normalize(relevant_context) == String.punct_normalize(cls.INSUFFICIENT_INFORMATION):
             return cls.INSUFFICIENT_INFORMATION
         relevant_context_sentences_list: List[str] = relevant_context.split('\n')
         if len(relevant_context_sentences_list) == 0:
@@ -1637,7 +1636,7 @@ class TextGenerationStudent(Metric):
         if final_model_results.num_errors > 0:
             msg = f'\n{final_model_results.num_errors} model failures were encountered during training final models:'
             msg += '\n\n'.join([
-                f'Error#{err_i + 1}:\n{format_exception_msg(err)}'
+                f'Error#{err_i + 1}:\n{String.format_exception_msg(err)}'
                 for err_i, err in enumerate(final_model_results.errors)
             ]) + '\n'
             raise RayTuneTrainerFinalModelsError(msg)

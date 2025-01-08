@@ -7,7 +7,7 @@ from typing import *
 import numpy as np
 
 from fmcore.constants.DataProcessingConstants import Status
-from fmcore.util.language import ProgressBar, type_str, get_default, first_item, format_exception_msg, AutoEnum, auto, Alias
+from fmcore.util.language import ProgressBar, type_str, get_default, first_item, String, AutoEnum, auto, Alias
 from fmcore.util.language._import import _IS_RAY_INSTALLED
 
 if _IS_RAY_INSTALLED:
@@ -152,7 +152,7 @@ def retry(
                 return out
         except Exception as e:
             num_failures += 1
-            latest_exception = format_exception_msg(e)
+            latest_exception = String.format_exception_msg(e)
             if not silent:
                 print(f'Function call failed with the following exception (attempts: {retry_num + 1}):\n{latest_exception}')
                 if retry_num < (retries - 1):

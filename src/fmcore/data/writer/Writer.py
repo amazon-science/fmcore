@@ -4,7 +4,7 @@ from abc import abstractmethod, ABC
 from fmcore.constants import FileFormat, MLType, MLTypeSchema, Storage, FileContents, FILE_FORMAT_TO_FILE_ENDING_MAP
 from fmcore.util.aws import S3Util
 from fmcore.util import Parameters, AutoEnum, auto, FileSystemUtil, String, Registry, Log, as_list, \
-    filter_kwargs, format_exception_msg, classproperty, safe_validate_arguments
+    filter_kwargs, String, classproperty, safe_validate_arguments
 from fmcore.data.FileMetadata import FileMetadata
 from pydantic import root_validator, constr, confloat, conint, Extra
 
@@ -147,7 +147,7 @@ class Writer(Parameters, Registry, ABC):
         except Exception as e:
             if raise_error:
                 raise e
-            Log.error(format_exception_msg(e))
+            Log.error(String.format_exception_msg(e))
             return False
 
     @abstractmethod
@@ -228,7 +228,7 @@ class Writer(Parameters, Registry, ABC):
         except Exception as e:
             if raise_error:
                 raise e
-            Log.error(format_exception_msg(e))
+            Log.error(String.format_exception_msg(e))
             return False
 
     @abstractmethod
@@ -299,7 +299,7 @@ class Writer(Parameters, Registry, ABC):
         except Exception as e:
             if raise_error:
                 raise e
-            Log.error(format_exception_msg(e))
+            Log.error(String.format_exception_msg(e))
             return False
 
     @abstractmethod

@@ -3,7 +3,7 @@ from abc import abstractmethod, ABC
 import os, time, logging, sys, shutil, numpy as np, pandas as pd, gc, warnings
 from contextlib import contextmanager
 from fmcore.util import optional_dependency, set_param_from_alias, Parameters, get_default, safe_validate_arguments, \
-    ignore_warnings, EnvUtil, str_format_args, format_exception_msg, MappedParameters, retry, Log
+    ignore_warnings, EnvUtil, MappedParameters, retry, Log
 from fmcore.framework import Dataset
 from fmcore.framework.task.text_generation import GenerativeLM, Prompts, GENERATED_TEXTS_COL
 from fmcore.data import FileMetadata
@@ -67,7 +67,7 @@ with optional_dependency('langchain'):
         def predict_step(self, batch: Prompts, **kwargs) -> Any:
             prompt_template: PromptTemplate = PromptTemplate(
                 template=batch.prompt_template,
-                input_variables=str_format_args(batch.prompt_template),
+                input_variables=String.str_format_args(batch.prompt_template),
                 template_format='f-string',
             )
             llm_chain: LLMChain = LLMChain(
@@ -86,7 +86,7 @@ with optional_dependency('langchain'):
                         silent=False,
                     )
                 except Exception as e:
-                    Log.error(format_exception_msg(e))
+                    Log.error(String.format_exception_msg(e))
                     generated_text: str = ''
                 generated_texts.append(generated_text)
             return {

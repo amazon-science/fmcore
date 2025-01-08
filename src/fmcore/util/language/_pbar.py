@@ -9,7 +9,7 @@ from tqdm.std import tqdm as StdTqdmProgressBar
 from ._alias import set_param_from_alias
 from ._function import get_fn_spec
 from ._import import optional_dependency, _IS_RAY_INSTALLED
-from ._string import format_exception_msg
+from ._string import String
 from ._structs import filter_keys, remove_keys, is_list_or_set_like, is_dict_like
 from ._typing import Parameters, MutableParameters
 
@@ -260,5 +260,5 @@ def create_progress_bar(
         kwargs['ncols'] = ncols
         kwargs['smoothing'] = smoothing
         raise ValueError(
-            f'Error: could not create progress bar using settings: {kwargs}. Stack trace:\n{format_exception_msg(e)}'
+            f'Error: could not create progress bar using settings: {kwargs}. Stack trace:\n{String.format_exception_msg(e)}'
         )

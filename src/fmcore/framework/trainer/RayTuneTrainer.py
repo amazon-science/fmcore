@@ -20,9 +20,9 @@ from fmcore.framework.task_data import DataSplit, Datasets, Dataset
 from fmcore.framework.tracker.Tracker import Tracker
 from fmcore.framework.trainer.Trainer import Trainer, KFold
 from fmcore.util import RayInitConfig
-from fmcore.util import set_param_from_alias, MappedParameters, str_normalize, append_to_keys, \
-    parameterized_flatten, FileSystemUtil, get_default, all_are_not_none, safe_validate_arguments, String, Log, \
-    pd_partial_column_order, Timer, format_exception_msg, retry, any_are_not_none, is_null, type_str
+from fmcore.util import set_param_from_alias, MappedParameters, append_to_keys, \
+    parameterized_flatten, FileSystemUtil, get_default, all_are_not_none, safe_validate_arguments, Log, \
+    pd_partial_column_order, Timer, String, retry, any_are_not_none, is_null, type_str
 from fmcore.util.language._import import _IS_RAY_INSTALLED
 
 RayTuneTrainer = "RayTuneTrainer"
@@ -354,14 +354,14 @@ if _IS_RAY_INSTALLED:
             except Exception as e:
                 raise ValueError(
                     f'Could not fetch Algorithm class using key "{str(AlgorithmClass)}" using Algorithm Registry having '
-                    f'following classes:\n{Algorithm.subclasses()}\nError encountered:\n{format_exception_msg(e)}'
+                    f'following classes:\n{Algorithm.subclasses()}\nError encountered:\n{String.format_exception_msg(e)}'
                 )
             try:
                 self.hyperparams: Algorithm.Hyperparameters = AlgorithmClass.Hyperparameters(**config)
             except Exception as e:
                 raise ValueError(
                     f'Could not create Hyperparameters instance for Algorithm "{str(self.AlgorithmClass)}" '
-                    f'using following config:\n{config}\nError encountered:\n{format_exception_msg(e)}'
+                    f'using following config:\n{config}\nError encountered:\n{String.format_exception_msg(e)}'
                 )
 
             self.epochs: Optional[int] = None
@@ -648,7 +648,7 @@ if _IS_RAY_INSTALLED:
                         f'Successfully copied final trained model to "{save_model_destination_dir.path}".',
                     )
                 except Exception as e:
-                    print(format_exception_msg(e))
+                    print(String.format_exception_msg(e))
             self.model.cleanup()
 
 
@@ -762,7 +762,7 @@ if _IS_RAY_INSTALLED:
                     'minimize': 'min',
                     'max': 'max',
                     'maximize': 'max',
-                }[str_normalize(params['objective_type'])]
+                }[String.str_normalize(params['objective_type'])]
                 params['search_space']: Dict[str, HyperparameterSearchSpace] = {
                     hp_name: HyperparameterSearchSpace.of(hp_search_space)
                     for hp_name, hp_search_space in params['search_space'].items()
@@ -888,7 +888,7 @@ if _IS_RAY_INSTALLED:
                             final_model_failure_behavior=self.final_model_failure_behavior,
                         )
                     except Exception as e:
-                        main_logger(f'Error while logging metrics:\n{format_exception_msg(e)}')
+                        main_logger(f'Error while logging metrics:\n{String.format_exception_msg(e)}')
                         pass
                     timer.stop()
                     main_logger(self._train_end_msg(timer=timer, tracker=tracker))
@@ -957,13 +957,13 @@ if _IS_RAY_INSTALLED:
                                 final_model_failure_behavior=self.final_model_failure_behavior,
                             )
                         except Exception as e:
-                            main_logger(f'Error while logging metrics:\n{format_exception_msg(e)}')
+                            main_logger(f'Error while logging metrics:\n{String.format_exception_msg(e)}')
                             pass
                     timer.stop()
                     main_logger(self._train_end_msg(timer=timer, tracker=tracker))
             except Exception as e:
                 error_msg: str = f'Ray tuning job failed with the following error:' \
-                                 f'\n{format_exception_msg(e, short=False)}'
+                                 f'\n{String.format_exception_msg(e, short=False)}'
                 if final_model_results is not None:
                     error_msg += f'\nWe were able to capture the {tune.ResultGrid} for the final model; ' \
                                  f'it is the first returned result from {self.class_name}.train(...) function.'

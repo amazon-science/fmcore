@@ -8,7 +8,7 @@ from fmcore.data import FileMetadata
 from fmcore.framework.tracker.Tracker import Tracker
 from fmcore.util import optional_dependency, only_item, safe_validate_arguments, String, \
     all_are_true, all_are_false, any_are_not_none, any_are_none, FileSystemUtil, as_list, get_default, \
-    set_param_from_alias, Log, format_exception_msg, JupyterNotebook, get_fn_args, keep_keys
+    set_param_from_alias, Log, String, JupyterNotebook, get_fn_args, keep_keys
 from collections import deque
 from pydantic import root_validator, Extra, conint
 

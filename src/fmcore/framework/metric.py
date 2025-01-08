@@ -1,17 +1,19 @@
-from typing import *
-import math, copy, io, pickle
-from abc import ABC, abstractmethod
-import numpy as np, pandas as pd
-from scipy import stats as sps
-from fmcore.constants import DataSplit, MLType, AggregationStrategy, Parallelize
-from fmcore.util import Parameters, MutableParameters, Registry, String, classproperty, as_list, \
-    safe_validate_arguments, get_default, set_param_from_alias, str_normalize, dispatch, dispatch_executor, \
-    accumulate, accumulate_iter, partial_sort, is_function, fn_str, as_set, format_exception_msg, is_null, Log, \
-    ProgressBar, Alias
-from fmcore.util.language._import import _IS_RAY_INSTALLED
-from fmcore.data.sdf import ScalableDataFrame
-from pydantic import constr, conint, confloat, root_validator
+import copy
+import math
+from abc import ABC
 from functools import singledispatchmethod
+from typing import *
+
+import numpy as np
+import pandas as pd
+from pydantic import constr, conint, root_validator
+
+from fmcore.constants import DataSplit, MLType, AggregationStrategy, Parallelize
+from fmcore.data.sdf import ScalableDataFrame
+from fmcore.util import Parameters, MutableParameters, Registry, classproperty, as_list, \
+    safe_validate_arguments, get_default, set_param_from_alias, String, dispatch, dispatch_executor, \
+    accumulate, accumulate_iter, partial_sort, is_function, fn_str, as_set, String, is_null, ProgressBar, Alias
+from fmcore.util.language._import import _IS_RAY_INSTALLED
 
 Metric = "Metric"
 Metrics = "Metrics"
@@ -123,7 +125,7 @@ class Metric(MutableParameters, Registry):
             try:
                 return MetricClass(**kwargs)
             except Exception as e:
-                raise ValueError(f'Cannot create metric with kwargs:\n{kwargs}\nError: {format_exception_msg(e)}')
+                raise ValueError(f'Cannot create metric with kwargs:\n{kwargs}\nError: {String.format_exception_msg(e)}')
         raise NotImplementedError(f'Unsupported value for `name`; found {type(name)} with following value:\n{name}')
 
     def clear(self) -> Metric:
@@ -293,7 +295,7 @@ class AggregatedPercentageMetric(PercentageMetric, ABC):
                 'strategy', 'combine', 'agg_strategy', 'combination', 'agg', 'combination_strategy',
             ])
             if params.get('aggregation') is not None:
-                if str_normalize(params['aggregation']) in {str_normalize('mean'), str_normalize('avg')}:
+                if String.str_normalize(params['aggregation']) in {String.str_normalize('mean'), String.str_normalize('avg')}:
                     params['aggregation']: AggregationStrategy = AggregationStrategy.AVERAGE
             return params
 
@@ -374,7 +376,7 @@ class Metrics(MutableParameters):
         try:
             return cls(metrics=metrics_kwargs)
         except Exception as e:
-            raise ValueError(f'Failed to create Metrics object.\nnError: {format_exception_msg(e)}')
+            raise ValueError(f'Failed to create Metrics object.\nnError: {String.format_exception_msg(e)}')
 
     @root_validator(pre=True)
     def set_metrics(cls, params: Dict):
@@ -564,7 +566,7 @@ class Metrics(MutableParameters):
             try:
                 evaluated_metrics_list.append(accumulate(metric_fut))
             except Exception as e:
-                error_msg: str = f'Error while calculating metric {metric.display_name}:\n{format_exception_msg(e)}'
+                error_msg: str = f'Error while calculating metric {metric.display_name}:\n{String.format_exception_msg(e)}'
                 if allow_partial_metrics:
                     print(error_msg)
                 else:
@@ -629,7 +631,7 @@ class Metrics(MutableParameters):
         except Exception as e:
             error_msg: str = f'Failed to evaluate compute-only metric "{compute_only_metric.name}" ' \
                              f'with params {compute_only_metric.params}:' \
-                             f'\n{format_exception_msg(e, short=False)}'
+                             f'\n{String.format_exception_msg(e, short=False)}'
             raise MetricEvaluationError(error_msg)
 
     @staticmethod
@@ -645,7 +647,7 @@ class Metrics(MutableParameters):
         except Exception as e:
             error_msg: str = f'Failed to evaluate rolling metric "{rolling_metric.name}" ' \
                              f'with params {rolling_metric.params}:' \
-                             f'\n{format_exception_msg(e, short=False)}'
+                             f'\n{String.format_exception_msg(e, short=False)}'
             raise MetricEvaluationError(error_msg)
 
 

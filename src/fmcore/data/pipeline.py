@@ -5,7 +5,7 @@ from abc import abstractmethod, ABC
 import numpy as np
 import pandas as pd
 from fmcore.util import as_list, is_list_like, AutoEnum, auto, Parameters, UserEnteredParameters, String, \
-    safe_validate_arguments, Log, format_exception_msg, FractionalBool, measure_time_ms, Registry, is_subset, \
+    safe_validate_arguments, Log, String, FractionalBool, measure_time_ms, Registry, is_subset, \
     get_subset, keep_values, filter_string_list, keep_keys, type_str
 from fmcore.constants import ProcessingMode, MLType, MLTypeSchema, FileContents, MissingColumnBehavior
 from fmcore.data.FileMetadata import FileMetadata
@@ -378,7 +378,7 @@ class DataProcessingPipelineStep(Parameters):
                     output_pattern=step_cfg.output,
                 )
         except Exception as e:
-            print(format_exception_msg(e))
+            print(String.format_exception_msg(e))
             raise AttributeError(
                 f'Error while creating data processor of type "{str(DataProcessorClass)}" '
                 f'with params: {str(step_cfg.params)} '

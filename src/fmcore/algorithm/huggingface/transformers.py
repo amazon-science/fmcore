@@ -4,7 +4,7 @@ import os, time, logging, sys, shutil, numpy as np, pandas as pd, gc, warnings
 from math import exp, log, inf
 from contextlib import contextmanager
 from fmcore.util import optional_dependency, set_param_from_alias, Parameters, get_default, safe_validate_arguments, \
-    ignore_warnings, as_list, format_exception_msg, Alias
+    ignore_warnings, as_list, Alias
 from fmcore.data import FileMetadata
 from fmcore.data import ScalableDataFrame, ScalableSeries
 from fmcore.constants import MLType
@@ -208,7 +208,7 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
                     time.sleep(np.random.randint(1, 15))
             raise OSError(
                 f'Failed to load HuggingFace model after 3 tries. '
-                f'Error:\n{format_exception_msg(exc, short=False)}'
+                f'Error:\n{String.format_exception_msg(exc, short=False)}'
             )
 
 

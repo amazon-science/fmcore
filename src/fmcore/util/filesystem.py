@@ -1,6 +1,6 @@
 from typing import *
 import io, json, yaml, os, errno, sys, glob, pathlib, math, copy, time, shutil, pickle
-from fmcore.util.language import as_list, is_list_like, format_exception_msg, remove_values
+from fmcore.util.language import as_list, is_list_like, String, remove_values
 from fmcore.util.language import String
 
 

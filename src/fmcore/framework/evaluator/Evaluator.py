@@ -12,7 +12,7 @@ from fmcore.framework.task_data import Dataset
 from fmcore.framework.predictions import Predictions, load_predictions, save_predictions
 from fmcore.util import Parameters, MutableParameters, Registry, FractionalBool, safe_validate_arguments, String, \
     Timeout, Timeout24Hr, TimeoutNever, all_are_false, accumulate, any_are_none, is_function, as_list, get_default, \
-    random_sample, Log, format_exception_msg, start_daemon, stop_daemon, run_concurrent, NeverFailJsonEncoder, Alias
+    random_sample, Log, String, start_daemon, stop_daemon, run_concurrent, NeverFailJsonEncoder, Alias
 from fmcore.util.aws import S3Util
 from fmcore.constants import _LIBRARY_NAME
 from pydantic import root_validator, Extra, conint, confloat
@@ -560,7 +560,7 @@ class Evaluator(MutableParameters, Registry, ABC):
         try:
             return metric.evaluate(predictions, inplace=False)
         except Exception as e:
-            Log.error(format_exception_msg(e))
+            Log.error(String.format_exception_msg(e))
             Log.warning(
                 f'\nError, please see stack trace above. Could not calculate metric for "{metric.display_name}"'
                 f'\nThis metric will not be included in the output. Calculating other metrics...'

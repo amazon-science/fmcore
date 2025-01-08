@@ -3,7 +3,7 @@ from abc import abstractmethod, ABC
 import os, time, logging, sys, shutil, numpy as np, pandas as pd, gc, warnings, json
 from contextlib import contextmanager
 from fmcore.util import optional_dependency, set_param_from_alias, Parameters, get_default, safe_validate_arguments, \
-    accumulate, dispatch, dispatch_executor, any_are_none, format_exception_msg, any_item, retry, Log, remove_values, as_list, \
+    accumulate, dispatch, dispatch_executor, any_are_none, any_item, retry, Log, remove_values, as_list, \
     stop_executor
 from fmcore.framework import Dataset
 from fmcore.framework.task.text_generation import GenerativeLM, Prompts, GENERATED_TEXTS_COL, TextGenerationParams, \
@@ -259,7 +259,7 @@ with optional_dependency('boto3'):
                     silent=True,
                 )
             except Exception as e:
-                Log.error(format_exception_msg(e))
+                Log.error(String.format_exception_msg(e))
                 return ''
 
         def predict_step(self, batch: Prompts, **kwargs) -> Any:

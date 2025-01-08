@@ -3,7 +3,7 @@ import pathlib, io
 import numpy as np
 from abc import abstractmethod, ABC
 import torch
-from fmcore.util import Parameters, is_null, auto, String, type_str, optional_dependency, Registry, str_normalize
+from fmcore.util import Parameters, is_null, auto, String, type_str, optional_dependency, Registry
 from fmcore.constants import FileFormat, DataLayout, Storage, SHORTHAND_TO_TENSOR_LAYOUT_MAP, MLType, \
     AVAILABLE_TENSOR_TYPES, TENSOR_LAYOUT_TO_SHORTHAND_MAP
 from fmcore.data.FileMetadata import FileMetadata
@@ -45,7 +45,7 @@ class Asset(Parameters, Registry, ABC):
             if DataLayout.matches_any(tensor_layout):
                 tensor_layout: DataLayout = DataLayout.from_str(tensor_layout)
             else:
-                tensor_layout: DataLayout = SHORTHAND_TO_TENSOR_LAYOUT_MAP[str_normalize(tensor_type_or_layout)]
+                tensor_layout: DataLayout = SHORTHAND_TO_TENSOR_LAYOUT_MAP[String.str_normalize(tensor_type_or_layout)]
         if tensor_layout not in TENSOR_LAYOUT_TO_SHORTHAND_MAP:
             raise ValueError(
                 f'Argument `tensor_type_or_layout`: {tensor_layout} is not a valid tensor layout. '
