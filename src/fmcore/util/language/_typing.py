@@ -362,11 +362,6 @@ class Registry(ABC):
         return None
 
 
-class Utility:
-    def __init__(self):
-        raise TypeError(f'Cannot instantiate utility class "{str(self.__class__)}"')
-
-
 ## Ref: https://stackoverflow.com/q/6760685/4900327, Method 2 base class.
 ## The metaclass method in the above link did not work well with multiple inheritance.
 class Singleton:

@@ -9,9 +9,9 @@ import dask.dataframe as dd
 from dask.dataframe.core import DataFrame as DaskDataFrame
 from fmcore.util import as_list, resolve_sample_size, SampleSizeType, Registry, String, get_default, \
     classproperty, accumulate, dispatch, MutableParameters, safe_validate_arguments, is_done, optional_dependency, \
-    multiple_are_not_none, all_are_not_none, is_list_of_dict_like, Parameters, dispatch_executor, Executor
+    multiple_are_not_none, all_are_not_none, is_list_of_dict_like, Parameters, dispatch_executor, Executor, Alias
 from fmcore.constants import DataLayout, SDF_DATA_LAYOUT_PRIORITY, LAZY_SDF_DATA_LAYOUTS, Parallelize, \
-    CompressionEngine, Alias
+    CompressionEngine
 from fmcore.data.sdf.ScalableSeries import ScalableSeries, ScalableSeriesOrRaw
 from pydantic import conint, constr, root_validator
 from pydantic.typing import Literal

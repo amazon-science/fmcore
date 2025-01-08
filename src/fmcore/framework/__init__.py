@@ -1,4 +1,3 @@
-from fmcore.framework.ray_base import *
 from fmcore.framework.task_data import *
 from fmcore.framework.predictions import *
 from fmcore.framework.algorithm import *

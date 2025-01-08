@@ -2,8 +2,8 @@ from typing import *
 from abc import ABC, abstractmethod
 import pandas as pd, numpy as np, ray, math, random, gc, re
 from collections import defaultdict
-from fmcore.constants import Parallelize, Task, DataSplit, TaskOrStr, MLType, Alias, Status, DataLayout
-from fmcore.util import as_tuple, type_str, optional_dependency, ignore_stdout_and_stderr, dispatch, accumulate, \
+from fmcore.constants import Parallelize, Task, DataSplit, TaskOrStr, MLType, Status, DataLayout
+from fmcore.util import Alias, type_str, optional_dependency, ignore_stdout_and_stderr, dispatch, accumulate, \
     as_list, flatten1d, iter_batches, accumulate_iter, get_default, parameterized_flatten, remove_nulls, \
     only_key, dispatch_executor, Timer, EnvUtil, set_param_from_alias, all_are_none, all_are_not_none, \
     ignore_warnings_and_stdout, best_k, whitespace_normalize, str_normalize, punct_normalize, remove_keys, String, \

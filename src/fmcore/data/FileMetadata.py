@@ -1,9 +1,8 @@
 from typing import *
 import pathlib, io, os, requests, tempfile
-from fmcore.util import Parameters, is_null, auto, String, Log, FileSystemUtil, safe_validate_arguments, \
-    optional_dependency, get_default
+from fmcore.util import Parameters, is_null, auto, String, Log, FileSystemUtil, safe_validate_arguments, Alias
 from fmcore.util.aws import S3Util
-from fmcore.constants import FileFormat, FileContents, Storage, REMOTE_STORAGES, FILE_ENDING_TO_FILE_FORMAT_MAP, Alias, \
+from fmcore.constants import FileFormat, FileContents, Storage, REMOTE_STORAGES, FILE_ENDING_TO_FILE_FORMAT_MAP, \
     MLType, MLTypeSchema
 from pydantic import validator, root_validator, constr, FilePath
 

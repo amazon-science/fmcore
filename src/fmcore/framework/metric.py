@@ -3,11 +3,11 @@ import math, copy, io, pickle
 from abc import ABC, abstractmethod
 import numpy as np, pandas as pd, ray
 from scipy import stats as sps
-from fmcore.constants import DataSplit, MLType, AggregationStrategy, Parallelize, Alias
+from fmcore.constants import DataSplit, MLType, AggregationStrategy, Parallelize
 from fmcore.util import Parameters, MutableParameters, Registry, String, classproperty, as_list, \
     safe_validate_arguments, get_default, set_param_from_alias, str_normalize, dispatch, dispatch_executor, \
     accumulate, accumulate_iter, partial_sort, is_function, fn_str, as_set, format_exception_msg, is_null, Log, \
-    ProgressBar
+    ProgressBar, Alias
 from fmcore.data.sdf import ScalableDataFrame
 from pydantic import constr, conint, confloat, root_validator
 from functools import singledispatchmethod

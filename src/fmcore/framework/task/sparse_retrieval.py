@@ -7,12 +7,12 @@ from fmcore.util import is_list_like, Parameters, MappedParameters, optional_dep
     MutableParameters, Schema, only_item, set_param_from_alias, wait, as_tuple, as_list, str_normalize, \
     INDEX_COL_DEFAULT_NAME, AutoEnum, auto, safe_validate_arguments, type_str, Timer, String, get_default, \
     dispatch, dispatch_executor, accumulate, accumulate_iter, ProgressBar, best_k, keep_keys, format_exception_msg, \
-    Executor, iter_batches, get_result, check_isinstance, Log
-from fmcore.framework.ray_base import ActorComposite
+    Executor, iter_batches, get_result, check_isinstance, Log, Alias
+from fmcore.util import ActorComposite
 from fmcore.data import ScalableDataFrame, ScalableSeries, ScalableSeriesRawType, ScalableDataFrameRawType, \
     FileMetadata
 from fmcore.framework import Dataset, load_dataset, Algorithm
-from fmcore.constants import Task, MLType, MLTypeSchema, DataLayout, DataSplit, Alias, Parallelize
+from fmcore.constants import Task, MLType, MLTypeSchema, DataLayout, DataSplit, Parallelize
 from pydantic import Extra, validator, root_validator, conint, constr, confloat
 from fmcore.framework.task.retrieval import RetrievalIndex, RetrievalCorpus, Retriever, Queries, RelevanceAnnotation, \
     RankedResult, RankedResults, QUERY_COL, RETRIEVAL_FORMAT_MSG, RETRIEVAL_RANKED_RESULTS_COL

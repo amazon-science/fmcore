@@ -2,10 +2,10 @@ from typing import *
 from abc import abstractmethod, ABC
 import time, io, json, pathlib, numpy as np
 from math import inf
-from fmcore.constants import FileFormat, Alias, Storage, FileContents, MLTypeSchema, FILE_FORMAT_TO_FILE_ENDING_MAP
+from fmcore.constants import FileFormat, Storage, FileContents, MLTypeSchema, FILE_FORMAT_TO_FILE_ENDING_MAP
 from fmcore.util.language import as_list, classproperty, format_exception_msg, safe_validate_arguments, filter_kwargs, \
     get_default, shuffle_items
-from fmcore.util import String, FileSystemUtil, Parameters, Registry, Log
+from fmcore.util import String, FileSystemUtil, Parameters, Registry, Log, Alias
 from fmcore.util.aws import S3Util
 from fmcore.data.FileMetadata import FileMetadata
 from pydantic import conint, confloat, constr, root_validator, Extra

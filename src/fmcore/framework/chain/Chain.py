@@ -6,9 +6,9 @@ import time, traceback, pickle, gc, os, json
 from fmcore.util import Registry, MutableParameters, Parameters, set_param_from_alias, is_list_like, as_list, \
     random_sample, safe_validate_arguments, format_exception_msg, String, get_fn_spec, Timer, type_str, \
     run_concurrent, get_result, Future, get_default, FunctionSpec, dispatch, is_function, remove_keys, \
-    ProgressBar, stop_executor, only_item, dispatch_executor, Executor, accumulate, accumulate_iter, check_isinstance
+    ProgressBar, stop_executor, only_item, dispatch_executor, Executor, accumulate, accumulate_iter, Alias
 from fmcore.data import FileMetadata, ScalableDataFrame, ScalableSeries, Asset
-from fmcore.constants import Status, Parallelize, Alias, COMPLETED_STATUSES
+from fmcore.constants import Status, Parallelize, COMPLETED_STATUSES
 from fmcore.util.notify import Notifier
 from fmcore.framework.tracker import Tracker
 from functools import partial

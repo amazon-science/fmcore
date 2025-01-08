@@ -23,7 +23,7 @@ from fmcore.framework.predictions import Predictions
 from fmcore.framework.algorithm import Algorithm, TaskOrStr
 from fmcore.framework.metric import Metric, TabularMetric, PercentageMetric, CountingMetric, Metrics, metric_stats_str
 from ray.tune.experiment import Trial, Experiment
-from fmcore.framework.ray_base import RayInitConfig
+from fmcore.util import RayInitConfig
 from pydantic import conint, confloat, root_validator, validator, Extra
 from pydantic.typing import Literal
 from functools import partial

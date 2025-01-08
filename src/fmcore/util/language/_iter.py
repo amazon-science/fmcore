@@ -3,7 +3,8 @@ from typing import *
 import numpy as np
 import pandas as pd
 
-from ._structs import is_set_like, is_dict_like, set_param_from_alias
+from ._alias import Alias
+from ._structs import is_set_like, is_dict_like
 from ._math import is_int_in_floats_clothing
 from ._pbar import ProgressBar
 
@@ -51,8 +52,7 @@ def iter_batches(
         **kwargs
 ) -> Generator[List[Any], None, None]:
     assert isinstance(batch_size, int) and batch_size > 0
-    set_param_from_alias(kwargs, param='progress_bar', alias=['progress', 'pbar'])
-    progress_bar: Union[ProgressBar, Dict, bool] = kwargs.pop('progress_bar', False)
+    progress_bar: Optional[Dict] = Alias.get_progress_bar(kwargs)
     if is_int_in_floats_clothing(struct):
         struct: List[int] = list(range(int(struct)))
     if is_set_like(struct):

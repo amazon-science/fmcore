@@ -1,6 +1,4 @@
 from typing import *
-from collections.abc import ItemsView
-from typing import *
 
 from pydantic import root_validator, Extra, conint
 from pydantic.typing import Literal
@@ -8,10 +6,11 @@ from tqdm.auto import tqdm as AutoTqdmProgressBar
 from tqdm.autonotebook import tqdm as NotebookTqdmProgressBar
 from tqdm.std import tqdm as StdTqdmProgressBar
 
+from ._alias import set_param_from_alias
 from ._function import get_fn_spec
 from ._import import optional_dependency
 from ._string import format_exception_msg
-from ._structs import filter_keys, remove_keys, set_param_from_alias, is_list_or_set_like, is_dict_like
+from ._structs import filter_keys, remove_keys, is_list_or_set_like, is_dict_like
 from ._typing import Parameters, MutableParameters
 
 TqdmProgressBar = Union[AutoTqdmProgressBar, NotebookTqdmProgressBar, StdTqdmProgressBar]

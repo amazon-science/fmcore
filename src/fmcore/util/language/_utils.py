@@ -116,3 +116,8 @@ def is_scalar(x: Any, method: Literal['numpy', 'pandas'] = 'pandas') -> bool:
 
 is_null = lambda z: pd.isnull(z) if is_scalar(z) else (z is None)
 is_not_null = lambda z: not is_null(z)
+
+
+class Utility:
+    def __init__(self):
+        raise TypeError(f'Cannot instantiate utility class "{str(self.__class__)}"')

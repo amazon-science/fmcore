@@ -1,3 +1,4 @@
+from fmcore.util.language._alias import *
 from fmcore.util.language._autoenum import *
 from fmcore.util.language._function import *
 from fmcore.util.language._import import *

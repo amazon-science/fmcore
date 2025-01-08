@@ -20,7 +20,7 @@ from fmcore.framework.predictions import Predictions
 from fmcore.framework.algorithm import Algorithm, TaskOrStr
 from fmcore.framework.metric import Metric, Metrics
 from fmcore.framework.tracker.Tracker import Tracker
-from fmcore.framework.ray_base import RayInitConfig, max_num_resource_actors, ActorComposite, RequestCounter
+from fmcore.util import RayInitConfig, max_num_resource_actors, ActorComposite, RequestCounter
 from pydantic import Extra, conint, confloat, constr, root_validator, validator
 from pydantic.typing import Literal
 

@@ -1,8 +1,37 @@
 from typing import *
-from fmcore.util import AutoEnum, auto, Utility, set_param_from_alias
+from ._utils import Utility, get_default
 
 
-class AliasMeta(type):
+def set_param_from_alias(
+        params: Dict,
+        param: str,
+        alias: Union[Tuple[str, ...], List[str], Set[str], str],
+        remove_alias: bool = True,
+        prioritize_aliases: bool = False,
+        default: Optional[Any] = None,
+):
+    if isinstance(alias, (list, tuple, set)):
+        alias: List = list(alias)
+    elif isinstance(alias, str):
+        alias: str = alias.strip()
+        assert len(alias) > 0
+        alias: List = [alias]
+    else:
+        raise NotImplementedError(f'Invalid argument alias of type {type(alias)}')
+    if prioritize_aliases:
+        param_names: List = alias + [param]
+    else:
+        param_names: List = [param] + alias
+    if remove_alias:
+        value: Optional[Any] = get_default(*[params.pop(param_name, None) for param_name in param_names], default)
+    else:
+        value: Optional[Any] = get_default(*[params.get(param_name, None) for param_name in param_names], default)
+    if value is not None:
+        ## If none are set, use default value:
+        params[param] = value
+
+
+class _AliasMeta(type):
 
     def __getattr__(cls, attr_name: str) -> Callable:
         if attr_name.startswith('get_'):
@@ -27,7 +56,7 @@ class AliasMeta(type):
         )
 
 
-class Alias(Utility, metaclass=AliasMeta):
+class Alias(Utility, metaclass=_AliasMeta):
 
     @classmethod
     def set_AlgorithmClass(cls, params: Dict, param: str = 'AlgorithmClass', **kwargs):

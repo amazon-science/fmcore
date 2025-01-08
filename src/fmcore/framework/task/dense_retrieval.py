@@ -3,12 +3,12 @@ from abc import ABC, abstractmethod
 import time, glob, os, sys, boto3, numpy as np, pandas as pd, json, requests, gc, math, multiprocessing as mp
 from fmcore.util import is_list_like, Parameters, MappedParameters, optional_dependency, Registry, append_to_keys, \
     MutableParameters, Schema, only_item, set_param_from_alias, random_sample, as_tuple, as_list, str_normalize, \
-    INDEX_COL_DEFAULT_NAME, AutoEnum, auto, safe_validate_arguments, type_str, Timer, String, get_default
+    INDEX_COL_DEFAULT_NAME, AutoEnum, auto, safe_validate_arguments, type_str, Timer, String, get_default, Alias
 from fmcore.data import ScalableDataFrame, ScalableSeries, ScalableSeriesRawType, ScalableDataFrameRawType, \
     FileMetadata
 from fmcore.framework import Dataset, Predictions, Algorithm, load_predictions
 from fmcore.framework.task.embedding import Embedder, Embeddings, EmbeddingData, EMBEDDINGS_COL
-from fmcore.constants import Task, MLType, MLTypeSchema, DataLayout, DataSplit, Alias, FailureAction, Parallelize
+from fmcore.constants import Task, MLType, MLTypeSchema, DataLayout, DataSplit, FailureAction, Parallelize
 from pydantic import Extra, validator, root_validator, conint, constr
 from fmcore.framework.task.retrieval import Retriever, RetrievalIndex, RetrievalCorpus, Queries, RankedResult, \
     RankedResults, RelevanceAnnotation, QUERY_COL, RETRIEVAL_FORMAT_MSG, RETRIEVAL_RANKED_RESULTS_COL, DistanceMetric

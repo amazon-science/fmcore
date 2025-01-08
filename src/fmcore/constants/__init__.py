@@ -1,4 +1,3 @@
-from fmcore.constants.Alias import *
 from fmcore.constants.DataProcessingConstants import *
 from fmcore.constants.MLConstants import *
 from fmcore.constants.FileConstants import *

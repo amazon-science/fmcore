@@ -9,8 +9,8 @@ import dask.dataframe as dd
 from dask.dataframe.core import DataFrame as DaskDataFrame
 from dask.dataframe.core import Series as DaskSeries
 from fmcore.util import String, Future, Log, accumulate, dispatch, retry as retry_fn, \
-    is_list_like, only_item, get_default, format_exception_msg, Schema, safe_validate_arguments, ProgressBar
-from fmcore.constants import Storage, FileContents, DataLayout, Parallelize, MLTypeSchema, Alias
+    is_list_like, only_item, get_default, format_exception_msg, Schema, safe_validate_arguments, ProgressBar, Alias
+from fmcore.constants import Storage, FileContents, DataLayout, Parallelize, MLTypeSchema
 from fmcore.data.reader.Reader import Reader
 from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType, ScalableDataFrameOrRaw, \
     is_scalable

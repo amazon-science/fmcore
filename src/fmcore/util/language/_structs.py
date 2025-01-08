@@ -7,10 +7,10 @@ from typing import *
 
 import numpy as np
 import pandas as pd
-from dask.dataframe.core import Series as DaskSeries
 from pandas.core.frame import Series as PandasSeries, DataFrame as PandasDataFrame
 from pydantic.typing import Literal
 
+from ._alias import set_param_from_alias
 from ._autoenum import AutoEnum
 from ._import import optional_dependency
 from ._utils import get_default, is_not_null
@@ -46,8 +46,12 @@ def not_impl(
 
 
 ## ======================== List utils ======================== ##
-def is_list_like(l: Union[List, Tuple, np.ndarray, PandasSeries, DaskSeries]) -> bool:
-    if isinstance(l, (list, tuple, ValuesView, ItemsView, PandasSeries, DaskSeries)):
+def is_list_like(l: Any) -> bool:
+    with optional_dependency('dask'):
+        from dask.dataframe.core import Series as DaskSeries
+        if isinstance(l, (list, tuple, ValuesView, ItemsView, PandasSeries, DaskSeries)):
+            return True
+    if isinstance(l, (list, tuple, ValuesView, ItemsView, PandasSeries)):
         return True
     if isinstance(l, np.ndarray) and l.ndim == 1:
         return True
@@ -893,24 +897,3 @@ with optional_dependency('torch'):
         np.complex128: torch.complex128
     }
     TORCH_TO_NUMPY_DTYPE_MAP = {v: k for k, v in NUMPY_TO_TORCH_DTYPE_MAP.items()}
-
-
-def set_param_from_alias(
-        params: Dict,
-        param: str,
-        alias: Union[Tuple[str, ...], List[str], Set[str], str],
-        remove_alias: bool = True,
-        prioritize_aliases: bool = False,
-        default: Optional[Any] = None,
-):
-    if prioritize_aliases:
-        param_names: List = as_list(alias) + [param]
-    else:
-        param_names: List = [param] + as_list(alias)
-    if remove_alias:
-        value: Optional[Any] = get_default(*[params.pop(param_name, None) for param_name in param_names], default)
-    else:
-        value: Optional[Any] = get_default(*[params.get(param_name, None) for param_name in param_names], default)
-    if value is not None:
-        ## If none are set, use default value:
-        params[param] = value

@@ -5,8 +5,8 @@ from pandas.core.groupby import DataFrameGroupBy as PandasDataFrameGroupBy
 from math import inf, exp, log
 from copy import deepcopy
 from fmcore.util import is_list_like, set_param_from_alias, MappedParameters, Parameters, get_default, as_list, \
-    is_dict_like, as_set, is_even, type_str, ignore_warnings, str_format_args, String, format_exception_msg
-from fmcore.constants import Task, MLType, MLTypeSchema, DataLayout, DataSplit, Alias, FailureAction
+    is_dict_like, as_set, is_even, type_str, ignore_warnings, str_format_args, Alias, format_exception_msg
+from fmcore.constants import Task, MLType, MLTypeSchema, DataLayout, DataSplit, FailureAction
 from fmcore.data import ScalableDataFrame, ScalableSeries, ScalableSeriesRawType, ScalableDataFrameRawType, FileMetadata
 from fmcore.framework import Algorithm, Dataset, Predictions
 from fmcore.framework.task.classification import Classifier, ClassificationData, ClassificationPredictions, \

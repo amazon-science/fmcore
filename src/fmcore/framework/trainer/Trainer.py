@@ -4,7 +4,7 @@ import time, json, math
 from copy import deepcopy
 from abc import abstractmethod, ABC
 from fmcore.data import FileMetadata
-from fmcore.constants import MLType, DataSplit, Task, Alias
+from fmcore.constants import MLType, DataSplit, Task
 from fmcore.framework.algorithm import Algorithm, TaskOrStr
 from fmcore.framework.metric import CountingMetric, Metric, Metrics
 from fmcore.framework.task_data import Dataset, Datasets, save_dataset
@@ -12,7 +12,7 @@ from fmcore.framework.predictions import Predictions, save_predictions
 from fmcore.framework.tracker import Tracker, DEFAULT_TRACKER_PARAMS
 from fmcore.util import Parameters, Registry, FractionalBool, random_sample, safe_validate_arguments, String, \
     any_are_not_none, any_are_none, is_function, as_list, get_default, set_param_from_alias, classproperty, \
-    optional_dependency, all_are_not_none, all_are_none, Timer, type_str, format_exception_msg, NeverFailJsonEncoder
+    optional_dependency, all_are_not_none, all_are_none, Timer, type_str, format_exception_msg, NeverFailJsonEncoder, Alias
 from pydantic import root_validator, Extra, conint
 from pydantic.typing import Literal
 

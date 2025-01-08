@@ -15,11 +15,11 @@ from fmcore.util import MutableParameters, Registry, FractionalBool, resolve_fra
     String, random_sample, safe_validate_arguments, get_default, run_concurrent, accumulate, as_list, \
     str_normalize, optional_dependency, create_progress_bar, TqdmProgressBar, is_null, \
     format_exception_msg, is_abstract, only_item, is_list_or_set_like, accumulate, equal, as_set, \
-    pd_partial_column_order, get_fn_args, ProgressBar
+    pd_partial_column_order, get_fn_args, ProgressBar, Alias
 from fmcore.util.schema import Schema, SchemaTemplate
 from fmcore.constants import Task, TaskOrStr, MLTypeSchema, MLType, DataLayout, MLTypeOrStr, DataPosition, \
     DataSplit, AVAILABLE_TENSOR_TYPES, SHORTHAND_TO_TENSOR_LAYOUT_MAP, Parallelize, FileFormat, ASSET_ML_TYPES, \
-    TensorShortHand, Alias
+    TensorShortHand
 from pydantic import Extra, root_validator, validator, conint, confloat
 from pydantic.typing import Literal
 from fmcore.framework.metric import Metric
