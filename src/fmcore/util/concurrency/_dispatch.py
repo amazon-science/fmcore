@@ -81,7 +81,7 @@ def dispatch_executor(
         config: Dict = config.dict(exclude=True)
     config: ExecutorConfig = ExecutorConfig(**{**config, **kwargs})
     if config.max_workers is None:
-        ## Uses the default executor for threads/processes/ray.
+        ## Uses the default executor for threads/processes/ray
         return None
     if config.parallelize is Parallelize.sync:
         return None

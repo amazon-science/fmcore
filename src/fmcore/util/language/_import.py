@@ -80,3 +80,19 @@ def optional_dependency(
                 msg = f'Missing optional dependency "{missing_module}". Use pip or conda to install.'
                 print(f'Warning: {msg}')
                 __WARNED_OPTIONAL_MODULES.add(missing_module)
+
+
+_IS_RAY_INSTALLED: bool = False
+
+with optional_dependency('ray'):
+    import ray
+
+    _IS_RAY_INSTALLED: bool = True
+
+_IS_DASK_INSTALLED: bool = False
+
+with optional_dependency('dask'):
+    import dask
+    from dask.dataframe import DataFrame as DaskDataFrame
+
+    _IS_DASK_INSTALLED: bool = True

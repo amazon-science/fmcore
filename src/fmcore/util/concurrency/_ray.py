@@ -12,21 +12,44 @@ from typing import *
 
 from pydantic import Extra, conint, confloat
 
-from fmcore.util.language import optional_dependency, Parameters, UserEnteredParameters, String, ProgressBar, as_list, Alias
+from fmcore.util.language import Parameters, UserEnteredParameters, String, ProgressBar, as_list, Alias
+from fmcore.util.language._import import _IS_RAY_INSTALLED, _IS_DASK_INSTALLED
 from ._utils import is_done, wait, get_result, _RAY_ACCUMULATE_ITER_WAIT, _RAY_ACCUMULATE_ITEM_WAIT
 
-_IS_RAY_INSTALLED: bool = False
 RayRuntimeEnv = dict
-with optional_dependency('ray'):
+if _IS_RAY_INSTALLED:
     import ray
-
-    _IS_RAY_INSTALLED: bool = True
     from ray.runtime_env import RuntimeEnv as RayRuntimeEnv
 
 
     @ray.remote(num_cpus=1)
     def _run_parallel_ray_executor(fn, *args, **kwargs):
         return fn(*args, **kwargs)
+
+
+    @ray.remote
+    class RequestCounter:
+        def __init__(self):
+            self.pending_requests: int = 0
+            self.last_started: float = -1
+            self.last_completed: float = -1
+
+        def started_request(self):
+            self.pending_requests += 1
+            self.last_started: time.time()
+
+        def completed_request(self):
+            self.pending_requests -= 1
+            self.last_completed: time.time()
+
+        def num_pending_requests(self) -> int:
+            return self.pending_requests
+
+        def last_started_timestamp(self) -> float:
+            return self.last_started
+
+        def last_completed_timestamp(self) -> float:
+            return self.last_completed
 
 
 def _ray_asyncio_start_event_loop(loop):
@@ -169,7 +192,7 @@ def RayDaskPersistWaitCallback():  ## Dummy contextmanager for cases when ray or
     yield
 
 
-with optional_dependency('ray', 'dask'):
+if _IS_RAY_INSTALLED and _IS_DASK_INSTALLED:
     import ray
     from ray.util.dask import RayDaskCallback
 
@@ -209,35 +232,10 @@ class RayInitConfig(UserEnteredParameters):
     runtime_env: RayRuntimeEnv = {}
 
 
-@ray.remote
-class RequestCounter:
-    def __init__(self):
-        self.pending_requests: int = 0
-        self.last_started: float = -1
-        self.last_completed: float = -1
-
-    def started_request(self):
-        self.pending_requests += 1
-        self.last_started: time.time()
-
-    def completed_request(self):
-        self.pending_requests -= 1
-        self.last_completed: time.time()
-
-    def num_pending_requests(self) -> int:
-        return self.pending_requests
-
-    def last_started_timestamp(self) -> float:
-        return self.last_started
-
-    def last_completed_timestamp(self) -> float:
-        return self.last_completed
+RayActorComposite = "RayActorComposite"
 
 
-ActorComposite = "ActorComposite"
-
-
-class ActorComposite(Parameters):
+class RayActorComposite(Parameters):
     actor_id: str
     actor: Any
     request_counter: Any
@@ -259,7 +257,7 @@ class ActorComposite(Parameters):
             request_counter_num_cpus: float = 0.1,
             request_counter_max_concurrency: int = 1000,
             **kwargs
-    ) -> List[ActorComposite]:
+    ) -> List[RayActorComposite]:
         progress_bar: Optional[Dict] = Alias.get_progress_bar(kwargs)
         actors_progress_bar: ProgressBar = ProgressBar.of(
             progress_bar,
@@ -268,7 +266,7 @@ class ActorComposite(Parameters):
             unit='actors',
         )
         actor_ids: List[str] = as_list(String.random_name(num_actors))
-        actor_composites: List[ActorComposite] = []
+        actor_composites: List[RayActorComposite] = []
         for actor_i, actor_id in zip(range(num_actors), actor_ids):
             request_counter: ray.actor.ActorHandle = RequestCounter.options(
                 num_cpus=request_counter_num_cpus,
@@ -280,7 +278,7 @@ class ActorComposite(Parameters):
                 actor_id=actor_id,
             )
             actor_composites.append(
-                ActorComposite(
+                RayActorComposite(
                     actor_id=actor_id,
                     actor=actor,
                     request_counter=request_counter,

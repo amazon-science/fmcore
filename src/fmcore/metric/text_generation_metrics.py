@@ -1,6 +1,6 @@
 from typing import *
 from abc import ABC, abstractmethod
-import pandas as pd, numpy as np, ray, math, random, gc, re
+import pandas as pd, numpy as np, math, random, gc, re
 from collections import defaultdict
 from fmcore.constants import Parallelize, Task, DataSplit, TaskOrStr, MLType, Status, DataLayout
 from fmcore.util import Alias, type_str, optional_dependency, ignore_stdout_and_stderr, dispatch, accumulate, \
@@ -17,7 +17,6 @@ from fmcore.framework.trainer.RayTuneTrainer import _ray_agg_final_model_metric_
 from fmcore.framework.evaluator.RayEvaluator import LoadBalancingStrategy
 from fmcore.framework.dl.torch import clear_device_cache
 from fmcore.constants import AggregationStrategy
-from ray import tune
 from pydantic import conint, confloat, root_validator, Extra
 from pydantic.typing import Literal
 
@@ -1196,7 +1195,7 @@ with optional_dependency('nltk', 'spacy'):
                 cls,
                 *,
                 weights: Tuple[float, ...],
-                tokenized_docs: Union[List[List[str]], ray.ObjectRef],
+                tokenized_docs: Union[List[List[str]], Any],
                 num_docs: int,
                 batch_size: int,
                 **kwargs,
@@ -1623,6 +1622,7 @@ class TextGenerationStudent(Metric):
                 final_model_failure_behavior='error',
                 verbosity=self.params.verbosity,
             )
+        from ray import tune
         tune_trainer: RayTuneTrainer = Trainer.of(**ray_trainer_params)
         final_model_results, tune_results = tune_trainer.train(
             datasets=Datasets.of(

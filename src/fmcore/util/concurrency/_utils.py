@@ -1,17 +1,17 @@
 """A collection of concurrency utilities to augment the Python language:"""
-## Jupyter-compatible asyncio usage:
 import time
 from concurrent.futures import wait as wait_future
 from concurrent.futures._base import Future
 from typing import *
 
 import numpy as np
-import ray
-from ray.exceptions import GetTimeoutError
 
 from fmcore.constants.DataProcessingConstants import Status
-from fmcore.util.language import ProgressBar, set_param_from_alias, type_str, get_default, first_item, format_exception_msg, \
-    AutoEnum, auto
+from fmcore.util.language import ProgressBar, type_str, get_default, first_item, format_exception_msg, AutoEnum, auto, Alias
+from fmcore.util.language._import import _IS_RAY_INSTALLED
+
+if _IS_RAY_INSTALLED:
+    import ray
 
 _LOCAL_ACCUMULATE_ITEM_WAIT: float = 1e-3  ## 1ms
 _RAY_ACCUMULATE_ITEM_WAIT: float = 10e-3  ## 10ms
@@ -34,7 +34,8 @@ def get_result(
 ) -> Optional[Any]:
     if isinstance(x, Future):
         return get_result(x.result(), wait=wait)
-    if isinstance(x, ray.ObjectRef):
+    if _IS_RAY_INSTALLED and isinstance(x, ray.ObjectRef):
+        from ray.exceptions import GetTimeoutError
         while True:
             try:
                 return ray.get(x, timeout=wait)
@@ -44,13 +45,17 @@ def get_result(
 
 
 def is_future(x) -> bool:
-    return isinstance(x, Future) or isinstance(x, ray.ObjectRef)
+    if isinstance(x, Future):
+        return True
+    elif _IS_RAY_INSTALLED and isinstance(x, ray.ObjectRef):
+        return True
+    return False
 
 
 def is_running(x) -> bool:
     if isinstance(x, Future):
         return x.running()  ## It might be scheduled but not running.
-    if isinstance(x, ray.ObjectRef):
+    if _IS_RAY_INSTALLED and isinstance(x, ray.ObjectRef):
         return not is_done(x)
     return False
 
@@ -58,7 +63,7 @@ def is_running(x) -> bool:
 def is_done(x) -> bool:
     if isinstance(x, Future):
         return x.done()
-    if isinstance(x, ray.ObjectRef):
+    if _IS_RAY_INSTALLED and isinstance(x, ray.ObjectRef):
         ## Ref: docs.ray.io/en/latest/ray-core/tasks.html#waiting-for-partial-results
         done, not_done = ray.wait([x], timeout=0)  ## Immediately check if done.
         return len(done) > 0 and len(not_done) == 0
@@ -106,9 +111,8 @@ def get_status(x) -> Status:
 def wait_if_future(x):
     if isinstance(x, Future):
         wait_future([x])
-    elif isinstance(x, ray.ObjectRef):
+    elif _IS_RAY_INSTALLED and isinstance(x, ray.ObjectRef):
         ray.wait([x])
-
 
 def retry(
         fn,
@@ -166,8 +170,7 @@ def wait(
         **kwargs,
 ) -> NoReturn:
     """Join operation on a single future or a collection of futures."""
-    set_param_from_alias(kwargs, param='progress_bar', alias=['progress', 'pbar'])
-    progress_bar: Union[ProgressBar, Dict, bool] = kwargs.pop('progress_bar', False)
+    progress_bar: Optional[Dict] = Alias.get_progress_bar(kwargs)
 
     if isinstance(futures, (list, tuple, set, np.ndarray)):
         futures: List[Any] = list(futures)
@@ -229,8 +232,7 @@ def accumulate(
         **kwargs,
 ) -> Union[List, Tuple, Set, Dict, Any]:
     """Join operation on a single future or a collection of futures."""
-    set_param_from_alias(kwargs, param='progress_bar', alias=['progress', 'pbar'])
-    progress_bar: Union[ProgressBar, Dict, bool] = kwargs.pop('progress_bar', False)
+    progress_bar: Optional[Dict] = Alias.get_progress_bar(kwargs)
     if isinstance(futures, (list, set, tuple)) and len(futures) > 0:
         if isinstance(first_item(futures), Future):
             item_wait: float = get_default(item_wait, _LOCAL_ACCUMULATE_ITEM_WAIT)
@@ -337,8 +339,7 @@ def accumulate_iter(
     Here we iteratively accumulate and yield completed futures as they have completed.
     This might return them out-of-order.
     """
-    set_param_from_alias(kwargs, param='progress_bar', alias=['progress', 'pbar'])
-    progress_bar: Union[ProgressBar, Dict, bool] = kwargs.pop('progress_bar', False)
+    progress_bar: Optional[Dict] = Alias.get_progress_bar(kwargs)
     pbar: ProgressBar = ProgressBar.of(
         progress_bar,
         total=len(futures),

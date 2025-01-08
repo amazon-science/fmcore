@@ -1,22 +1,27 @@
-import copy
+from collections import Counter
+import functools
+import math
+import multiprocessing as mp
+from collections import Counter
 from typing import *
-from abc import ABC, abstractmethod
-import ray
-import time, glob, os, sys, boto3, numpy as np, pandas as pd, json, requests, gc, math, multiprocessing as mp, functools
-from fmcore.util import is_list_like, Parameters, MappedParameters, optional_dependency, Registry, append_to_keys, \
-    MutableParameters, Schema, only_item, set_param_from_alias, wait, as_tuple, as_list, str_normalize, \
-    INDEX_COL_DEFAULT_NAME, AutoEnum, auto, safe_validate_arguments, type_str, Timer, String, get_default, \
-    dispatch, dispatch_executor, accumulate, accumulate_iter, ProgressBar, best_k, keep_keys, format_exception_msg, \
-    Executor, iter_batches, get_result, check_isinstance, Log, Alias
-from fmcore.util import ActorComposite
+
+import numpy as np
+import pandas as pd
+from pydantic import Extra, root_validator, conint, confloat
+
+from fmcore.constants import MLType, DataLayout, DataSplit, Parallelize
 from fmcore.data import ScalableDataFrame, ScalableSeries, ScalableSeriesRawType, ScalableDataFrameRawType, \
     FileMetadata
 from fmcore.framework import Dataset, load_dataset, Algorithm
-from fmcore.constants import Task, MLType, MLTypeSchema, DataLayout, DataSplit, Parallelize
-from pydantic import Extra, validator, root_validator, conint, constr, confloat
 from fmcore.framework.task.retrieval import RetrievalIndex, RetrievalCorpus, Retriever, Queries, RelevanceAnnotation, \
-    RankedResult, RankedResults, QUERY_COL, RETRIEVAL_FORMAT_MSG, RETRIEVAL_RANKED_RESULTS_COL
-from collections import Counter
+    RankedResult, RankedResults, RETRIEVAL_FORMAT_MSG, RETRIEVAL_RANKED_RESULTS_COL
+from fmcore.util import RayActorComposite
+from fmcore.util import is_list_like, Parameters, MappedParameters, append_to_keys, \
+    MutableParameters, Schema, only_item, set_param_from_alias, wait, INDEX_COL_DEFAULT_NAME, AutoEnum, auto, \
+    safe_validate_arguments, type_str, Timer, String, get_default, \
+    dispatch, dispatch_executor, accumulate, accumulate_iter, ProgressBar, best_k, format_exception_msg, \
+    Executor, get_result, check_isinstance, Log, Alias
+from fmcore.util.language._import import _IS_RAY_INSTALLED
 
 SparseRetrievalIndex = "SparseRetrievalIndex"
 
@@ -702,598 +707,604 @@ class BM25RetrievalIndex(BM25RetrievalIndexBase):
         return batch_ranked_results
 
 
-class RayBM25IndexStoreParams(BM25IndexStoreParams):
-    num_shards: int
-    shard_num_cpus: int = 6
+if _IS_RAY_INSTALLED:
+    import ray
 
 
-@ray.remote
-class BM25IndexStoreActor:
-    def __init__(
-            self,
-            *,
-            actor_id: str,
-            params: BM25IndexStoreParams,
-    ):
-        self.actor_id: str = actor_id
-        self.params: BM25IndexStoreParams = params
-        self.executor = dispatch_executor(
-            parallelize=self.params.indexing_parallelize,
-            max_workers=self.params.indexing_max_workers,
-        )
-        self.index_shard: BM25IndexStore = _create_index_store(
-            self.params,
-            documents=None,
-            executor=self.executor,
-        )
+    class RayBM25IndexStoreParams(BM25IndexStoreParams):
+        num_shards: int
+        shard_num_cpus: int = 6
 
-    def get_actor_id(self) -> str:
-        return self.actor_id
 
-    def get_index_size(self) -> int:
-        return self.index_shard.index_size
-
-    def get_true_index_size(self) -> int:  ## Uses num docs
-        return self.index_shard.true_index_size
-
-    def set_index_size(self, index_size: int):
-        self.index_shard.index_size = get_result(index_size)
-
-    def get_corpus_num_tokens(self) -> int:
-        return self.index_shard.corpus_num_tokens
-
-    def set_corpus_num_tokens(self, corpus_num_tokens: int):
-        self.index_shard.corpus_num_tokens = get_result(corpus_num_tokens)
-
-    def get_token_doc_freqs(self) -> Counter:
-        return self.index_shard.token_doc_freqs
-
-    def set_token_doc_freqs(self, token_doc_freqs: Counter):
-        self.index_shard.token_doc_freqs = get_result(token_doc_freqs)
-
-    def recalculate_token_idfs(self):
-        self.index_shard.recalculate_token_idfs()
-
-    def update_index_shard(
-            self,
-            documents_data: Any,
-            *,
-            documents_params: Dict,
-            params: RayBM25IndexStoreParams,
-            **kwargs,
-    ) -> Union[str, int]:
-        try:
-            documents: Dataset = Dataset.of(
-                **documents_params,
-                data=documents_data,
+    @ray.remote
+    class BM25IndexStoreActor:
+        def __init__(
+                self,
+                *,
+                actor_id: str,
+                params: BM25IndexStoreParams,
+        ):
+            self.actor_id: str = actor_id
+            self.params: BM25IndexStoreParams = params
+            self.executor = dispatch_executor(
+                parallelize=self.params.indexing_parallelize,
+                max_workers=self.params.indexing_max_workers,
             )
-            assert isinstance(documents, RetrievalCorpus)
-            index_store_update: BM25IndexStore = _create_index_store(
-                params=params,
-                documents=documents,
+            self.index_shard: BM25IndexStore = _create_index_store(
+                self.params,
+                documents=None,
                 executor=self.executor,
+            )
+
+        def get_actor_id(self) -> str:
+            return self.actor_id
+
+        def get_index_size(self) -> int:
+            return self.index_shard.index_size
+
+        def get_true_index_size(self) -> int:  ## Uses num docs
+            return self.index_shard.true_index_size
+
+        def set_index_size(self, index_size: int):
+            self.index_shard.index_size = get_result(index_size)
+
+        def get_corpus_num_tokens(self) -> int:
+            return self.index_shard.corpus_num_tokens
+
+        def set_corpus_num_tokens(self, corpus_num_tokens: int):
+            self.index_shard.corpus_num_tokens = get_result(corpus_num_tokens)
+
+        def get_token_doc_freqs(self) -> Counter:
+            return self.index_shard.token_doc_freqs
+
+        def set_token_doc_freqs(self, token_doc_freqs: Counter):
+            self.index_shard.token_doc_freqs = get_result(token_doc_freqs)
+
+        def recalculate_token_idfs(self):
+            self.index_shard.recalculate_token_idfs()
+
+        def update_index_shard(
+                self,
+                documents_data: Any,
+                *,
+                documents_params: Dict,
+                params: RayBM25IndexStoreParams,
                 **kwargs,
-            )
-            self.index_shard.concat_index(index_store_update, recalc_token_idfs=False)
-            return index_store_update.index_size
-        except Exception as e:
-            return format_exception_msg(e)
-
-    def get_top_k_batch(
-            self,
-            queries_batch: ScalableSeries,
-            top_k: int,
-            *,
-            retrieve_documents: bool = True,
-            return_actor_id: bool = False,
-            return_perf: bool = False,
-    ) -> Union[
-        List[List[Tuple[BM25IndexStoreDoc, float]]],
-        List[List[Tuple[str, BM25IndexStoreDoc, float]]],
-        List[List[Tuple[str, BM25IndexStoreDoc, float, Dict]]],
-    ]:
-        actor_id: str = self.actor_id
-        top_k_batch: List[List[Tuple]] = []
-        for query in queries_batch:
-            query_top_k_results, perf = self.index_shard.get_top_k(
-                query,
-                k=top_k,
-                retrieve_documents=retrieve_documents,
-            )
-            if return_actor_id:
-                query_top_k_results: List[Tuple] = [
-                    tuple([actor_id] + list(x))
-                    for x in query_top_k_results
-                ]
-            if return_perf:
-                query_top_k_results: List[Tuple] = [
-                    tuple(list(x) + [perf])
-                    for x in query_top_k_results
-                ]
-            top_k_batch.append(query_top_k_results)
-        return top_k_batch
-
-    def get_docs_by_ids(self, doc_ids: List[str]) -> Dict[str, Optional[BM25IndexStoreDoc]]:
-        return {
-            doc_id: self.index_shard.get_doc_by_id(doc_id)
-            for doc_id in doc_ids
-        }
-
-
-class RayBM25RetrievalIndex(BM25RetrievalIndexBase):
-    aliases = ['BM25-Ray']
-    index: Optional[List[ActorComposite]] = None
-    params: Optional[Union[RayBM25IndexStoreParams, Dict, str]] = None
-    _doc_id_to_doc_cache: Dict[str, Tuple[BM25IndexStoreDoc, str]] = {}
-
-    @root_validator(pre=False)
-    def set_bm25_params(cls, params: Dict) -> Dict:
-        params['params'] = RayBM25IndexStoreParams.of(params['params'])
-        return params
-
-    def initialize(self, **kwargs):
-        def actor_factory(*, actor_id: str, **kwargs):
-            return BM25IndexStoreActor.options(
-                num_cpus=self.params.shard_num_cpus,
-            ).remote(
-                actor_id=actor_id,
-                params=self.params,
-            )
-
-        self.index: List[ActorComposite] = ActorComposite.create_actors(
-            actor_factory,
-            num_actors=self.params.num_shards,
-            progress_bar=True,
-        )
-
-    def _get_index_actor_composite(self, actor_id: str) -> ActorComposite:
-        return only_item([
-            actor_composite for actor_composite in self.index
-            if actor_composite.actor_id == actor_id
-        ])
-
-    @property
-    def index_size(self) -> int:
-        return sum(accumulate([
-            index_actor_composite.actor.get_true_index_size.remote()
-            for index_actor_composite in self.index
-        ], item_wait=1e-3))
-
-    def _update_index_from_corpus_gen(
-            self,
-            corpus_gen: Union[List[RetrievalCorpus], Generator[RetrievalCorpus, None, None]],
-            *,
-            pbar: ProgressBar,
-            indexing_parallelize: Parallelize,
-            indexing_max_workers: int,
-            id_col: str,
-            text_col: str,
-            **kwargs
-    ) -> NoReturn:
-        num_actors: int = len(self.index)
-        rnd_idx: List[int] = list(np.random.permutation(range(num_actors)))
-        index_futs: Dict[int, Any] = {}
-        with Timer(f'Index documents from corpus into distributed shards'):
-            for corpus_shard_i, corpus_shard in enumerate(corpus_gen):
-                assert isinstance(corpus_shard, RetrievalCorpus)
-                ## Select in randomized round-robin order:
-                # print(f'Processing document batch#{corpus_shard_i}.', flush=True)
-                index_actor_composite: ActorComposite = self.index[rnd_idx[corpus_shard_i % num_actors]]
-                index_futs[corpus_shard_i] = index_actor_composite.actor.update_index_shard.remote(**{
+        ) -> Union[str, int]:
+            try:
+                documents: Dataset = Dataset.of(
+                    **documents_params,
+                    data=documents_data,
+                )
+                assert isinstance(documents, RetrievalCorpus)
+                index_store_update: BM25IndexStore = _create_index_store(
+                    params=params,
+                    documents=documents,
+                    executor=self.executor,
                     **kwargs,
-                    **dict(
-                        documents_data=corpus_shard.data,
-                        documents_params={
-                            **corpus_shard.dict(exclude={'data'}),
-                            **dict(data_idx=corpus_shard_i),
-                        },
-                        params=self.params,
-                        id_col=id_col,
-                        text_col=text_col,
-                        parallelize=indexing_parallelize,
-                    ),
-                })
-            for corpus_shard_i, fut_result in accumulate_iter(index_futs, item_wait=1e-3, iter_wait=10e-3):
-                if isinstance(fut_result, str):
-                    pbar.failed()
-                    raise SystemError(f'Error indexing corpus shard {corpus_shard_i}:\n{fut_result}')
-                assert isinstance(fut_result, int)
-                assert fut_result > 0
-                pbar.update(fut_result)
-            pbar.success()
-        with Timer(f'Actor index sizes'):
-            for index_actor_composite in self.index:
-                index_actor: ray.actor.ActorHandle = index_actor_composite.actor
-                print(
-                    f'Actor id: {index_actor_composite.actor_id}, '
-                    f'index size: {get_result(index_actor.get_true_index_size.remote())}'
                 )
-        with Timer(f'Synchronizing index metadata across distributed shards'):
-            ## Next steps:
-            ## (1) docs and doc_token_freqs remain sharded.
-            ## (2) index_size, corpus_num_tokens and token_doc_freqs must be merged & synced between actors
-            ## (3) token_idfs must be recalculated by each actor after this sync.
-            with Timer(f'>> Fetching metadata from distributed shards'):
-                all_index_size: List[int] = []
-                all_corpus_num_tokens: List[int] = []
-                all_token_doc_freqs: List[Counter] = []
-                for index_actor_composite in self.index:
-                    index_actor: ray.actor.ActorHandle = index_actor_composite.actor
-                    all_index_size.append(index_actor.get_true_index_size.remote())
-                    all_corpus_num_tokens.append(index_actor.get_corpus_num_tokens.remote())
-                    all_token_doc_freqs.append(index_actor.get_token_doc_freqs.remote())
-                combined_index_size: int = 0
-                combined_corpus_num_tokens: int = 0
-                combined_token_doc_freqs: Counter = Counter()
-                for shard_index_size, shard_corpus_num_tokens, shard_token_doc_freqs in zip(
-                        accumulate(all_index_size, item_wait=1e-3),
-                        accumulate(all_corpus_num_tokens, item_wait=1e-3),
-                        accumulate(all_token_doc_freqs, item_wait=1e-3),
-                ):
-                    combined_index_size += shard_index_size
-                    combined_corpus_num_tokens += shard_corpus_num_tokens
-                    combined_token_doc_freqs += shard_token_doc_freqs
-            combined_index_size_obj = ray.put(combined_index_size)
-            combined_corpus_num_tokens_obj = ray.put(combined_corpus_num_tokens)
-            combined_token_doc_freqs_obj = ray.put(combined_token_doc_freqs)
-            with Timer(f'>> Broadcasting metadata to distributed shards'):
-                set_index_size_futs: List = []
-                set_corpus_num_tokens_futs: List = []
-                set_token_doc_freqs_futs: List = []
-                for index_actor_composite in self.index:
-                    index_actor: ray.actor.ActorHandle = index_actor_composite.actor
-                    set_index_size_futs.append(index_actor.set_index_size.remote(combined_index_size_obj))
-                    set_corpus_num_tokens_futs.append(index_actor.set_corpus_num_tokens.remote(combined_corpus_num_tokens_obj))
-                    set_token_doc_freqs_futs.append(index_actor.set_token_doc_freqs.remote(combined_token_doc_freqs_obj))
-                wait(set_index_size_futs)
-                wait(set_corpus_num_tokens_futs)
-                wait(set_token_doc_freqs_futs)
-            with Timer(f'>> Recalculating token_idfs on each shard'):
-                recalculate_token_idfs_futs: List = []
-                for index_actor_composite in self.index:
-                    index_actor: ray.actor.ActorHandle = index_actor_composite.actor
-                    recalculate_token_idfs_futs.append(index_actor.recalculate_token_idfs.remote())
-                wait(recalculate_token_idfs_futs)
+                self.index_shard.concat_index(index_store_update, recalc_token_idfs=False)
+                return index_store_update.index_size
+            except Exception as e:
+                return format_exception_msg(e)
 
-    def _retrieve_batch(
-            self,
-            queries_batch: ScalableSeries,
-            top_k: int,
-            retrieve_documents: bool,
-    ) -> List[List[RankedResult]]:
-        num_queries: int = len(queries_batch)
-        num_index_shards: int = len(self.index)
-        with Timer(f'Retrieving {top_k} results for batch of {num_queries} queries from {num_index_shards} index shards'):
-            with Timer(f'>> Retrieving {top_k} results for {num_queries} queries from each index shard'):
-                actors_top_k_results: Dict[str, List[List[Tuple[str, BM25IndexStoreDoc, float, Dict]]]] = {}
+        def get_top_k_batch(
+                self,
+                queries_batch: ScalableSeries,
+                top_k: int,
+                *,
+                retrieve_documents: bool = True,
+                return_actor_id: bool = False,
+                return_perf: bool = False,
+        ) -> Union[
+            List[List[Tuple[BM25IndexStoreDoc, float]]],
+            List[List[Tuple[str, BM25IndexStoreDoc, float]]],
+            List[List[Tuple[str, BM25IndexStoreDoc, float, Dict]]],
+        ]:
+            actor_id: str = self.actor_id
+            top_k_batch: List[List[Tuple]] = []
+            for query in queries_batch:
+                query_top_k_results, perf = self.index_shard.get_top_k(
+                    query,
+                    k=top_k,
+                    retrieve_documents=retrieve_documents,
+                )
+                if return_actor_id:
+                    query_top_k_results: List[Tuple] = [
+                        tuple([actor_id] + list(x))
+                        for x in query_top_k_results
+                    ]
+                if return_perf:
+                    query_top_k_results: List[Tuple] = [
+                        tuple(list(x) + [perf])
+                        for x in query_top_k_results
+                    ]
+                top_k_batch.append(query_top_k_results)
+            return top_k_batch
+
+        def get_docs_by_ids(self, doc_ids: List[str]) -> Dict[str, Optional[BM25IndexStoreDoc]]:
+            return {
+                doc_id: self.index_shard.get_doc_by_id(doc_id)
+                for doc_id in doc_ids
+            }
+
+
+    class RayBM25RetrievalIndex(BM25RetrievalIndexBase):
+        aliases = ['BM25-Ray']
+        index: Optional[List[RayActorComposite]] = None
+        params: Optional[Union[RayBM25IndexStoreParams, Dict, str]] = None
+        _doc_id_to_doc_cache: Dict[str, Tuple[BM25IndexStoreDoc, str]] = {}
+
+        @root_validator(pre=False)
+        def set_bm25_params(cls, params: Dict) -> Dict:
+            params['params'] = RayBM25IndexStoreParams.of(params['params'])
+            return params
+
+        def initialize(self, **kwargs):
+            def actor_factory(*, actor_id: str, **kwargs):
+                return BM25IndexStoreActor.options(
+                    num_cpus=self.params.shard_num_cpus,
+                ).remote(
+                    actor_id=actor_id,
+                    params=self.params,
+                )
+
+            self.index: List[RayActorComposite] = RayActorComposite.create_actors(
+                actor_factory,
+                num_actors=self.params.num_shards,
+                progress_bar=True,
+            )
+
+        def _get_index_actor_composite(self, actor_id: str) -> RayActorComposite:
+            return only_item([
+                actor_composite for actor_composite in self.index
+                if actor_composite.actor_id == actor_id
+            ])
+
+        @property
+        def index_size(self) -> int:
+            return sum(accumulate([
+                index_actor_composite.actor.get_true_index_size.remote()
+                for index_actor_composite in self.index
+            ], item_wait=1e-3))
+
+        def _update_index_from_corpus_gen(
+                self,
+                corpus_gen: Union[List[RetrievalCorpus], Generator[RetrievalCorpus, None, None]],
+                *,
+                pbar: ProgressBar,
+                indexing_parallelize: Parallelize,
+                indexing_max_workers: int,
+                id_col: str,
+                text_col: str,
+                **kwargs
+        ) -> NoReturn:
+            num_actors: int = len(self.index)
+            rnd_idx: List[int] = list(np.random.permutation(range(num_actors)))
+            index_futs: Dict[int, Any] = {}
+            with Timer(f'Index documents from corpus into distributed shards'):
+                for corpus_shard_i, corpus_shard in enumerate(corpus_gen):
+                    assert isinstance(corpus_shard, RetrievalCorpus)
+                    ## Select in randomized round-robin order:
+                    # print(f'Processing document batch#{corpus_shard_i}.', flush=True)
+                    index_actor_composite: RayActorComposite = self.index[rnd_idx[corpus_shard_i % num_actors]]
+                    index_futs[corpus_shard_i] = index_actor_composite.actor.update_index_shard.remote(**{
+                        **kwargs,
+                        **dict(
+                            documents_data=corpus_shard.data,
+                            documents_params={
+                                **corpus_shard.dict(exclude={'data'}),
+                                **dict(data_idx=corpus_shard_i),
+                            },
+                            params=self.params,
+                            id_col=id_col,
+                            text_col=text_col,
+                            parallelize=indexing_parallelize,
+                        ),
+                    })
+                for corpus_shard_i, fut_result in accumulate_iter(index_futs, item_wait=1e-3, iter_wait=10e-3):
+                    if isinstance(fut_result, str):
+                        pbar.failed()
+                        raise SystemError(f'Error indexing corpus shard {corpus_shard_i}:\n{fut_result}')
+                    assert isinstance(fut_result, int)
+                    assert fut_result > 0
+                    pbar.update(fut_result)
+                pbar.success()
+            with Timer(f'Actor index sizes'):
                 for index_actor_composite in self.index:
                     index_actor: ray.actor.ActorHandle = index_actor_composite.actor
-                    actors_top_k_results[index_actor_composite.actor_id] = index_actor.get_top_k_batch.remote(
-                        queries_batch,
-                        top_k=top_k,
-                        retrieve_documents=False,
-                        return_actor_id=True,
-                        return_perf=True,
+                    print(
+                        f'Actor id: {index_actor_composite.actor_id}, '
+                        f'index size: {get_result(index_actor.get_true_index_size.remote())}'
                     )
-                actors_top_k_results: Dict[str, List[List[Tuple[str, BM25IndexStoreDoc, float, Dict]]]] = accumulate(
-                    actors_top_k_results,
-                    progress_bar=True,
-                    item_wait=1e-3,
-                    iter_wait=100e-3,
-                )
-                self._log_perf(actors_top_k_results, num_queries=num_queries, top_k=top_k, num_index_shards=num_index_shards)
-            with Timer(f'>> Retrieving missing documents to populate cache'):
-                self._populate_docs_cache(actors_top_k_results)
+            with Timer(f'Synchronizing index metadata across distributed shards'):
+                ## Next steps:
+                ## (1) docs and doc_token_freqs remain sharded.
+                ## (2) index_size, corpus_num_tokens and token_doc_freqs must be merged & synced between actors
+                ## (3) token_idfs must be recalculated by each actor after this sync.
+                with Timer(f'>> Fetching metadata from distributed shards'):
+                    all_index_size: List[int] = []
+                    all_corpus_num_tokens: List[int] = []
+                    all_token_doc_freqs: List[Counter] = []
+                    for index_actor_composite in self.index:
+                        index_actor: ray.actor.ActorHandle = index_actor_composite.actor
+                        all_index_size.append(index_actor.get_true_index_size.remote())
+                        all_corpus_num_tokens.append(index_actor.get_corpus_num_tokens.remote())
+                        all_token_doc_freqs.append(index_actor.get_token_doc_freqs.remote())
+                    combined_index_size: int = 0
+                    combined_corpus_num_tokens: int = 0
+                    combined_token_doc_freqs: Counter = Counter()
+                    for shard_index_size, shard_corpus_num_tokens, shard_token_doc_freqs in zip(
+                            accumulate(all_index_size, item_wait=1e-3),
+                            accumulate(all_corpus_num_tokens, item_wait=1e-3),
+                            accumulate(all_token_doc_freqs, item_wait=1e-3),
+                    ):
+                        combined_index_size += shard_index_size
+                        combined_corpus_num_tokens += shard_corpus_num_tokens
+                        combined_token_doc_freqs += shard_token_doc_freqs
+                combined_index_size_obj = ray.put(combined_index_size)
+                combined_corpus_num_tokens_obj = ray.put(combined_corpus_num_tokens)
+                combined_token_doc_freqs_obj = ray.put(combined_token_doc_freqs)
+                with Timer(f'>> Broadcasting metadata to distributed shards'):
+                    set_index_size_futs: List = []
+                    set_corpus_num_tokens_futs: List = []
+                    set_token_doc_freqs_futs: List = []
+                    for index_actor_composite in self.index:
+                        index_actor: ray.actor.ActorHandle = index_actor_composite.actor
+                        set_index_size_futs.append(index_actor.set_index_size.remote(combined_index_size_obj))
+                        set_corpus_num_tokens_futs.append(
+                            index_actor.set_corpus_num_tokens.remote(combined_corpus_num_tokens_obj))
+                        set_token_doc_freqs_futs.append(index_actor.set_token_doc_freqs.remote(combined_token_doc_freqs_obj))
+                    wait(set_index_size_futs)
+                    wait(set_corpus_num_tokens_futs)
+                    wait(set_token_doc_freqs_futs)
+                with Timer(f'>> Recalculating token_idfs on each shard'):
+                    recalculate_token_idfs_futs: List = []
+                    for index_actor_composite in self.index:
+                        index_actor: ray.actor.ActorHandle = index_actor_composite.actor
+                        recalculate_token_idfs_futs.append(index_actor.recalculate_token_idfs.remote())
+                    wait(recalculate_token_idfs_futs)
 
-            with Timer(f'>> Merging {top_k} results for {num_queries} queries across {num_index_shards} index shards'):
-                batch_ranked_results: List[List[RankedResult]] = []
-                for all_actor_query_top_k_results in zip(*list(actors_top_k_results.values())):
-                    batch_ranked_results.append(
-                        self._merge_retrieved_results(
-                            all_actor_query_top_k_results=all_actor_query_top_k_results,
+        def _retrieve_batch(
+                self,
+                queries_batch: ScalableSeries,
+                top_k: int,
+                retrieve_documents: bool,
+        ) -> List[List[RankedResult]]:
+            num_queries: int = len(queries_batch)
+            num_index_shards: int = len(self.index)
+            with Timer(f'Retrieving {top_k} results for batch of {num_queries} queries from {num_index_shards} index shards'):
+                with Timer(f'>> Retrieving {top_k} results for {num_queries} queries from each index shard'):
+                    actors_top_k_results: Dict[str, List[List[Tuple[str, BM25IndexStoreDoc, float, Dict]]]] = {}
+                    for index_actor_composite in self.index:
+                        index_actor: ray.actor.ActorHandle = index_actor_composite.actor
+                        actors_top_k_results[index_actor_composite.actor_id] = index_actor.get_top_k_batch.remote(
+                            queries_batch,
                             top_k=top_k,
-                            retrieve_documents=retrieve_documents,
-                            how='max',
+                            retrieve_documents=False,
+                            return_actor_id=True,
+                            return_perf=True,
                         )
+                    actors_top_k_results: Dict[str, List[List[Tuple[str, BM25IndexStoreDoc, float, Dict]]]] = accumulate(
+                        actors_top_k_results,
+                        progress_bar=True,
+                        item_wait=1e-3,
+                        iter_wait=100e-3,
                     )
-                assert len(batch_ranked_results) == num_queries
-        return batch_ranked_results
+                    self._log_perf(actors_top_k_results, num_queries=num_queries, top_k=top_k,
+                                   num_index_shards=num_index_shards)
+                with Timer(f'>> Retrieving missing documents to populate cache'):
+                    self._populate_docs_cache(actors_top_k_results)
 
-    def _log_perf(
-            self,
-            actors_top_k_results: Dict[str, List[List[Tuple[str, BM25IndexStoreDoc, float, Dict]]]],
-            num_queries: int,
-            top_k: int,
-            num_index_shards: int,
-    ):
-        total_perf: Dict[str, float] = {}
-        for _, actor_all_query_top_k_results in actors_top_k_results.items():
-            for query_top_k_results in actor_all_query_top_k_results:
-                for document_actor_id, bm_doc, score, perf in query_top_k_results:  ## For each query
-                    if len(total_perf) == 0:
-                        for step_name, step_time_taken_sec in perf.items():
-                            total_perf.setdefault(step_name, 0.0)
-                            total_perf[step_name] += step_time_taken_sec
-        Log.info(
-            f'>> Sum of time taken for retrieval computation '
-            f'(summed across {num_index_shards} index shards, {num_queries} queries and retrieving {top_k} results):'
-        )
-        for step_name, total_step_time_taken_sec in total_perf.items():
-            Log.info(f'Step: {step_name}, compute time: {total_step_time_taken_sec:.3f} seconds')
-
-    def _populate_docs_cache(
-            self,
-            actors_top_k_results: Dict[str, List[List[Tuple[str, BM25IndexStoreDoc, float, Dict]]]],
-    ):
-        actor_to_missing_doc_ids: Dict[str, List[str]] = {}
-        for _, actor_all_query_top_k_results in actors_top_k_results.items():
-            for query_top_k_results in actor_all_query_top_k_results:
-                for document_actor_id, bm_doc, score, perf in query_top_k_results:  ## For each query
-                    check_isinstance(bm_doc, BM25IndexStoreDoc)
-                    if bm_doc.doc_id not in self._doc_id_to_doc_cache:
-                        actor_to_missing_doc_ids.setdefault(document_actor_id, [])
-                        actor_to_missing_doc_ids[document_actor_id].append(bm_doc.doc_id)
-
-        if len(actor_to_missing_doc_ids) > 0:
-            actor_to_docs: Dict[str, Dict[str, Optional[BM25IndexStoreDoc]]] = {}
-            for actor_id, actor_doc_ids in actor_to_missing_doc_ids.items():
-                index_actor_composite: ActorComposite = self._get_index_actor_composite(actor_id)
-                actor_to_docs[actor_id] = index_actor_composite.actor.get_docs_by_ids.remote(
-                    doc_ids=actor_doc_ids
-                )
-            for actor_id, actor_doc_id_to_doc in accumulate_iter(actor_to_docs, item_wait=1e-3, iter_wait=1000e-3):
-                for doc_id, bm_doc in actor_doc_id_to_doc.items():
-                    if bm_doc is None:
-                        raise SystemError(
-                            f'Could not find doc with id "{doc_id}" on actor "{actor_id}", '
-                            f'even though it was retrieved earlier.'
+                with Timer(f'>> Merging {top_k} results for {num_queries} queries across {num_index_shards} index shards'):
+                    batch_ranked_results: List[List[RankedResult]] = []
+                    for all_actor_query_top_k_results in zip(*list(actors_top_k_results.values())):
+                        batch_ranked_results.append(
+                            self._merge_retrieved_results(
+                                all_actor_query_top_k_results=all_actor_query_top_k_results,
+                                top_k=top_k,
+                                retrieve_documents=retrieve_documents,
+                                how='max',
+                            )
                         )
-                    check_isinstance(bm_doc, BM25IndexStoreDoc)
-                    self._doc_id_to_doc_cache[doc_id] = (bm_doc, actor_id)
+                    assert len(batch_ranked_results) == num_queries
+            return batch_ranked_results
 
-    def _merge_retrieved_results(
-            self,
-            all_actor_query_top_k_results: Tuple[List[Tuple[str, BM25IndexStoreDoc, float, Dict]], ...],
-            top_k: int,
-            retrieve_documents: bool,
-            how: Literal['max', 'min'],
-    ) -> List[RankedResult]:
-        ## For a particular query, sort the top-k results across actors.
-        assert how in {'max', 'min'}
-        query_top_k_results: List[Tuple[str, BM25IndexStoreDoc, float, Dict]] = []
-        for actor_query_top_k_results in all_actor_query_top_k_results:
-            query_top_k_results.extend(actor_query_top_k_results)
-
-        with Timer(f'>>>> Merging retrieved results into top-k RankedResults', silent=True):
-            query_top_k_results: List[Tuple[str, BM25IndexStoreDoc, float, Dict]] = sorted(
-                query_top_k_results, key=lambda x: x[2], reverse=(True if how == 'max' else False)
+        def _log_perf(
+                self,
+                actors_top_k_results: Dict[str, List[List[Tuple[str, BM25IndexStoreDoc, float, Dict]]]],
+                num_queries: int,
+                top_k: int,
+                num_index_shards: int,
+        ):
+            total_perf: Dict[str, float] = {}
+            for _, actor_all_query_top_k_results in actors_top_k_results.items():
+                for query_top_k_results in actor_all_query_top_k_results:
+                    for document_actor_id, bm_doc, score, perf in query_top_k_results:  ## For each query
+                        if len(total_perf) == 0:
+                            for step_name, step_time_taken_sec in perf.items():
+                                total_perf.setdefault(step_name, 0.0)
+                                total_perf[step_name] += step_time_taken_sec
+            Log.info(
+                f'>> Sum of time taken for retrieval computation '
+                f'(summed across {num_index_shards} index shards, {num_queries} queries and retrieving {top_k} results):'
             )
-            query_ranked_results: List[RankedResult] = []
-            for k, (doc_actor_id, top_k_doc, top_k_score, perf) in enumerate(query_top_k_results):
-                k: int = k + 1
-                doc: Optional[Dict] = None
-                if retrieve_documents and self.params.store_documents:
-                    doc: Dict = self._doc_id_to_doc_cache[top_k_doc.doc_id][0].doc  ## Use the raw document
-                query_ranked_results.append(
-                    RankedResult.of(dict(
-                        rank=k,
-                        document_id=top_k_doc.doc_id,
-                        document=doc,
-                        distance=float(top_k_score),
-                        distance_metric=self.params.distance_metric,
-                        document_actor_id=doc_actor_id,
-                    ))
-                )
-            query_ranked_results: List[RankedResult] = query_ranked_results[:top_k]
-        return query_ranked_results
+            for step_name, total_step_time_taken_sec in total_perf.items():
+                Log.info(f'Step: {step_name}, compute time: {total_step_time_taken_sec:.3f} seconds')
 
+        def _populate_docs_cache(
+                self,
+                actors_top_k_results: Dict[str, List[List[Tuple[str, BM25IndexStoreDoc, float, Dict]]]],
+        ):
+            actor_to_missing_doc_ids: Dict[str, List[str]] = {}
+            for _, actor_all_query_top_k_results in actors_top_k_results.items():
+                for query_top_k_results in actor_all_query_top_k_results:
+                    for document_actor_id, bm_doc, score, perf in query_top_k_results:  ## For each query
+                        check_isinstance(bm_doc, BM25IndexStoreDoc)
+                        if bm_doc.doc_id not in self._doc_id_to_doc_cache:
+                            actor_to_missing_doc_ids.setdefault(document_actor_id, [])
+                            actor_to_missing_doc_ids[document_actor_id].append(bm_doc.doc_id)
 
-class SparseRetriever(Retriever):
-    index: Optional[SparseRetrievalIndex] = None
-
-    def __repr__(self) -> str:
-        return str(self)
-
-    def __str__(self) -> str:
-        return f'{self.class_name} {f"using {str(self.index)}" if self.index is not None else "(no Index)"}'
-
-    class Hyperparameters(Algorithm.Hyperparameters):
-        index: Optional[Dict] = None  ## Params for index
-
-    def initialize(self, model_dir: Optional[FileMetadata] = None):
-        if self.index is None and self.hyperparams.index is None:
-            raise ValueError(
-                f'To initialize {self.class_name}, you must either pass an index explicitly or set the `index` '
-                f'hyperparam with a dict of parameters that can be used to initialize an index.'
-            )
-        elif self.index is None:
-            with Timer(task='Creating Index'):
-                self.index = SparseRetrievalIndex.of(**self.hyperparams.index)
-
-    def _task_preprocess(self, batch: Queries, **kwargs) -> Queries:
-        if batch.has_ground_truths(raise_error=False):
-            gt_col: str = only_item(set(batch.data_schema.ground_truths().keys()))
-            relevance_annotations: ScalableSeries = batch.ground_truths(return_series=True)
-            batch.data[gt_col] = ScalableSeries.of(
-                [RelevanceAnnotation.of(ra) for ra in relevance_annotations],
-                layout=relevance_annotations.layout,
-            )
-        return batch
-
-    def predict_step(
-            self,
-            batch: Queries,
-            retrieve_documents: bool = True,
-            **kwargs,
-    ) -> Dict:
-        Alias.set_top_k(kwargs, default=1)
-        top_k: int = kwargs.pop('top_k')
-        kwargs.pop('progress_bar', None)
-        kwargs['batch_size']: Optional[int] = get_default(kwargs.pop('batch_size', None), self.hyperparams.batch_size)
-        ranked_results: List[List[RankedResult]] = self.index.retrieve(
-            batch,
-            top_k=top_k,
-            retrieve_documents=retrieve_documents,
-            **kwargs
-        )
-        return {
-            'ranked_results': ranked_results
-        }
-
-    def _create_predictions(
-            self,
-            batch: Queries,
-            predictions: Dict,
-            retrieve_documents: bool = True,
-            top_k: int = 1,
-            **kwargs,
-    ) -> RankedResults:
-        if 'ranked_results' not in predictions:
-            raise ValueError(RETRIEVAL_FORMAT_MSG)
-        if len(predictions['ranked_results']) != len(batch):
-            raise ValueError(
-                f'We expected a (possibly empty) list of ranked results for each of the input queries; '
-                f'found {len(batch)} input queries but returned {len(predictions["ranked_results"])} result-lists.'
-            )
-        ranked_results: List[List[RankedResult]] = predictions['ranked_results']
-        predictions: Dict[str, List[List[RankedResult]]] = {
-            RETRIEVAL_RANKED_RESULTS_COL: ranked_results
-        }
-        return RankedResults.from_task_data(
-            data=batch,
-            predictions=predictions,
-            **kwargs
-        )
-
-
-class RandomRetriever(Retriever):
-    corpus: Optional[RetrievalCorpus] = None
-    current_retrieval_seed: Optional[int] = None
-
-    def __repr__(self) -> str:
-        return str(self)
-
-    def __str__(self) -> str:
-        return f'{self.class_name} {f"using {str(self.corpus)}" if self.corpus is not None else "(no Corpus)"}'
-
-    class Hyperparameters(Algorithm.Hyperparameters):
-        corpus: Optional[RetrievalCorpus] = None  ## Params for index
-        corpus_read_as: DataLayout = DataLayout.DASK
-        corpus_schema_columns_only: bool = False
-        default_distance: confloat(ge=0) = 0.0
-        default_distance_metric: Any = 'random_distance_metric'
-        retrieval_seed: Optional[int] = None
-
-    def initialize(self, model_dir: Optional[FileMetadata] = None):
-        if self.corpus is None and self.hyperparams.corpus is None:
-            raise ValueError(
-                f'To initialize {self.class_name}, you must either pass an corpus explicitly or '
-                f'set the `corpus` hyperparam with a dict of parameters that can be used to '
-                f'initialize the corpus.'
-            )
-        elif self.corpus is None:
-            with Timer(task='Reading Retrieval Corpus'):
-                corpus: RetrievalCorpus = self.hyperparams.corpus
-                self.corpus: RetrievalCorpus = corpus.read(
-                    read_as=self.hyperparams.corpus_read_as,
-                    persist=True,
-                    schema_columns_only=self.hyperparams.corpus_schema_columns_only,
-                )
-        if self.hyperparams.retrieval_seed is not None:
-            self.current_retrieval_seed: int = self.hyperparams.retrieval_seed
-
-    def _task_preprocess(self, batch: Queries, **kwargs) -> Queries:
-        if batch.has_ground_truths(raise_error=False):
-            gt_col: str = only_item(set(batch.data_schema.ground_truths().keys()))
-            relevance_annotations: ScalableSeries = batch.ground_truths(return_series=True)
-            batch.data[gt_col] = ScalableSeries.of(
-                [RelevanceAnnotation.of(ra) for ra in relevance_annotations],
-                layout=relevance_annotations.layout,
-            )
-        return batch
-
-    def predict_step(
-            self,
-            batch: Queries,
-            retrieve_documents: bool = True,
-            **kwargs,
-    ) -> Dict:
-        Alias.set_top_k(kwargs, default=1)
-        top_k: int = kwargs.pop('top_k')
-        kwargs.pop('progress_bar', None)
-        ranked_results: List[List[RankedResult]] = self._random_retrieve(
-            batch,
-            top_k=top_k,
-            retrieve_documents=retrieve_documents,
-            **kwargs
-        )
-        return {
-            'ranked_results': ranked_results
-        }
-
-    def _random_retrieve(
-            self,
-            queries: Queries,
-            *,
-            top_k: int,
-            retrieve_documents: bool,
-            **kwargs
-    ) -> List[List[RankedResult]]:
-        if self.current_retrieval_seed is not None:
-            self.current_retrieval_seed += 1  ## Get different results each time.
-        total_num_results: int = len(queries) * top_k
-        corpus_random_sample: RetrievalCorpus = self.corpus.sample(
-            n=total_num_results,
-            seed=self.current_retrieval_seed,
-            fetch_partitions=0,
-            stream_as=DataLayout.PANDAS,
-        )
-        assert len(corpus_random_sample) == total_num_results
-        index_col: str = self.corpus.data_schema.index_col
-        random_ranked_results: List[List[RankedResult]] = []
-        for top_k_random_results in corpus_random_sample.iter(batch_size=top_k):
-            random_ranked_results.append([])
-            for k, top_k_random_result in enumerate(
-                    top_k_random_results.iter(
-                        batch_size=1,
-                        stream_as=DataLayout.LIST_OF_DICT,
-                        shuffle=False,
+            if len(actor_to_missing_doc_ids) > 0:
+                actor_to_docs: Dict[str, Dict[str, Optional[BM25IndexStoreDoc]]] = {}
+                for actor_id, actor_doc_ids in actor_to_missing_doc_ids.items():
+                    index_actor_composite: RayActorComposite = self._get_index_actor_composite(actor_id)
+                    actor_to_docs[actor_id] = index_actor_composite.actor.get_docs_by_ids.remote(
+                        doc_ids=actor_doc_ids
                     )
-            ):
-                k: int = k + 1
-                doc: Dict = top_k_random_result.data.to_record()
-                random_ranked_results[-1].append(
-                    RankedResult.of(dict(
-                        rank=k,
-                        document_id=str(doc[index_col]),
-                        document=doc if retrieve_documents else None,
-                        distance=self.hyperparams.default_distance,
-                        distance_metric=self.hyperparams.default_distance_metric,
-                    ))
-                )
-        return random_ranked_results
+                for actor_id, actor_doc_id_to_doc in accumulate_iter(actor_to_docs, item_wait=1e-3, iter_wait=1000e-3):
+                    for doc_id, bm_doc in actor_doc_id_to_doc.items():
+                        if bm_doc is None:
+                            raise SystemError(
+                                f'Could not find doc with id "{doc_id}" on actor "{actor_id}", '
+                                f'even though it was retrieved earlier.'
+                            )
+                        check_isinstance(bm_doc, BM25IndexStoreDoc)
+                        self._doc_id_to_doc_cache[doc_id] = (bm_doc, actor_id)
 
-    def _create_predictions(
-            self,
-            batch: Queries,
-            predictions: Dict,
-            retrieve_documents: bool = True,
-            top_k: int = 1,
-            **kwargs,
-    ) -> RankedResults:
-        if 'ranked_results' not in predictions:
-            raise ValueError(RETRIEVAL_FORMAT_MSG)
-        if len(predictions['ranked_results']) != len(batch):
-            raise ValueError(
-                f'We expected a (possibly empty) list of ranked results for each of the input queries; '
-                f'found {len(batch)} input queries but returned {len(predictions["ranked_results"])} result-lists.'
+        def _merge_retrieved_results(
+                self,
+                all_actor_query_top_k_results: Tuple[List[Tuple[str, BM25IndexStoreDoc, float, Dict]], ...],
+                top_k: int,
+                retrieve_documents: bool,
+                how: Literal['max', 'min'],
+        ) -> List[RankedResult]:
+            ## For a particular query, sort the top-k results across actors.
+            assert how in {'max', 'min'}
+            query_top_k_results: List[Tuple[str, BM25IndexStoreDoc, float, Dict]] = []
+            for actor_query_top_k_results in all_actor_query_top_k_results:
+                query_top_k_results.extend(actor_query_top_k_results)
+
+            with Timer(f'>>>> Merging retrieved results into top-k RankedResults', silent=True):
+                query_top_k_results: List[Tuple[str, BM25IndexStoreDoc, float, Dict]] = sorted(
+                    query_top_k_results, key=lambda x: x[2], reverse=(True if how == 'max' else False)
+                )
+                query_ranked_results: List[RankedResult] = []
+                for k, (doc_actor_id, top_k_doc, top_k_score, perf) in enumerate(query_top_k_results):
+                    k: int = k + 1
+                    doc: Optional[Dict] = None
+                    if retrieve_documents and self.params.store_documents:
+                        doc: Dict = self._doc_id_to_doc_cache[top_k_doc.doc_id][0].doc  ## Use the raw document
+                    query_ranked_results.append(
+                        RankedResult.of(dict(
+                            rank=k,
+                            document_id=top_k_doc.doc_id,
+                            document=doc,
+                            distance=float(top_k_score),
+                            distance_metric=self.params.distance_metric,
+                            document_actor_id=doc_actor_id,
+                        ))
+                    )
+                query_ranked_results: List[RankedResult] = query_ranked_results[:top_k]
+            return query_ranked_results
+
+
+    class SparseRetriever(Retriever):
+        index: Optional[SparseRetrievalIndex] = None
+
+        def __repr__(self) -> str:
+            return str(self)
+
+        def __str__(self) -> str:
+            return f'{self.class_name} {f"using {str(self.index)}" if self.index is not None else "(no Index)"}'
+
+        class Hyperparameters(Algorithm.Hyperparameters):
+            index: Optional[Dict] = None  ## Params for index
+
+        def initialize(self, model_dir: Optional[FileMetadata] = None):
+            if self.index is None and self.hyperparams.index is None:
+                raise ValueError(
+                    f'To initialize {self.class_name}, you must either pass an index explicitly or set the `index` '
+                    f'hyperparam with a dict of parameters that can be used to initialize an index.'
+                )
+            elif self.index is None:
+                with Timer(task='Creating Index'):
+                    self.index = SparseRetrievalIndex.of(**self.hyperparams.index)
+
+        def _task_preprocess(self, batch: Queries, **kwargs) -> Queries:
+            if batch.has_ground_truths(raise_error=False):
+                gt_col: str = only_item(set(batch.data_schema.ground_truths().keys()))
+                relevance_annotations: ScalableSeries = batch.ground_truths(return_series=True)
+                batch.data[gt_col] = ScalableSeries.of(
+                    [RelevanceAnnotation.of(ra) for ra in relevance_annotations],
+                    layout=relevance_annotations.layout,
+                )
+            return batch
+
+        def predict_step(
+                self,
+                batch: Queries,
+                retrieve_documents: bool = True,
+                **kwargs,
+        ) -> Dict:
+            Alias.set_top_k(kwargs, default=1)
+            top_k: int = kwargs.pop('top_k')
+            kwargs.pop('progress_bar', None)
+            kwargs['batch_size']: Optional[int] = get_default(kwargs.pop('batch_size', None), self.hyperparams.batch_size)
+            ranked_results: List[List[RankedResult]] = self.index.retrieve(
+                batch,
+                top_k=top_k,
+                retrieve_documents=retrieve_documents,
+                **kwargs
             )
-        ranked_results: List[List[RankedResult]] = predictions['ranked_results']
-        predictions: Dict[str, List[List[RankedResult]]] = {
-            RETRIEVAL_RANKED_RESULTS_COL: ranked_results
-        }
-        return RankedResults.from_task_data(
-            data=batch,
-            predictions=predictions,
-            **kwargs
-        )
+            return {
+                'ranked_results': ranked_results
+            }
+
+        def _create_predictions(
+                self,
+                batch: Queries,
+                predictions: Dict,
+                retrieve_documents: bool = True,
+                top_k: int = 1,
+                **kwargs,
+        ) -> RankedResults:
+            if 'ranked_results' not in predictions:
+                raise ValueError(RETRIEVAL_FORMAT_MSG)
+            if len(predictions['ranked_results']) != len(batch):
+                raise ValueError(
+                    f'We expected a (possibly empty) list of ranked results for each of the input queries; '
+                    f'found {len(batch)} input queries but returned {len(predictions["ranked_results"])} result-lists.'
+                )
+            ranked_results: List[List[RankedResult]] = predictions['ranked_results']
+            predictions: Dict[str, List[List[RankedResult]]] = {
+                RETRIEVAL_RANKED_RESULTS_COL: ranked_results
+            }
+            return RankedResults.from_task_data(
+                data=batch,
+                predictions=predictions,
+                **kwargs
+            )
+
+
+    class RandomRetriever(Retriever):
+        corpus: Optional[RetrievalCorpus] = None
+        current_retrieval_seed: Optional[int] = None
+
+        def __repr__(self) -> str:
+            return str(self)
+
+        def __str__(self) -> str:
+            return f'{self.class_name} {f"using {str(self.corpus)}" if self.corpus is not None else "(no Corpus)"}'
+
+        class Hyperparameters(Algorithm.Hyperparameters):
+            corpus: Optional[RetrievalCorpus] = None  ## Params for index
+            corpus_read_as: DataLayout = DataLayout.DASK
+            corpus_schema_columns_only: bool = False
+            default_distance: confloat(ge=0) = 0.0
+            default_distance_metric: Any = 'random_distance_metric'
+            retrieval_seed: Optional[int] = None
+
+        def initialize(self, model_dir: Optional[FileMetadata] = None):
+            if self.corpus is None and self.hyperparams.corpus is None:
+                raise ValueError(
+                    f'To initialize {self.class_name}, you must either pass an corpus explicitly or '
+                    f'set the `corpus` hyperparam with a dict of parameters that can be used to '
+                    f'initialize the corpus.'
+                )
+            elif self.corpus is None:
+                with Timer(task='Reading Retrieval Corpus'):
+                    corpus: RetrievalCorpus = self.hyperparams.corpus
+                    self.corpus: RetrievalCorpus = corpus.read(
+                        read_as=self.hyperparams.corpus_read_as,
+                        persist=True,
+                        schema_columns_only=self.hyperparams.corpus_schema_columns_only,
+                    )
+            if self.hyperparams.retrieval_seed is not None:
+                self.current_retrieval_seed: int = self.hyperparams.retrieval_seed
+
+        def _task_preprocess(self, batch: Queries, **kwargs) -> Queries:
+            if batch.has_ground_truths(raise_error=False):
+                gt_col: str = only_item(set(batch.data_schema.ground_truths().keys()))
+                relevance_annotations: ScalableSeries = batch.ground_truths(return_series=True)
+                batch.data[gt_col] = ScalableSeries.of(
+                    [RelevanceAnnotation.of(ra) for ra in relevance_annotations],
+                    layout=relevance_annotations.layout,
+                )
+            return batch
+
+        def predict_step(
+                self,
+                batch: Queries,
+                retrieve_documents: bool = True,
+                **kwargs,
+        ) -> Dict:
+            Alias.set_top_k(kwargs, default=1)
+            top_k: int = kwargs.pop('top_k')
+            kwargs.pop('progress_bar', None)
+            ranked_results: List[List[RankedResult]] = self._random_retrieve(
+                batch,
+                top_k=top_k,
+                retrieve_documents=retrieve_documents,
+                **kwargs
+            )
+            return {
+                'ranked_results': ranked_results
+            }
+
+        def _random_retrieve(
+                self,
+                queries: Queries,
+                *,
+                top_k: int,
+                retrieve_documents: bool,
+                **kwargs
+        ) -> List[List[RankedResult]]:
+            if self.current_retrieval_seed is not None:
+                self.current_retrieval_seed += 1  ## Get different results each time.
+            total_num_results: int = len(queries) * top_k
+            corpus_random_sample: RetrievalCorpus = self.corpus.sample(
+                n=total_num_results,
+                seed=self.current_retrieval_seed,
+                fetch_partitions=0,
+                stream_as=DataLayout.PANDAS,
+            )
+            assert len(corpus_random_sample) == total_num_results
+            index_col: str = self.corpus.data_schema.index_col
+            random_ranked_results: List[List[RankedResult]] = []
+            for top_k_random_results in corpus_random_sample.iter(batch_size=top_k):
+                random_ranked_results.append([])
+                for k, top_k_random_result in enumerate(
+                        top_k_random_results.iter(
+                            batch_size=1,
+                            stream_as=DataLayout.LIST_OF_DICT,
+                            shuffle=False,
+                        )
+                ):
+                    k: int = k + 1
+                    doc: Dict = top_k_random_result.data.to_record()
+                    random_ranked_results[-1].append(
+                        RankedResult.of(dict(
+                            rank=k,
+                            document_id=str(doc[index_col]),
+                            document=doc if retrieve_documents else None,
+                            distance=self.hyperparams.default_distance,
+                            distance_metric=self.hyperparams.default_distance_metric,
+                        ))
+                    )
+            return random_ranked_results
+
+        def _create_predictions(
+                self,
+                batch: Queries,
+                predictions: Dict,
+                retrieve_documents: bool = True,
+                top_k: int = 1,
+                **kwargs,
+        ) -> RankedResults:
+            if 'ranked_results' not in predictions:
+                raise ValueError(RETRIEVAL_FORMAT_MSG)
+            if len(predictions['ranked_results']) != len(batch):
+                raise ValueError(
+                    f'We expected a (possibly empty) list of ranked results for each of the input queries; '
+                    f'found {len(batch)} input queries but returned {len(predictions["ranked_results"])} result-lists.'
+                )
+            ranked_results: List[List[RankedResult]] = predictions['ranked_results']
+            predictions: Dict[str, List[List[RankedResult]]] = {
+                RETRIEVAL_RANKED_RESULTS_COL: ranked_results
+            }
+            return RankedResults.from_task_data(
+                data=batch,
+                predictions=predictions,
+                **kwargs
+            )

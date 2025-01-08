@@ -1,20 +1,28 @@
-from typing import *
-import math, io, ray, numpy as np, pandas as pd
+import io
+import math
+import numpy as np
+from collections import deque
 from concurrent.futures._base import Future
-from pandas.core.frame import Series as PandasSeries, DataFrame as PandasDataFrame
+from typing import *
+
 import dask.dataframe as dd
 from dask.dataframe.core import Scalar as DaskScalar, Series as DaskSeries, DataFrame as DaskDataFrame
-from fmcore.util import multiple_are_not_none, all_are_none, is_function, wrap_fn_output, \
-    get_default, RayDaskPersistWaitCallback, set_param_from_alias, Alias, safe_validate_arguments, Log, Executor
+from pandas.core.frame import Series as PandasSeries, DataFrame as PandasDataFrame
+from pydantic import conint
+from pydantic.typing import Literal
+
 from fmcore.constants import DataLayout, Parallelize
-from fmcore.data.sdf.ScalableSeries import ScalableSeries
+from fmcore.data.sdf.DaskScalableSeries import DaskScalableSeries
 from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameOrRaw, is_scalable, \
     DataFrameShardingError
-from fmcore.data.sdf.DaskScalableSeries import DaskScalableSeries
-from pydantic import validate_arguments, conint, constr
+from fmcore.data.sdf.ScalableSeries import ScalableSeries
 from fmcore.util import accumulate, run_concurrent
-from pydantic.typing import Literal
-from collections import deque
+from fmcore.util import multiple_are_not_none, all_are_none, is_function, wrap_fn_output, \
+    get_default, RayDaskPersistWaitCallback, Alias, safe_validate_arguments, Log, Executor
+from fmcore.util.language._import import _IS_RAY_INSTALLED
+
+if _IS_RAY_INSTALLED:
+    import ray
 
 DaskScalableDataFrame = "DaskScalableDataFrame"
 
@@ -438,8 +446,8 @@ class DaskScalableDataFrame(ScalableDataFrame):
     def _fetch_partition(ddf: DaskDataFrame, ddf_i: int) -> PandasDataFrame:
         df: DaskDataFrame = ddf.partitions[ddf_i]
         df: PandasDataFrame = df.compute()
-        if isinstance(df, PandasSeries) and len(df) == 1 and isinstance(df.iloc[0], ray.ObjectRef):
-            ## If you pass a Dask-on-Ray-DataFrame to a ray Task/Actor, for some reason it treats each partition
+        if _IS_RAY_INSTALLED and isinstance(df, PandasSeries) and len(df) == 1 and isinstance(df.iloc[0], ray.ObjectRef):
+            ## If you pass a Dask-on-Ray-DataFrame to a Ray Task/Actor, for some reason it treats each partition
             ## like a Series object with one element. The one element is a ray.ObjectRef of the actual partition's
             ## PandasDataFrame. So we need to fetch the actual PandasDataFrame.
             df: PandasDataFrame = accumulate(df.iloc[0])

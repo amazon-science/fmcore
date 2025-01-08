@@ -8,7 +8,7 @@ from tqdm.std import tqdm as StdTqdmProgressBar
 
 from ._alias import set_param_from_alias
 from ._function import get_fn_spec
-from ._import import optional_dependency
+from ._import import optional_dependency, _IS_RAY_INSTALLED
 from ._string import format_exception_msg
 from ._structs import filter_keys, remove_keys, is_list_or_set_like, is_dict_like
 from ._typing import Parameters, MutableParameters
@@ -56,14 +56,13 @@ class ProgressBar(MutableParameters):
             with optional_dependency('ipywidgets'):
                 kwargs['ncols']: Optional[int] = None
             return NotebookTqdmProgressBar(**kwargs)
-        elif style == 'ray':
+        elif _IS_RAY_INSTALLED and style == 'ray':
             from ray.experimental import tqdm_ray
             kwargs = filter_keys(
                 kwargs,
                 keys=set(get_fn_spec(tqdm_ray.tqdm).args + get_fn_spec(tqdm_ray.tqdm).kwargs),
                 how='include',
             )
-            from ray.experimental import tqdm_ray
             return tqdm_ray.tqdm(**kwargs)
         else:
             return StdTqdmProgressBar(**kwargs)
@@ -240,14 +239,13 @@ def create_progress_bar(
                 smoothing=smoothing,
                 **kwargs
             )
-        elif style == 'ray':
+        elif _IS_RAY_INSTALLED and style == 'ray':
             from ray.experimental import tqdm_ray
             kwargs = filter_keys(
                 kwargs,
                 keys=set(get_fn_spec(tqdm_ray.tqdm).args + get_fn_spec(tqdm_ray.tqdm).kwargs),
                 how='include',
             )
-            from ray.experimental import tqdm_ray
             return tqdm_ray.tqdm(**kwargs)
         else:
             return StdTqdmProgressBar(

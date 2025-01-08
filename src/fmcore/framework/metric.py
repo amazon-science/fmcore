@@ -1,13 +1,14 @@
 from typing import *
 import math, copy, io, pickle
 from abc import ABC, abstractmethod
-import numpy as np, pandas as pd, ray
+import numpy as np, pandas as pd
 from scipy import stats as sps
 from fmcore.constants import DataSplit, MLType, AggregationStrategy, Parallelize
 from fmcore.util import Parameters, MutableParameters, Registry, String, classproperty, as_list, \
     safe_validate_arguments, get_default, set_param_from_alias, str_normalize, dispatch, dispatch_executor, \
     accumulate, accumulate_iter, partial_sort, is_function, fn_str, as_set, format_exception_msg, is_null, Log, \
     ProgressBar, Alias
+from fmcore.util.language._import import _IS_RAY_INSTALLED
 from fmcore.data.sdf import ScalableDataFrame
 from pydantic import constr, conint, confloat, root_validator
 from functools import singledispatchmethod
@@ -516,7 +517,8 @@ class Metrics(MutableParameters):
             total=len(metrics_list),
             prefer_kwargs=False,
         )
-        if parallelize is Parallelize.ray:
+        if _IS_RAY_INSTALLED and parallelize is Parallelize.ray:
+            import ray
             data_ref = ray.put(data)
             data = data_ref
         metric_futs: List[Tuple[Metric, Any]] = []
