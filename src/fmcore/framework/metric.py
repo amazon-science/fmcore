@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 import numpy as np, pandas as pd, ray
 from scipy import stats as sps
 from fmcore.constants import DataSplit, MLType, AggregationStrategy, Parallelize, Alias
-from fmcore.util import Parameters, MutableParameters, Registry, StringUtil, classproperty, as_list, \
+from fmcore.util import Parameters, MutableParameters, Registry, String, classproperty, as_list, \
     safe_validate_arguments, get_default, set_param_from_alias, str_normalize, dispatch, dispatch_executor, \
     accumulate, accumulate_iter, partial_sort, is_function, fn_str, as_set, format_exception_msg, is_null, Log, \
     ProgressBar
@@ -155,7 +155,7 @@ class Metric(MutableParameters, Registry):
             key=lambda x: x[0]
         )
         if len(param_name_values) != 0:
-            display_name += StringUtil.LEFT_PAREN
+            display_name += String.LEFT_PAREN
             params_strs: List[str] = []
             for param_name, param_value in param_name_values:
                 if is_function(param_value):
@@ -166,7 +166,7 @@ class Metric(MutableParameters, Registry):
                     param_value: str = str(param_value)
                 params_strs.append(f'{param_name}={param_value}')
             display_name += ','.join(params_strs)
-            display_name += StringUtil.RIGHT_PAREN
+            display_name += String.RIGHT_PAREN
         return display_name
 
     @property
@@ -318,7 +318,7 @@ class CountingMetric(Metric, ABC):
     @property
     def display_value(self) -> str:
         return f'{self.value} ' \
-               f'({StringUtil.readable_number(self.value, decimals=self.params.display_decimals, short=True)})'
+               f'({String.readable_number(self.value, decimals=self.params.display_decimals, short=True)})'
 
 
 class TabularMetric(Metric, ABC):
@@ -500,7 +500,7 @@ class Metrics(MutableParameters):
         if data_split not in self.metrics:
             raise ValueError(
                 f'There are no {data_split} metrics stored; available metrics are:'
-                f'\n{StringUtil.pretty(self.metrics)}'
+                f'\n{String.pretty(self.metrics)}'
             )
         metrics_list: List[Metric] = self.metrics[data_split]
 

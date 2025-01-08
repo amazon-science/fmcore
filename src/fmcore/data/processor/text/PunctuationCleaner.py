@@ -1,6 +1,6 @@
 from typing import *
 from fmcore.data.processor import SingleColumnProcessor, TextInputProcessor, TextOutputProcessor
-from fmcore.util import AutoEnum, auto, StringUtil, is_null
+from fmcore.util import AutoEnum, auto, String, is_null
 import pandas as pd
 import string
 from pydantic import constr
@@ -12,7 +12,7 @@ class PunctuationCleaner(SingleColumnProcessor, TextInputProcessor, TextOutputPr
     """
 
     class Params(SingleColumnProcessor.Params):
-        replacement_char: constr(min_length=1) = StringUtil.SPACE
+        replacement_char: constr(min_length=1) = String.SPACE
 
     def transform_single(self, data: Optional[str]) -> Optional[str]:
         if is_null(data):

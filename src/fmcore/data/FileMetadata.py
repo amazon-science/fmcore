@@ -1,6 +1,6 @@
 from typing import *
 import pathlib, io, os, requests, tempfile
-from fmcore.util import Parameters, is_null, auto, StringUtil, Log, FileSystemUtil, safe_validate_arguments, \
+from fmcore.util import Parameters, is_null, auto, String, Log, FileSystemUtil, safe_validate_arguments, \
     optional_dependency, get_default
 from fmcore.util.aws import S3Util
 from fmcore.constants import FileFormat, FileContents, Storage, REMOTE_STORAGES, FILE_ENDING_TO_FILE_FORMAT_MAP, Alias, \
@@ -64,7 +64,7 @@ class FileMetadata(Parameters):
         if isinstance(path, io.IOBase) and hasattr(path, 'read'):
             return Storage.STREAM
         elif isinstance(path, str):
-            if path.startswith(StringUtil.HTTP_PREFIX) or path.startswith(StringUtil.HTTPS_PREFIX):
+            if path.startswith(String.HTTP_PREFIX) or path.startswith(String.HTTPS_PREFIX):
                 return Storage.URL
             if S3Util.is_valid_s3_path(path):
                 return Storage.S3
@@ -263,8 +263,8 @@ class FileMetadata(Parameters):
             raise ValueError(f'Cannot create a directory for a stream.')
         elif self.storage is Storage.S3:
             path: str = self.path
-            if not path.endswith(StringUtil.SLASH):
-                path += StringUtil.SLASH
+            if not path.endswith(String.SLASH):
+                path += String.SLASH
             if return_metadata:
                 return self
             return path  ## Do nothing, S3 dirs do not need to be created.
@@ -295,7 +295,7 @@ class FileMetadata(Parameters):
         elif self.storage is Storage.S3:
             return S3Util.is_path_valid_s3_dir(self.path)
         elif self.storage is Storage.URL:
-            return self.path.endswith(StringUtil.SLASH)
+            return self.path.endswith(String.SLASH)
         return False
 
     def list(self, **kwargs) -> List[str]:

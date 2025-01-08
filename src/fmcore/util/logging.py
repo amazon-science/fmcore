@@ -1,12 +1,11 @@
 from typing import *
 from abc import ABC, abstractmethod
-
 import pandas as pd
-
+import os, warnings, logging, sys
+from contextlib import contextmanager
 from fmcore.util.language import MutableParameters, safe_validate_arguments, binary_search
 from fmcore.util.jupyter import JupyterNotebook
-from fmcore.util.string import StringUtil
-import logging, sys
+from fmcore.util.language import String
 from pydantic import constr, Field, FilePath, validator, conint
 from pydantic.typing import Literal
 
@@ -87,12 +86,12 @@ class Log(MutableParameters):
 
     @safe_validate_arguments
     def set_log_level(self, log_level: Literal[DEBUG, INFO, WARNING, ERROR, FATAL]):
-        log_level: str = StringUtil.assert_not_empty_and_strip(log_level).upper() + self.LOG_LEVEL_SUFFIX
+        log_level: str = String.assert_not_empty_and_strip(log_level).upper() + self.LOG_LEVEL_SUFFIX
         self.LOG_LEVEL = log_level
 
     @safe_validate_arguments
     def set_file_log_level(self, log_level: Literal[DEBUG, INFO, WARNING, ERROR, FATAL]):
-        log_level: str = StringUtil.assert_not_empty_and_strip(log_level).upper() + self.LOG_LEVEL_SUFFIX
+        log_level: str = String.assert_not_empty_and_strip(log_level).upper() + self.LOG_LEVEL_SUFFIX
         self.FILE_LOG_LEVEL = log_level
 
     def log(self, *data, level: Union[str, int, float], flush: bool = False, **kwargs):
@@ -146,9 +145,9 @@ class Log(MutableParameters):
         if isinstance(data, str):
             return data
         if isinstance(data, dict):
-            return '\n' + StringUtil.jsonify(data)
+            return '\n' + String.jsonify(data)
         if isinstance(data, (list, set, frozenset, tuple)):
-            return '\n' + StringUtil.pretty(data, max_width=int(1e6))
+            return '\n' + String.pretty(data, max_width=int(1e6))
         if isinstance(data, (pd.Series, pd.DataFrame)):
             if len(data) <= df_num_rows:
                 return '\n' + str(data.to_markdown())
@@ -156,7 +155,79 @@ class Log(MutableParameters):
                    + str(data.head(df_num_rows // 2).to_markdown()) \
                    + f'\n...({len(data) - df_num_rows} more rows)...\n' \
                    + str(data.tail(df_num_rows // 2).to_markdown())
-        return StringUtil.pretty(data, max_width=int(1e6))
+        return String.pretty(data, max_width=int(1e6))
 
 
 Log: Log = Log()  ## Creates a singleton
+
+
+@contextmanager
+def ignore_warnings():
+    pd_chained_assignment: Optional[str] = pd.options.mode.chained_assignment  # default='warn'
+    with warnings.catch_warnings():  ## Ref: https://stackoverflow.com/a/14463362
+        warnings.simplefilter("ignore")
+        ## Stops Pandas SettingWithCopyWarning in output. Ref: https://stackoverflow.com/a/20627316
+        pd.options.mode.chained_assignment = None
+        yield
+    pd.options.mode.chained_assignment = pd_chained_assignment
+
+
+@contextmanager
+def ignore_stdout():
+    devnull = open(os.devnull, "w")
+    stdout = sys.stdout
+    sys.stdout = devnull
+    try:
+        yield
+    finally:
+        sys.stdout = stdout
+
+
+@contextmanager
+def ignore_stderr():
+    devnull = open(os.devnull, "w")
+    stderr = sys.stderr
+    sys.stderr = devnull
+    try:
+        yield
+    finally:
+        sys.stderr = stderr
+
+
+@contextmanager
+def ignore_stdout_and_stderr():
+    with ignore_stdout():
+        with ignore_stderr():
+            yield
+
+
+@contextmanager
+def ignore_warnings_and_stdout():
+    with ignore_warnings():
+        with ignore_stdout():
+            with ignore_stderr():
+                yield
+
+
+@contextmanager
+def ignore_logging(disable_upto: int = logging.CRITICAL):
+    prev_disable_level: int = logging.root.manager.disable
+    logging.disable(disable_upto + 1)
+    try:
+        yield
+    finally:
+        logging.disable(prev_disable_level)
+
+
+@contextmanager
+def ignore_all_output():
+    with ignore_stdout():
+        with ignore_warnings():
+            with ignore_stderr():
+                with ignore_logging():
+                    yield
+
+
+@contextmanager
+def ignore_nothing():
+    yield

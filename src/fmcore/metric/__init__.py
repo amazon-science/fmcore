@@ -1,7 +1,7 @@
 from importlib import import_module
 import os
 from pathlib import Path
-from fmcore.util.string import StringUtil
+from fmcore.util.language import String
 
 __THIS_FILE__ = __file__  ## Needed when calling reload() from outside this file.
 
@@ -13,7 +13,7 @@ def reload():
             continue
         ## E.g. ".sklearn"
         import_dir: str = '.'.join(
-            StringUtil.remove_prefix(
+            String.remove_prefix(
                 str(f),
                 prefix=os.path.commonpath([__THIS_FILE__, str(f)])
             ).split(os.path.sep)[:-1])

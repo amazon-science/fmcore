@@ -4,7 +4,7 @@ import io, requests
 from requests import Response
 from fmcore.constants import FileContents, MLType, MLTypeSchema
 from fmcore.util.language import is_list_like, as_list, optional_dependency
-from fmcore.util import AutoEnum, auto, StringUtil, FileSystemUtil, StructuredBlob, safe_validate_arguments
+from fmcore.util import AutoEnum, auto, String, FileSystemUtil, StructuredBlob, safe_validate_arguments
 from fmcore.data.reader.Reader import Reader
 from fmcore.util.aws import S3Util
 
@@ -101,7 +101,7 @@ class ConfigReader(Reader, ABC):
             s3_path: Union[str, List[str]],
             file_contents: Optional[FileContents] = None,
             data_schema: Optional[MLTypeSchema] = None,
-            files_to_ignore: List[str] = StringUtil.FILES_TO_IGNORE,
+            files_to_ignore: List[str] = String.FILES_TO_IGNORE,
             **kwargs,
     ) -> StructuredBlob:
         error_to_raise: Optional[Exception] = None

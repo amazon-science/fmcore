@@ -5,7 +5,7 @@ import pandas as pd
 import math, pprint
 from pandas.core.frame import Series as PandasSeries, DataFrame as PandasDataFrame
 from fmcore.util import as_list, any_are_not_none, all_are_none, get_current_fn_name, is_scalar, is_null, \
-    filter_kwargs, get_default, safe_validate_arguments, StringUtil
+    filter_kwargs, get_default, safe_validate_arguments, String
 from fmcore.constants import DataLayout, Parallelize
 from fmcore.data.sdf.ScalableSeries import ScalableSeries
 from fmcore.data.sdf import ScalableDataFrame, ScalableDataFrameOrRaw, RAW_DATA_MEMBER
@@ -66,13 +66,13 @@ class ListOfDictScalableDataFrame(ScalableDataFrame):
         if length == 0:
             data_sample = str([])
         elif length == 1:
-            data_sample = f'[0]: {StringUtil.pretty(self._data[0])}'
+            data_sample = f'[0]: {String.pretty(self._data[0])}'
         elif length == 2:
-            data_sample = f'[0]: {StringUtil.pretty(self._data[0])}\n[1]: {StringUtil.pretty(self._data[1])}'
+            data_sample = f'[0]: {String.pretty(self._data[0])}\n[1]: {String.pretty(self._data[1])}'
         else:
-            data_sample = f'[{StringUtil.pad_zeros(0, length - 1)}]: {StringUtil.pretty(self._data[0])}\n' \
+            data_sample = f'[{String.pad_zeros(0, length - 1)}]: {String.pretty(self._data[0])}\n' \
                           f'...\n' \
-                          f'[{StringUtil.pad_zeros(length - 1, length - 1)}]: {StringUtil.pretty(self._data[-1])}'
+                          f'[{String.pad_zeros(length - 1, length - 1)}]: {String.pretty(self._data[-1])}'
         out += data_sample
         return out
 
@@ -88,16 +88,16 @@ class ListOfDictScalableDataFrame(ScalableDataFrame):
         if length == 0:
             data_sample = ''
         elif length == 1:
-            data_sample = f'<pre>{StringUtil.pretty(self._data[0])}</pre>'
+            data_sample = f'<pre>{String.pretty(self._data[0])}</pre>'
         else:
             head_len: int = math.ceil(self.display.max_rows / 2)
             tail_len: int = math.floor(self.display.max_rows / 2)
             if len(self) <= head_len + tail_len:
-                data_sample = '\n'.join([StringUtil.pretty(x) for x in self._data])
+                data_sample = '\n'.join([String.pretty(x) for x in self._data])
                 data_sample: str = f'<pre>{data_sample}</pre>'
             else:
-                head_sample: str = '\n'.join([StringUtil.pretty(x) for x in self._data[:head_len]])
-                tail_sample: str = '\n'.join([StringUtil.pretty(x) for x in self._data[-tail_len:]])
+                head_sample: str = '\n'.join([String.pretty(x) for x in self._data[:head_len]])
+                tail_sample: str = '\n'.join([String.pretty(x) for x in self._data[-tail_len:]])
                 data_sample: str = f'<pre>{head_sample}\n...\n{tail_sample}</pre>'
         out += f'{data_sample}'
         return f'<div>{out}</div>'

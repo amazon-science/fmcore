@@ -3,7 +3,7 @@ import io, pickle
 from abc import abstractmethod, ABC
 from fmcore.data.writer.Writer import Writer
 from fmcore.constants import FileContents, FileFormat
-from fmcore.util import FileSystemUtil, StringUtil
+from fmcore.util import FileSystemUtil, String
 from fmcore.util.aws import S3Util
 from pydantic import constr
 

@@ -3,7 +3,7 @@ import io
 from abc import abstractmethod, ABC
 from fmcore.data.writer.Writer import Writer
 from fmcore.constants import FileContents, MLType, MLTypeSchema
-from fmcore.util import FileSystemUtil, StringUtil
+from fmcore.util import FileSystemUtil, String
 from fmcore.util.aws import S3Util
 from pydantic import *
 
@@ -74,7 +74,7 @@ class ConfigWriter(Writer, ABC):
         if file_contents is FileContents.SCHEMA:
             data = MLType.convert_values_to_str(data)
         obj_str: str = self.to_str(data, **kwargs)
-        StringUtil.assert_not_empty(obj_str)
+        String.assert_not_empty(obj_str)
         return obj_str
 
     @abstractmethod

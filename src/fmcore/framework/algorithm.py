@@ -7,7 +7,7 @@ from fmcore.constants import FileFormat, DataLayout, MLType, DataSplit, MLTypeSc
 from fmcore.util import Registry, MutableParameters, Parameters, FractionalBool, resolve_fractional_bool, as_list, \
     random_sample, safe_validate_arguments, Log, any_are_none, as_set, str_normalize, \
     all_are_none, all_are_not_none, is_abstract, flatten1d, get_default, Schema, format_exception_msg, \
-    remove_nulls, StringUtil, is_function, get_fn_args
+    remove_nulls, String, is_function, get_fn_args
 from fmcore.util.aws import S3Util
 from fmcore.data import FileMetadata, ScalableDataFrame, ScalableSeries, Asset, ScalableDataFrameOrRaw
 from fmcore.framework import Predictions, Dataset, Datasets
@@ -676,7 +676,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
         return model_params
 
     def __hash__(self) -> str:
-        return StringUtil.hash(self._model_params())
+        return String.hash(self._model_params())
 
     @classmethod
     def load_params(

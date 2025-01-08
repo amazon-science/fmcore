@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from pandas.core.frame import Series as PandasSeries
 from fmcore.util import is_function, all_are_none, all_are_not_none, is_null, optional_dependency, infer_np_dtype, \
-    get_default, StringUtil
+    get_default, String
 from fmcore.constants import DataLayout
 from fmcore.data.sdf.ScalableSeries import ScalableSeries, SS_DEFAULT_NAME
 from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame
@@ -74,12 +74,12 @@ class DatumScalableSeries(ScalableSeries):
         return self.__dtype
 
     def __str__(self):
-        return StringUtil.pretty(self._data)
+        return String.pretty(self._data)
 
     def _repr_html_(self):
         name_str: str = '' if self._name is None else f'"{self._name}": '
         out = f"<b>{name_str}Datum of type <code>{self.dtype}</code>: <code>{self._data}</code></b>"
-        return f'<div>{StringUtil.pretty(out)}</div>'
+        return f'<div>{String.pretty(out)}</div>'
 
     def _repr_latex_(self):
         return self._repr_html_()

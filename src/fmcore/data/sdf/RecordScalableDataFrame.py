@@ -3,7 +3,7 @@ import math, copy, pprint
 import numpy as np
 import pandas as pd
 from pandas.core.frame import Series as PandasSeries, DataFrame as PandasDataFrame
-from fmcore.util import safe_validate_arguments, as_list, any_are_not_none, get_default, StringUtil
+from fmcore.util import safe_validate_arguments, as_list, any_are_not_none, get_default, String
 from fmcore.constants import DataLayout, Parallelize
 from fmcore.data.sdf.ScalableSeries import ScalableSeries
 from fmcore.data.sdf.DatumScalableSeries import DatumScalableSeries
@@ -75,7 +75,7 @@ class RecordScalableDataFrame(ScalableDataFrame):
         name_str: str = '' if self._name is None else f'"{self._name}": '
         columns: List = self.columns
         out = f'{name_str}Single record with {len(columns)} column(s):\n' \
-              f'[0]: {StringUtil.pretty(self.raw())}'
+              f'[0]: {String.pretty(self.raw())}'
         out = out.strip()
         return out
 
@@ -91,7 +91,7 @@ class RecordScalableDataFrame(ScalableDataFrame):
         data_sample = ''
         for col in columns:
             with np.printoptions(threshold=self.display.max_rows + 1, edgeitems=self.display.max_rows // 2):
-                data_sample += f'<pre>"{col}": {StringUtil.pretty(self._data[col])}</pre><br>'
+                data_sample += f'<pre>"{col}": {String.pretty(self._data[col])}</pre><br>'
         out += f'{data_sample}'
         return f'<div>{out}</div>'
 

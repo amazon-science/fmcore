@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 import time, glob, os, sys, boto3, numpy as np, pandas as pd, json, requests, gc, math, multiprocessing as mp
 from fmcore.util import is_list_like, Parameters, MappedParameters, optional_dependency, Registry, append_to_keys, \
     MutableParameters, Schema, only_item, set_param_from_alias, random_sample, as_tuple, as_list, str_normalize, \
-    INDEX_COL_DEFAULT_NAME, AutoEnum, auto, safe_validate_arguments, type_str, Timer, StringUtil, get_default
+    INDEX_COL_DEFAULT_NAME, AutoEnum, auto, safe_validate_arguments, type_str, Timer, String, get_default
 from fmcore.data import ScalableDataFrame, ScalableSeries, ScalableSeriesRawType, ScalableDataFrameRawType, \
     FileMetadata
 from fmcore.framework import Dataset, Predictions, Algorithm, load_predictions
@@ -355,7 +355,7 @@ class DenseRetriever(Retriever):
     def _embedder_predict(self, query_embedding_data: EmbeddingData, **kwargs) -> Embeddings:
         from fmcore.framework.evaluator import Evaluator
         # print('Queries:')
-        # with pd_extended_display() as disp:
+        # with pd_display() as disp:
         #     disp(queries.data.pandas())
         if isinstance(self.embedder, Evaluator):
             embedder_batch_size: int = get_default(

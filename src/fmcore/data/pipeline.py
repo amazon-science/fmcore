@@ -4,7 +4,7 @@ from math import inf
 from abc import abstractmethod, ABC
 import numpy as np
 import pandas as pd
-from fmcore.util import as_list, is_list_like, AutoEnum, auto, Parameters, UserEnteredParameters, StringUtil, \
+from fmcore.util import as_list, is_list_like, AutoEnum, auto, Parameters, UserEnteredParameters, String, \
     safe_validate_arguments, Log, format_exception_msg, FractionalBool, measure_time_ms, Registry, is_subset, \
     get_subset, keep_values, filter_string_list, keep_keys, type_str
 from fmcore.constants import ProcessingMode, MLType, MLTypeSchema, FileContents, MissingColumnBehavior
@@ -455,7 +455,7 @@ class DataProcessingPipelineStep(Parameters):
                 if should_log_perf:
                     Log.debug(
                         f'\r...processor ran in '
-                        f'{StringUtil.readable_seconds(processor_end_time - processor_start_time)}.'
+                        f'{String.readable_seconds(processor_end_time - processor_start_time)}.'
                     )
                 if should_measure_perf:
                     _processor_perfs.append(ProcessorPerf(
@@ -490,7 +490,7 @@ class DataProcessingPipelineStep(Parameters):
         if should_log_perf:
             Log.debug(
                 f'\r...pipeline-step ran in '
-                f'{StringUtil.readable_seconds(step_end_time - step_start_time)}.'
+                f'{String.readable_seconds(step_end_time - step_start_time)}.'
             )
         step_end_time: float = time.perf_counter()
         if should_measure_perf:
@@ -876,7 +876,7 @@ class DataProcessingPipeline(Parameters):
             writers_log_str: str = f' and running {len(self.writers)} writers ' if write_to is not None else ' '
             Log.info(
                 f'...done running pipeline in {processing_mode.lower().replace("_", "-")} mode{writers_log_str}in '
-                f'{StringUtil.readable_seconds(pipeline_end_time - pipeline_start_time)}.'
+                f'{String.readable_seconds(pipeline_end_time - pipeline_start_time)}.'
             )
         if should_measure_perf:
             if sdf_num_rows is None:
@@ -1008,7 +1008,7 @@ class DataProcessingPipeline(Parameters):
             if should_log_perf:
                 Log.debug(
                     f'\r...writer ran in '
-                    f'{StringUtil.readable_seconds(writer_end_time - writer_start_time)}.'
+                    f'{String.readable_seconds(writer_end_time - writer_start_time)}.'
                 )
             if should_measure_perf:
                 _writer_perfs.append(PipelineWriterPerf(
@@ -1023,7 +1023,7 @@ class DataProcessingPipeline(Parameters):
             if processing_mode is ProcessingMode.FIT_TRANSFORM:
                 Log.info(
                     f'...done running writers in '
-                    f'{StringUtil.readable_seconds(writers_end_time - writers_start_time)}.'
+                    f'{String.readable_seconds(writers_end_time - writers_start_time)}.'
                 )
         return _writer_perfs
 
@@ -1034,7 +1034,7 @@ class DataProcessingPipeline(Parameters):
         """
         ## TODO: create a writer for pickled objects.
         Log.debug('\nSerializing pipeline...')
-        file = StringUtil.assert_not_empty_and_strip(file)
+        file = String.assert_not_empty_and_strip(file)
         with io.open(file, 'wb') as out:
             cloudpickle.dump(self, out)
         Log.debug('...done serializing pipeline.')

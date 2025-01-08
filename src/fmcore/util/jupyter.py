@@ -5,6 +5,7 @@ from itertools import chain
 from pathlib import Path, PurePath
 import typing, types, typing_extensions
 import sys, time, functools, datetime as dt, string, inspect, re, random, math, json, os
+from fmcore.util.language import as_list, safe_validate_arguments
 
 JUPYTER_FILE_ERROR: str = "Can't identify the notebook {}."
 JUPYTER_CONN_ERROR: str = "Unable to access server;\n" \
@@ -117,3 +118,91 @@ class JupyterNotebook:
     def is_notebook() -> bool:
         """Returns True when using JupyterNotebook, False for both IPython and basic python interpreter."""
         return JupyterNotebook.name() is not None
+
+
+def print_md(x):
+    try:
+        from IPython.display import display, Markdown
+        x = Markdown(x)
+    except ImportError:
+        display = print
+    display(x)
+
+
+def print_math(x):
+    try:
+        from IPython.display import display, Math
+        x = Math(x)
+    except ImportError:
+        display = print
+    display(x)
+
+
+def display_colors(colors: Union[Set[str], Tuple[str, ...], List[str], str]):
+    """Displays colors from the given list with their names or codes."""
+    # Start the HTML string for the colored divs
+    html_str: str = "<div style='display: flex; flex-wrap: wrap; padding: 5px;'>"
+
+    # Loop through the colors, adding each as a small colored div with a label
+    for color in as_list(colors):
+        html_str += f"""
+        <div style='margin: 10px; text-align: center;'>
+            <div style='background: {color}; width: 50px; height: 50px;'></div>
+            <div style='margin-top: 5px;'>{color.lower()}</div>
+        </div>
+        """
+
+    # Close the main div
+    html_str += "</div>"
+
+    # Display the HTML
+    try:
+        from IPython.display import display, HTML
+    except ImportError:
+        display = print
+        HTML = lambda x: str(x)
+    display(HTML(html_str))
+
+
+@safe_validate_arguments
+def plotsum(
+        plots_list: Union[List[Tuple[str, Any]], List[Any]],
+        *,
+        order: Optional[List[str]] = None,
+        how: Literal['overlay', 'grid'] = 'grid',
+        legend: Literal['first', 'last', 'none'] = 'none',
+        update_layout: Optional[Dict] = None,
+        backend: Literal['plotly'] = 'plotly',
+):
+    import holoviews as hv
+    if order is not None:
+        assert len(plots_list) > 0
+        assert len(order) == len(plots_list)
+        assert len(set(p[0] for p in plots_list)) == len(order)
+        ordered_plots_list: List[Any] = []
+        for order_item in order:
+            plot_str: Optional = None
+            for plot_str, plot in plots_list:
+                if plot_str == order_item:
+                    break
+                plot_str = None
+            if plot_str is None:
+                raise ValueError(f'No plot found with name: "{order_item}"')
+            ordered_plots_list.append(plot)
+        plots_list = ordered_plots_list
+
+    plots = None
+    for plot in plots_list:
+        if isinstance(plot, tuple):
+            assert len(plot) == 2
+            plot = plot[1]
+        if plots is None:
+            plots = plot
+        else:
+            if how == 'grid':
+                plots += plot
+            elif how == 'overlay':
+                plots *= plot
+            else:
+                raise not_impl('how', how)
+    return plots

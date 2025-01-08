@@ -10,7 +10,7 @@ from ray import tune, air
 from ray.runtime_env import RuntimeEnv as RayRuntimeEnv
 from ray.tune.search import SEARCH_ALG_IMPORT, Searcher, Repeater
 from fmcore.util import set_param_from_alias, MappedParameters, str_normalize, append_to_keys, \
-    parameterized_flatten, FileSystemUtil, get_default, all_are_not_none, safe_validate_arguments, StringUtil, Log, \
+    parameterized_flatten, FileSystemUtil, get_default, all_are_not_none, safe_validate_arguments, String, Log, \
     all_are_none, pd_partial_column_order, Timer, format_exception_msg, retry, any_are_not_none, is_null, type_str
 from fmcore.util.aws import S3Util
 from fmcore.data import FileMetadata
@@ -592,7 +592,7 @@ class AlgorithmTrainable(tune.Trainable):
             **{
                 _RAY_EPOCH_NUM: self.epoch_num,
                 _RAY_STEPS_COMPLETED: None if self.steps is None else self.step_range[1],
-                _RAY_EST_TIME_REMAINING: StringUtil.readable_seconds(est_time_remaining, short=True, decimals=1),
+                _RAY_EST_TIME_REMAINING: String.readable_seconds(est_time_remaining, short=True, decimals=1),
             },
         }
 
@@ -1395,7 +1395,7 @@ class RayTuneTrainer(Trainer):
                 if hp_name != tune.search.repeater.TRIAL_INDEX
             }
         )
-        detailed_metrics[_RAY_HYPERPARAMS_STR] = detailed_metrics[_RAY_HYPERPARAMS].apply(StringUtil.stringify)
+        detailed_metrics[_RAY_HYPERPARAMS_STR] = detailed_metrics[_RAY_HYPERPARAMS].apply(String.stringify)
         current_fold_name_from_trial_id: Callable = lambda trial_id: \
             None if tune.search.repeater.TRIAL_INDEX not in trial_hyperparams[trial_id] \
                 else self.k_fold.fold_names()[trial_hyperparams[trial_id][tune.search.repeater.TRIAL_INDEX]]
@@ -1618,7 +1618,7 @@ class RayTuneTrainer(Trainer):
                 out: str = f'\n{start_str} {self.task_display_name} model using Ray Tune.' \
                            f'\nAlgorithm: {self.algorithm_display_name}' \
                            f'\nSearch algorithm: {self.search_algorithm.to_call_str()}' \
-                           f'\nSearch space: {StringUtil.pretty(self._create_hyperparams_search_space_for_tuning())}'
+                           f'\nSearch space: {String.pretty(self._create_hyperparams_search_space_for_tuning())}'
             else:
                 start_str: str = 'Done tuning'
                 out: str = f'\n{start_str} {self.task_display_name} model using Ray Tune.'

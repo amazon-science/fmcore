@@ -1,7 +1,7 @@
 from typing import *
 import io, json, yaml, os, errno, sys, glob, pathlib, math, copy, time, shutil, pickle
 from fmcore.util.language import as_list, is_list_like, format_exception_msg, remove_values
-from fmcore.util.string import StringUtil
+from fmcore.util.language import String
 
 
 class FileSystemUtil:
@@ -34,7 +34,7 @@ class FileSystemUtil:
     @classmethod
     def is_path_valid_dir(cls, path: str) -> bool:
         path: str = cls.expand_dir(path)
-        path: str = StringUtil.assert_not_empty_and_strip(
+        path: str = String.assert_not_empty_and_strip(
             path,
             error_message=f'Following path is not a valid local directory: "{path}"'
         )
@@ -76,7 +76,7 @@ class FileSystemUtil:
         :param path: input file or directory path.
         :return: The dir of the passed path. Always ends in '/'.
         """
-        path: str = StringUtil.assert_not_empty_and_strip(path)
+        path: str = String.assert_not_empty_and_strip(path)
         path: str = cls.expand_dir(path)
         if not cls.dir_exists(path):  ## Works for both /home/seldon and /home/seldon/
             path: str = os.path.dirname(path)
@@ -142,7 +142,7 @@ class FileSystemUtil:
             cls,
             path: str,
             *,
-            file_glob: str = StringUtil.DOUBLE_ASTERISK,
+            file_glob: str = String.DOUBLE_ASTERISK,
             ignored_files: Union[str, List[str]] = None,
             recursive: bool = False,
             only_files: bool = False,
@@ -168,13 +168,13 @@ class FileSystemUtil:
         return fpaths if len(fpaths) > 0 else []
 
     @classmethod
-    def list_first_file_in_dir(cls, path: str, file_glob=StringUtil.ASTERISK, ignored_files=None) -> Optional[str]:
+    def list_first_file_in_dir(cls, path: str, file_glob=String.ASTERISK, ignored_files=None) -> Optional[str]:
         path: str = cls.expand_dir(path)
         file_paths: List[str] = cls.list_files_in_dir(path, file_glob=file_glob, ignored_files=ignored_files)
         return file_paths[0] if len(file_paths) > 0 else None
 
     @classmethod
-    def list_only_file_in_dir(cls, path: str, file_glob=StringUtil.ASTERISK, ignored_files=None) -> Optional[str]:
+    def list_only_file_in_dir(cls, path: str, file_glob=String.ASTERISK, ignored_files=None) -> Optional[str]:
         path: str = cls.expand_dir(path)
         if cls.file_exists(path):
             return path  ## Is actually a file
@@ -195,12 +195,12 @@ class FileSystemUtil:
         fpaths: List[str] = as_list(path)
         size_in_bytes: int = int(sum([pathlib.Path(fpath).stat().st_size for fpath in fpaths]))
         if unit is not None:
-            return StringUtil.convert_size_from_bytes(size_in_bytes, unit=unit, decimals=decimals)
-        return StringUtil.readable_bytes(size_in_bytes, decimals=decimals)
+            return String.convert_size_from_bytes(size_in_bytes, unit=unit, decimals=decimals)
+        return String.readable_bytes(size_in_bytes, decimals=decimals)
 
     @classmethod
     def get_time_last_modified(cls, path: str, decimals=3):
-        path = StringUtil.assert_not_empty_and_strip(path)
+        path = String.assert_not_empty_and_strip(path)
         path: str = cls.expand_dir(path)
         assert cls.exists(path), f'Path {path} does not exist.'
         return round(os.path.getmtime(path), decimals)
@@ -253,7 +253,7 @@ class FileSystemUtil:
         try:
             with io.open(path, 'r', encoding=encoding, errors=errors) as inp:
                 file_str = inp.read()
-            StringUtil.assert_not_empty(file_str)
+            String.assert_not_empty(file_str)
             return file_str
         except Exception as e:
             if raise_error:
@@ -266,7 +266,7 @@ class FileSystemUtil:
         try:
             with io.open(path, 'rb') as inp:
                 file_bytes = inp.read()
-            StringUtil.assert_not_empty_bytes(file_bytes)
+            String.assert_not_empty_bytes(file_bytes)
             return file_bytes
         except Exception as e:
             if raise_error:
@@ -414,9 +414,9 @@ class FileSystemUtil:
         """
         path: str = cls.expand_dir(path)
         if cls.is_path_valid_dir(path):
-            file_name: str = StringUtil.assert_not_empty_and_strip(name)
+            file_name: str = String.assert_not_empty_and_strip(name)
             if file_ending is not None:
-                file_name += StringUtil.assert_not_empty_and_strip(file_ending)
+                file_name += String.assert_not_empty_and_strip(file_ending)
             return os.path.join(cls.get_dir(path), file_name)
         else:
             return path
@@ -432,7 +432,7 @@ class FileSystemUtil:
         path: str = cls.expand_dir(path)
         if not cls.is_path_valid_dir(path):
             raise ValueError(f'Base dir path "{path}" is not a valid directory.')
-        name: str = StringUtil.assert_not_empty_and_strip(name)
+        name: str = String.assert_not_empty_and_strip(name)
         path: str = os.path.join(cls.get_dir(path), name)
         if not path.endswith(os.path.sep):
             path += os.path.sep
@@ -440,7 +440,7 @@ class FileSystemUtil:
 
     @classmethod
     def construct_nested_dir_path(cls, path: str, *other_paths: Tuple[str]) -> str:
-        StringUtil.assert_not_empty(path)
+        String.assert_not_empty(path)
         other_paths = tuple([str(x) for x in other_paths])
         path = os.path.join(path, *other_paths)
         return path if path.endswith(os.path.sep) else path + os.path.sep

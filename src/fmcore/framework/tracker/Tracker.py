@@ -5,7 +5,7 @@ import time, json, math, numpy as np, pandas as pd, os, logging
 from abc import abstractmethod, ABC
 from functools import partial
 from fmcore.data import FileMetadata
-from fmcore.util import Parameters, MutableParameters, Registry, FractionalBool, safe_validate_arguments, StringUtil, \
+from fmcore.util import Parameters, MutableParameters, Registry, FractionalBool, safe_validate_arguments, String, \
     all_are_true, all_are_false, any_are_not_none, any_are_none, Log, as_list, get_default, as_set, \
     set_param_from_alias, random_sample, format_exception_msg, optional_dependency, FileSystemUtil, JupyterNotebook
 from fmcore.constants import Alias
@@ -217,7 +217,7 @@ class NoopTracker(Tracker):
 
     def initialize(self, init_msg: bool = False, **kwargs):
         if init_msg:
-            self.info(f'Created sysout logger at: {StringUtil.now()}')
+            self.info(f'Created sysout logger at: {String.now()}')
 
     @property
     def id(self) -> str:

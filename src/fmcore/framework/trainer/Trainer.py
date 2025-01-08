@@ -10,7 +10,7 @@ from fmcore.framework.metric import CountingMetric, Metric, Metrics
 from fmcore.framework.task_data import Dataset, Datasets, save_dataset
 from fmcore.framework.predictions import Predictions, save_predictions
 from fmcore.framework.tracker import Tracker, DEFAULT_TRACKER_PARAMS
-from fmcore.util import Parameters, Registry, FractionalBool, random_sample, safe_validate_arguments, StringUtil, \
+from fmcore.util import Parameters, Registry, FractionalBool, random_sample, safe_validate_arguments, String, \
     any_are_not_none, any_are_none, is_function, as_list, get_default, set_param_from_alias, classproperty, \
     optional_dependency, all_are_not_none, all_are_none, Timer, type_str, format_exception_msg, NeverFailJsonEncoder
 from pydantic import root_validator, Extra, conint
@@ -70,7 +70,7 @@ class CompressPredictions(Metric):  ## Hack to get predictions out of Ray Tune.
             raise NotImplementedError(f'Can only compress {Predictions}')
         data_params: Dict = data.dict(exclude={'data'})
         data_params['data']: Dict = data.data.compress(base64_encoding=True).dict()
-        return StringUtil.jsonify(data_params)
+        return String.jsonify(data_params)
 
 
 class KFold(Parameters):
@@ -882,7 +882,7 @@ class Trainer(Parameters, Registry, ABC):
             out = f'{DataSplit.TRAIN.name.capitalize()} ' \
                   f'{cur_epoch_str}, ' \
                   f'{cur_batch_str} ' \
-                  f'took {StringUtil.readable_seconds(end - start)}.'
+                  f'took {String.readable_seconds(end - start)}.'
         elif all_are_not_none(step_num, steps):
             cur_step_str: str = self._cur_step_str(
                 steps=steps,
@@ -890,9 +890,9 @@ class Trainer(Parameters, Registry, ABC):
             )
             out = f'{DataSplit.TRAIN.name.capitalize()} ' \
                   f'{cur_step_str} ' \
-                  f'took {StringUtil.readable_seconds(end - start)}.'
+                  f'took {String.readable_seconds(end - start)}.'
         if len(train_step_metrics) > 0:
-            out += f' {StringUtil.stringify(train_step_metrics)}'
+            out += f' {String.stringify(train_step_metrics)}'
         return out
 
     @abstractmethod
@@ -910,8 +910,8 @@ class Trainer(Parameters, Registry, ABC):
 
     @classmethod
     def _pad_epoch_strs(cls, epoch_num: int, epochs: int) -> Tuple[str, str]:
-        epoch_num_str: str = StringUtil.pad_zeros(epoch_num, epochs)  ## epoch_num is in [1, epochs], inclusive.
-        epochs_str: str = StringUtil.pad_zeros(epochs, epochs)
+        epoch_num_str: str = String.pad_zeros(epoch_num, epochs)  ## epoch_num is in [1, epochs], inclusive.
+        epochs_str: str = String.pad_zeros(epochs, epochs)
         return epoch_num_str, epochs_str
 
     @classmethod
@@ -944,11 +944,11 @@ class Trainer(Parameters, Registry, ABC):
     @classmethod
     def _pad_step_strs(cls, step_num: int, steps: int, steps_increment: Optional[int]) -> Tuple[
         str, str, Optional[str]]:
-        step_num_str: str = StringUtil.pad_zeros(step_num, steps + 1)  ## step_num is in [1, steps], inclusive.
+        step_num_str: str = String.pad_zeros(step_num, steps + 1)  ## step_num is in [1, steps], inclusive.
         step_num_increment_str: Optional[str] = None
-        steps_str: str = StringUtil.pad_zeros(steps, steps + 1)
+        steps_str: str = String.pad_zeros(steps, steps + 1)
         if steps_increment is not None:
-            step_num_increment_str: str = StringUtil.pad_zeros(  ## step_num is in [1, steps], inclusive.
+            step_num_increment_str: str = String.pad_zeros(  ## step_num is in [1, steps], inclusive.
                 _step_num_after_iter(
                     step_num=step_num,
                     steps=steps,
@@ -965,6 +965,6 @@ class Trainer(Parameters, Registry, ABC):
 
     @classmethod
     def _pad_batch_strs(cls, batch_i: int, batches: int) -> Tuple[str, str]:
-        batch_num_str: str = StringUtil.pad_zeros(batch_i + 1, batches)  ## batch_i is in [0, num_batches], inclusive.
-        batches_str: str = StringUtil.pad_zeros(batches, batches)
+        batch_num_str: str = String.pad_zeros(batch_i + 1, batches)  ## batch_i is in [0, num_batches], inclusive.
+        batches_str: str = String.pad_zeros(batches, batches)
         return batch_num_str, batches_str

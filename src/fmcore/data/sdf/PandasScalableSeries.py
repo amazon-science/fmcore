@@ -1,7 +1,7 @@
 from typing import *
 import numpy as np
 from pandas.core.frame import Series as PandasSeries, DataFrame as PandasDataFrame
-from fmcore.util import wrap_fn_output, is_function, StringUtil, get_default
+from fmcore.util import wrap_fn_output, is_function, String, get_default
 from fmcore.constants import DataLayout
 from fmcore.data.sdf.ScalableSeries import ScalableSeries, SS_DEFAULT_NAME
 from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame

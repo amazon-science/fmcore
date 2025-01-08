@@ -2,7 +2,7 @@ from typing import *
 from abc import abstractmethod, ABC
 import io, numpy as np
 from fmcore.constants import FileContents, FileFormat, Storage, DataLayout, SHORTHAND_TO_TENSOR_LAYOUT_MAP
-from fmcore.util import is_list_like, StringUtil, FileSystemUtil, run_concurrent, run_parallel, run_parallel_ray, \
+from fmcore.util import is_list_like, String, FileSystemUtil, run_concurrent, run_parallel, run_parallel_ray, \
     accumulate, optional_dependency
 from fmcore.util.aws import S3Util
 from fmcore.data.asset import Image

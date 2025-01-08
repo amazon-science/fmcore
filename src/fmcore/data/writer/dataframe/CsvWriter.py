@@ -11,7 +11,7 @@ from dask.dataframe.io.csv import to_csv as Dask_to_csv
 from fmcore.data.writer.dataframe.DataFrameWriter import DataFrameWriter
 from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType
 from fmcore.data.sdf.DaskScalableDataFrame import DaskScalableDataFrame
-from fmcore.util import StringUtil
+from fmcore.util import String
 from fmcore.constants import FileFormat, Storage, DataLayout, QUOTING_MAP
 from pydantic import validator, constr
 
@@ -22,7 +22,7 @@ class CsvWriter(DataFrameWriter):
     dask_multiple_write_file_suffix = '.part'  ## github.com/dask/dask/issues/9044
 
     class Params(DataFrameWriter.Params):
-        sep: constr(min_length=1, max_length=3) = StringUtil.COMMA
+        sep: constr(min_length=1, max_length=3) = String.COMMA
         header: Union[bool, List[str]] = True
         quoting: Optional[str] = None
         index: Optional[int] = None
@@ -88,4 +88,4 @@ class TsvWriter(CsvWriter):
     file_formats = [FileFormat.TSV]
 
     class Params(CsvWriter.Params):
-        sep: constr(min_length=1, max_length=3) = StringUtil.TAB
+        sep: constr(min_length=1, max_length=3) = String.TAB

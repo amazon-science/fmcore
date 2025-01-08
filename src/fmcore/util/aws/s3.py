@@ -2,7 +2,7 @@ from typing import *
 import io, random, re, math, os, time, boto3, botocore, fnmatch, pickle
 from urllib.parse import urlparse, ParseResult
 from fmcore.util.language import as_list, is_list_like, format_exception_msg, any_are_none, remove_values
-from fmcore.util import Utility, StringUtil, FileSystemUtil, Log, Timer, shuffle_items
+from fmcore.util import Utility, String, FileSystemUtil, Log, Timer, shuffle_items
 from fmcore.constants import _LIBRARY_NAME
 
 
@@ -10,7 +10,7 @@ class S3Util(Utility):
     S3_BUCKET = 'Bucket'
     OBJECT_KEY = 'Key'
     ACL = 'ACL'
-    S3_PATH_REGEX = StringUtil.CARET + StringUtil.S3_PREFIX + '(\S+?)' + StringUtil.SLASH + '(\S+)' + StringUtil.DOLLAR
+    S3_PATH_REGEX = String.CARET + String.S3_PREFIX + '(\S+?)' + String.SLASH + '(\S+)' + String.DOLLAR
     ## Permissions:
     S3_BUCKET_GET_OBJ_PERMISSION = 's3:GetObject'
     S3_BUCKET_LIST_PERMISSION = 's3:ListBucket'
@@ -21,13 +21,13 @@ class S3Util(Utility):
 
     @classmethod
     def s3_path_exploder(cls, s3_path: str) -> Tuple[str, str]:
-        s3_path = StringUtil.assert_not_empty_and_strip(s3_path)
+        s3_path = String.assert_not_empty_and_strip(s3_path)
         s3_parsed_result: ParseResult = urlparse(s3_path)
         s3_bucket, object_key = None, None
-        if StringUtil.is_not_empty(s3_parsed_result.netloc) and StringUtil.SPACE not in s3_parsed_result.netloc:
+        if String.is_not_empty(s3_parsed_result.netloc) and String.SPACE not in s3_parsed_result.netloc:
             s3_bucket = s3_parsed_result.netloc
-        if StringUtil.is_not_empty(s3_parsed_result.path) and s3_bucket is not None:
-            object_key = StringUtil.remove_prefix(s3_parsed_result.path, StringUtil.SLASH)
+        if String.is_not_empty(s3_parsed_result.path) and s3_bucket is not None:
+            object_key = String.remove_prefix(s3_parsed_result.path, String.SLASH)
         return s3_bucket, object_key
 
     @classmethod
@@ -40,19 +40,19 @@ class S3Util(Utility):
 
     @classmethod
     def is_valid_s3_path(cls, s3_path: str) -> bool:
-        s3_path = StringUtil.assert_not_empty_and_strip(s3_path)
+        s3_path = String.assert_not_empty_and_strip(s3_path)
         s3_bucket, object_key = cls.s3_path_exploder(s3_path)
-        return StringUtil.is_not_empty(s3_bucket) and StringUtil.is_not_empty(object_key)
+        return String.is_not_empty(s3_bucket) and String.is_not_empty(object_key)
 
     @classmethod
     def is_path_valid_s3_dir(cls, s3_path: str) -> bool:
-        return cls.is_valid_s3_path(s3_path) and s3_path.endswith(StringUtil.SLASH)
+        return cls.is_valid_s3_path(s3_path) and s3_path.endswith(String.SLASH)
 
     @classmethod
     def get_s3_dir(cls, s3_path: str) -> str:
         if cls.is_path_valid_s3_dir(s3_path):
             return s3_path
-        return StringUtil.SLASH.join(s3_path.split(StringUtil.SLASH)[:-1]) + StringUtil.SLASH
+        return String.SLASH.join(s3_path.split(String.SLASH)[:-1]) + String.SLASH
 
     @classmethod
     def check_bucket_permission(cls, s3_path: str, action_names: Union[str, List[str]]) -> bool:
@@ -95,7 +95,7 @@ class S3Util(Utility):
 
     @classmethod
     def s3_object_does_not_exist(cls, s3_path: str):
-        StringUtil.assert_not_empty(s3_path)
+        String.assert_not_empty(s3_path)
         return not cls.s3_object_exists(s3_path)
 
     @classmethod
@@ -142,8 +142,8 @@ class S3Util(Utility):
             if s3_resp is not None
         ]))
         if unit is not None:
-            return StringUtil.convert_size_from_bytes(size_in_bytes, unit=unit, decimals=decimals)
-        return StringUtil.readable_bytes(size_in_bytes, decimals=decimals)
+            return String.convert_size_from_bytes(size_in_bytes, unit=unit, decimals=decimals)
+        return String.readable_bytes(size_in_bytes, decimals=decimals)
 
     @classmethod
     def list_recursive_objects_in_dir(cls, *args, **kwargs) -> List[str]:
@@ -154,8 +154,8 @@ class S3Util(Utility):
             cls,
             s3_path: str,
             *,
-            file_glob: str = StringUtil.DOUBLE_ASTERISK,
-            ignored_files: Union[str, List[str]] = StringUtil.FILES_TO_IGNORE,
+            file_glob: str = String.DOUBLE_ASTERISK,
+            ignored_files: Union[str, List[str]] = String.FILES_TO_IGNORE,
             **kwargs
     ) -> List[str]:
         ignored_files: List[str] = as_list(ignored_files)
@@ -166,12 +166,12 @@ class S3Util(Utility):
         if len(objs_in_dir) == 0:
             return []
         objs_in_dir: List[str] = [
-            os.path.join(StringUtil.S3_PREFIX, obj_path.bucket_name, obj_path.key)
+            os.path.join(String.S3_PREFIX, obj_path.bucket_name, obj_path.key)
             for obj_path in objs_in_dir
         ]
         objs_in_dir: List[str] = [
             obj_path for obj_path in objs_in_dir
-            if fnmatch.fnmatch(StringUtil.remove_prefix(obj_path, s3_path), file_glob)
+            if fnmatch.fnmatch(String.remove_prefix(obj_path, s3_path), file_glob)
         ]
         obj_names_map: Dict[str, str] = {obj_path: os.path.basename(obj_path) for obj_path in objs_in_dir}
         obj_names_map = remove_values(obj_names_map, ignored_files)
@@ -191,21 +191,21 @@ class S3Util(Utility):
     ) -> List[str]:
         s3 = boto3.resource('s3')
         s3_bucket, object_key = cls.s3_path_exploder(s3_path)
-        if not object_key.endswith(StringUtil.SLASH):
-            object_key += StringUtil.SLASH
+        if not object_key.endswith(String.SLASH):
+            object_key += String.SLASH
         s3_bucket_resource = s3.Bucket(s3_bucket)
         paginator = s3_bucket_resource.meta.client.get_paginator('list_objects')
-        pagination_params: Dict = dict(Prefix=object_key, Delimiter=StringUtil.SLASH)
+        pagination_params: Dict = dict(Prefix=object_key, Delimiter=String.SLASH)
         subdirs: List[str] = []
         ## Ref: https://stackoverflow.com/a/51372405
         for resp in paginator.paginate(Bucket=s3_bucket_resource.name, **pagination_params):
             if 'CommonPrefixes' in resp:
                 subdirs.extend([
-                    os.path.join(StringUtil.S3_PREFIX, s3_bucket,
+                    os.path.join(String.S3_PREFIX, s3_bucket,
                                  f['Prefix']) if not names_only
-                    else StringUtil.remove_suffix(
-                        StringUtil.remove_prefix(f['Prefix'], prefix=object_key),
-                        suffix=StringUtil.SLASH,
+                    else String.remove_suffix(
+                        String.remove_prefix(f['Prefix'], prefix=object_key),
+                        suffix=String.SLASH,
                     )
                     for f in resp['CommonPrefixes']]
                 )
@@ -222,7 +222,7 @@ class S3Util(Utility):
     def get_s3_object_str(cls, s3_path: str, retry: int = 1) -> str:
         s3_bucket, object_key = cls.s3_path_exploder(s3_path)
         out_str = cls.stream_s3_object(s3_path, retry=retry).read().decode('utf-8')
-        if StringUtil.is_empty(out_str):
+        if String.is_empty(out_str):
             raise IOError(f'Object in bucket "{s3_bucket}" with key "{object_key}" seems to be empty')
         return out_str
 
@@ -397,7 +397,7 @@ class S3Util(Utility):
     ) -> bool:
         s3_fpaths: List[str] = cls.list_recursive_objects_in_dir(source_s3_dir)
         s3_fnames: Set[str] = {
-            s3_fpath.split(StringUtil.SLASH)[-1] for s3_fpath in s3_fpaths
+            s3_fpath.split(String.SLASH)[-1] for s3_fpath in s3_fpaths
         }
         destination_local_dir: str = FileSystemUtil.expand_dir(destination_local_dir)
         local_fpaths: List[str] = FileSystemUtil.list(destination_local_dir)
@@ -412,7 +412,7 @@ class S3Util(Utility):
             s3_fpaths_to_download: List[str] = [
                 s3_fpath
                 for s3_fpath in s3_fpaths
-                if s3_fpath.split(StringUtil.SLASH)[-1] in (s3_fnames - local_fnames)
+                if s3_fpath.split(String.SLASH)[-1] in (s3_fnames - local_fnames)
             ]
             if len(s3_fpaths_to_download) == 0:
                 return True
@@ -426,7 +426,7 @@ class S3Util(Utility):
                     if log:
                         Log.info(f'Downloading {len(s3_fpaths_to_download)} files from S3...')
                     for s3_fpath_to_download in s3_fpaths_to_download:
-                        fname: str = s3_fpath_to_download.split(StringUtil.SLASH)[-1]
+                        fname: str = s3_fpath_to_download.split(String.SLASH)[-1]
                         local_fpath: str = os.path.join(destination_local_dir, fname)
                         if log:
                             Log.info(f'Downloading file from "{s3_fpath_to_download}" to "{local_fpath}"...')
@@ -481,7 +481,7 @@ class S3Util(Utility):
         source_s3_fpaths: List[str] = cls.list(source_s3_dir)
         try:
             for source_s3_fpath in source_s3_fpaths:
-                if source_s3_fpath.endswith(StringUtil.SLASH):
+                if source_s3_fpath.endswith(String.SLASH):
                     continue  ## Only copy files
                 source_s3_fname: str = source_s3_fpath.replace(source_s3_dir, '')
                 destination_s3_fpath: str = cls.construct_path_in_s3_dir(
@@ -511,16 +511,16 @@ class S3Util(Utility):
         :return: file path string.
         """
         if S3Util.is_path_valid_s3_dir(s3_path):
-            file_name: str = StringUtil.assert_not_empty_and_strip(name)
+            file_name: str = String.assert_not_empty_and_strip(name)
             if file_ending is not None:
-                file_name += StringUtil.assert_not_empty_and_strip(file_ending)
-            if s3_path.endswith(StringUtil.SLASH):
-                out_s3_path: str = StringUtil.EMPTY.join([s3_path, file_name])
+                file_name += String.assert_not_empty_and_strip(file_ending)
+            if s3_path.endswith(String.SLASH):
+                out_s3_path: str = String.EMPTY.join([s3_path, file_name])
             else:
-                out_s3_path: str = StringUtil.SLASH.join([s3_path, file_name])
-            if is_dir and not out_s3_path.endswith(StringUtil.SLASH):
+                out_s3_path: str = String.SLASH.join([s3_path, file_name])
+            if is_dir and not out_s3_path.endswith(String.SLASH):
                 ## Add a slash at the end:
-                out_s3_path += StringUtil.SLASH
+                out_s3_path += String.SLASH
             return out_s3_path
         else:
             return s3_path

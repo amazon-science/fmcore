@@ -5,7 +5,7 @@ from contextlib import contextmanager, ExitStack
 from functools import partial
 from ray import tune, air
 from ray.runtime_env import RuntimeEnv as RayRuntimeEnv
-from fmcore.util import Parameters, set_param_from_alias, safe_validate_arguments, format_exception_msg, StringUtil, \
+from fmcore.util import Parameters, set_param_from_alias, safe_validate_arguments, format_exception_msg, String, \
     Timer, get_default, is_list_like, is_empty_list_like, run_concurrent, \
     Timeout24Hr, Timeout1Hr, Timeout, as_list, accumulate, get_result, wait, AutoEnum, auto, ProgressBar, only_item, \
     ignore_all_output, ignore_logging, ignore_warnings, ignore_stdout, LoadBalancingStrategy
@@ -140,16 +140,16 @@ class AlgorithmEvaluator:
             ## `data` is the entire dataset, so predict only the relevant shard.
             shard: Tuple[int, int] = self.actor
             make_fname = lambda predicted_num_rows, macro_batch, input_len: \
-                f'shard-{StringUtil.pad_zeros(*self.actor)}' \
-                f'-rows-{StringUtil.pad_zeros(predicted_num_rows, input_len)}' \
-                f'-to-{StringUtil.pad_zeros(predicted_num_rows + len(macro_batch), input_len)}'
+                f'shard-{String.pad_zeros(*self.actor)}' \
+                f'-rows-{String.pad_zeros(predicted_num_rows, input_len)}' \
+                f'-to-{String.pad_zeros(predicted_num_rows + len(macro_batch), input_len)}'
         elif data_loading_strategy is DataLoadingStrategy.LOCAL:
             ## `data` here is one shard of the dataset, so predict it entirely.
             shard: Tuple[int, int] = (0, 1)
             make_fname = lambda predicted_num_rows, macro_batch, input_len: \
-                f'part-{StringUtil.pad_zeros(dataset_params["data_idx"] + 1, int(1e9))}' \
-                f'-rows-{StringUtil.pad_zeros(predicted_num_rows, input_len)}' \
-                f'-to-{StringUtil.pad_zeros(predicted_num_rows + len(macro_batch), input_len)}'
+                f'part-{String.pad_zeros(dataset_params["data_idx"] + 1, int(1e9))}' \
+                f'-rows-{String.pad_zeros(predicted_num_rows, input_len)}' \
+                f'-to-{String.pad_zeros(predicted_num_rows + len(macro_batch), input_len)}'
         else:
             raise NotImplementedError(f'Unsupported `data_loading_strategy`: {data_loading_strategy}')
         for macro_batch in data.stream(
@@ -539,7 +539,7 @@ class RayEvaluator(Evaluator):
             actors_were_created_in_this_call: bool = self.init_model(progress_bar=progress_bar, **kwargs)
             num_actors_created: int = len(self.model)
             if actors_were_created_in_this_call:
-                resource_req_str: str = StringUtil.join_human([
+                resource_req_str: str = String.join_human([
                     f"{resource_req} {resource_name}(s)"
                     for resource_name, resource_req in self.resources_per_model.items()
                 ])
@@ -547,7 +547,7 @@ class RayEvaluator(Evaluator):
             dataset: Dataset = dataset.read(read_as=read_as, npartitions=num_actors_created)
             data: ScalableDataFrame = dataset.data.persist(wait=True)
             input_len: int = len(data)
-            input_len_str: str = StringUtil.readable_number(input_len, decimals=1, short=True)
+            input_len_str: str = String.readable_number(input_len, decimals=1, short=True)
             if sharding_strategy is ShardingStrategy.GRANULAR:
                 if not isinstance(data, DaskScalableDataFrame):
                     raise ValueError(
@@ -756,7 +756,7 @@ class RayEvaluator(Evaluator):
                 debug_logger(f'Concatenated into {len(evaluated_predictions)} rows of predictions.')
                 if len(evaluated_predictions) != input_len:
                     num_failed_rows: int = input_len - len(evaluated_predictions)
-                    num_failed_rows_str: str = StringUtil.readable_number(
+                    num_failed_rows_str: str = String.readable_number(
                         num_failed_rows,
                         decimals=1,
                         short=True
@@ -817,7 +817,7 @@ class RayEvaluator(Evaluator):
         else:
             tracker_msg: str = f'{tracker.class_name}@{tracker.id} will save logs to: "{tracker.log_dir}"'
         return f'\nEvaluating using nested evaluator: ' \
-               f'{StringUtil.pretty(self._create_nested_evaluator_params(**kwargs))}' \
+               f'{String.pretty(self._create_nested_evaluator_params(**kwargs))}' \
                f'\n{tracker_msg}'
 
     def _evaluate_end_msg(

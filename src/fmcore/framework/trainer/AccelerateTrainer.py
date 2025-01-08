@@ -2,7 +2,7 @@ from typing import *
 import time, warnings, traceback, os, math, numpy as np
 from functools import partial
 from fmcore.util import Log, optional_dependency, safe_validate_arguments, any_are_none, get_default, \
-    StringUtil, FileSystemUtil, Timer
+    String, FileSystemUtil, Timer
 from fmcore.data import FileMetadata
 from fmcore.framework.trainer.Trainer import Trainer
 from fmcore.framework.task_data import DataSplit, Datasets, Dataset
@@ -295,7 +295,7 @@ with optional_dependency('accelerate', 'torch'):
                 accelerator: Accelerator,
         ):
             pid: int = os.getpid()
-            now: str = StringUtil.now()
+            now: str = String.now()
             text: str = f'(pid={pid}, worker={worker_rank + 1}/{num_workers}, {now}): {text}'
             if verbosity == 0:  ## Don't log anything.
                 return

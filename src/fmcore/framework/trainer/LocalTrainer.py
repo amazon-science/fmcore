@@ -1,7 +1,7 @@
 from typing import *
 import time, traceback, gc, os, warnings
 from functools import partial
-from fmcore.util import Log, FileSystemUtil, StringUtil, get_default, all_are_not_none, safe_validate_arguments, Timer
+from fmcore.util import Log, FileSystemUtil, String, get_default, all_are_not_none, safe_validate_arguments, Timer
 from fmcore.data import FileMetadata
 from fmcore.framework.trainer.Trainer import Trainer
 from fmcore.framework.tracker.Tracker import Tracker
@@ -141,11 +141,11 @@ class LocalTrainer(Trainer):
             tracker_msg: str = 'Logs will not be tracked.'
         else:
             tracker_msg: str = f'{tracker.class_name}@{tracker.id} will save logs to: "{tracker.log_dir}"'
-        return StringUtil.dedupe(
+        return String.dedupe(
             f'\nTraining following {model.task} model '
             f'for {model.hyperparams.epochs} epochs '
             f'on {train_dataset.display_name} dataset:',
-            dedupe=StringUtil.SPACE,
+            dedupe=String.SPACE,
         ) + f'\n{str(model)}' \
             f'\n{tracker_msg}'
 

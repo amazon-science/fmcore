@@ -8,7 +8,7 @@ from pandas.core.series import Series as PandasSeries
 import dask.dataframe as dd
 from dask.dataframe.core import DataFrame as DaskDataFrame
 from dask.dataframe.core import Series as DaskSeries
-from fmcore.util import StringUtil, Future, Log, accumulate, dispatch, retry as retry_fn, \
+from fmcore.util import String, Future, Log, accumulate, dispatch, retry as retry_fn, \
     is_list_like, only_item, get_default, format_exception_msg, Schema, safe_validate_arguments, ProgressBar
 from fmcore.constants import Storage, FileContents, DataLayout, Parallelize, MLTypeSchema, Alias
 from fmcore.data.reader.Reader import Reader

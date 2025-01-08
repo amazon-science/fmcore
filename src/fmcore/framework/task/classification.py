@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from pandas.core.frame import DataFrame as PandasDataFrame
 from fmcore.util import as_list, as_tuple, safe_validate_arguments, is_not_null, is_list_or_set_like, flatten1d
-from fmcore.util.language import _all_are_np_subtypes
+from fmcore.util import all_are_np_subtypes
 from fmcore.data import ScalableSeries, ScalableSeriesRawType, ScalableDataFrame
 from fmcore.constants import MLType, DataSplit, Task, MLTypeSchema, DataLayout
 from fmcore.framework import Algorithm, Dataset, Predictions, Metric, Metrics
@@ -252,7 +252,7 @@ class TopKClassificationPredictions(ClassificationPredictions):
             labels: np.ndarray = np.array(labels)
         if isinstance(scores, (list, tuple)):
             scores: np.ndarray = np.array(scores)
-        if not _all_are_np_subtypes(scores.dtype, {np.bool_, np.integer, np.floating}):
+        if not all_are_np_subtypes(scores.dtype, {np.bool_, np.integer, np.floating}):
             raise ValueError(f'Expected scores array to have dtype as bool, int or float; found: {scores.dtype}')
         if labels.ndim == 1:
             labels: np.ndarray = labels[..., np.newaxis]  ## stackoverflow.com/a/25755697/4900327

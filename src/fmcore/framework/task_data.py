@@ -3,7 +3,7 @@ import os, math
 from abc import ABC
 from fmcore.data.sdf import ScalableDataFrame, ScalableDataFrameOrRaw, ScalableSeries, ScalableOrRaw, to_sdf
 from fmcore.util import Parameters, Registry, FractionalBool, resolve_fractional_bool, Schema, SchemaTemplate, \
-    StringUtil, safe_validate_arguments, get_default, run_concurrent, accumulate, as_list, \
+    String, safe_validate_arguments, get_default, run_concurrent, accumulate, as_list, \
     str_normalize, optional_dependency, set_param_from_alias, any_are_none, remove_keys, format_exception_msg
 from fmcore.constants import DataSplit, DataLayout, MLTypeSchema, Parallelize, FileFormat, MLType, ASSET_ML_TYPES, \
     FILE_FORMAT_TO_FILE_ENDING_MAP
@@ -267,7 +267,7 @@ def load_dataset(
         if file_ending is None:
             raise ValueError(f'Cannot detect file ending from path: "{dataset_source.path}"')
         dataset_params_file: FileMetadata = FileMetadata.of(
-            StringUtil.remove_suffix(
+            String.remove_suffix(
                 dataset_source.path,
                 suffix=file_ending
             ) + DATASET_PARAMS_SAVE_FILE_ENDING,
@@ -310,7 +310,7 @@ def load_dataset(
                 for dataset_params_d in dataset_params_list
             ]
             dataset_params_set: Set[str] = set([
-                StringUtil.stringify(dataset_params_d)
+                String.stringify(dataset_params_d)
                 for dataset_params_d in dataset_params_list
             ])
             if len(dataset_params_set) > 1:
@@ -333,7 +333,7 @@ def load_dataset(
                 file_ending: Optional[str] = None
         if file_ending is None:
             raise ValueError(
-                f'No files ending with {StringUtil.join_human(file_endings, final_join="or")} '
+                f'No files ending with {String.join_human(file_endings, final_join="or")} '
                 f'exist in directory: "{dataset_source.path}"'
             )
         data: ScalableDataFrame = reader.read_metadata(
@@ -386,7 +386,7 @@ def save_dataset(
         if file_ending is None:
             raise ValueError(f'Cannot detect file ending from path: "{dataset_destination.path}"')
         dataset_params_file: FileMetadata = FileMetadata.of(
-            StringUtil.remove_suffix(
+            String.remove_suffix(
                 dataset_destination.path,
                 suffix=file_ending
             ) + DATASET_PARAMS_SAVE_FILE_ENDING,

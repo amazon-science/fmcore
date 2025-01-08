@@ -2,7 +2,7 @@ from typing import *
 import requests, json
 from abc import abstractmethod, ABC
 from fmcore.util.language import Parameters, Registry, safe_validate_arguments, get_default, format_exception_msg
-from fmcore.util.string import StringUtil
+from fmcore.util.language import String
 from fmcore.constants.DataProcessingConstants import Status
 from pydantic import constr, BaseModel, root_validator
 from datetime import datetime
@@ -104,13 +104,13 @@ class Notifier(Parameters, Registry, ABC):
             raise NotImplementedError(f'Unsupported status: {status}')
         now: datetime = get_default(now, datetime.now())
         now: datetime = now.replace(tzinfo=now.astimezone().tzinfo)
-        out += f' at {StringUtil.readable_datetime(now, human=True)}'
+        out += f' at {String.readable_datetime(now, human=True)}'
         if msg is not None:
             out = f'[{out}] {msg}'
         if start_dt is not None:
             start_dt: datetime = start_dt.replace(tzinfo=start_dt.astimezone().tzinfo)
             try:
-                out += f' ({StringUtil.readable_seconds((now - start_dt))} elapsed)'
+                out += f' ({String.readable_seconds((now - start_dt))} elapsed)'
             except Exception as e:
                 if raise_error:
                     raise e

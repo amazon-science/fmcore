@@ -4,7 +4,7 @@ import numpy as np
 from scipy import stats
 import pandas as pd
 from pandas.core.frame import Series as PandasSeries
-from fmcore.util import wrap_fn_output, is_function, all_are_none, all_are_not_none, StringUtil, \
+from fmcore.util import wrap_fn_output, is_function, all_are_none, all_are_not_none, String, \
     SampleSizeType, as_list, is_null, optional_dependency
 from fmcore.constants import DataLayout
 from fmcore.data.sdf.ScalableSeries import ScalableSeries
@@ -62,13 +62,13 @@ with optional_dependency('torch', error='warn'):
             if length == 0:
                 data_sample = str([])
             elif length == 1:
-                data_sample = f'[0]: {StringUtil.pretty(self._data[0])}'
+                data_sample = f'[0]: {String.pretty(self._data[0])}'
             elif length == 2:
-                data_sample = f'[0]: {StringUtil.pretty(self._data[0])}\n[1]: {StringUtil.pretty(self._data[1])}'
+                data_sample = f'[0]: {String.pretty(self._data[0])}\n[1]: {String.pretty(self._data[1])}'
             else:
-                data_sample = f'[{StringUtil.pad_zeros(0, length - 1)}]: {StringUtil.pretty(self._data[0])}\n' \
+                data_sample = f'[{String.pad_zeros(0, length - 1)}]: {String.pretty(self._data[0])}\n' \
                               f'...\n' \
-                              f'[{StringUtil.pad_zeros(length - 1, length - 1)}]: {StringUtil.pretty(self._data[-1])}'
+                              f'[{String.pad_zeros(length - 1, length - 1)}]: {String.pretty(self._data[-1])}'
             out += data_sample
             return out
 

@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from pandas.core.frame import Series as PandasSeries, DataFrame as PandasDataFrame
 from fmcore.util import filter_kwargs, as_set, any_are_not_none, multiple_are_not_none, all_are_none, is_scalar, \
-    get_default, safe_validate_arguments, as_list, StringUtil, type_str
+    get_default, safe_validate_arguments, as_list, String, type_str
 from fmcore.constants import DataLayout, Parallelize
 from fmcore.data.sdf.ScalableSeries import ScalableSeries
 from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameOrRaw

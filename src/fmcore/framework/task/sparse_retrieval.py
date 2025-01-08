@@ -5,7 +5,7 @@ import ray
 import time, glob, os, sys, boto3, numpy as np, pandas as pd, json, requests, gc, math, multiprocessing as mp, functools
 from fmcore.util import is_list_like, Parameters, MappedParameters, optional_dependency, Registry, append_to_keys, \
     MutableParameters, Schema, only_item, set_param_from_alias, wait, as_tuple, as_list, str_normalize, \
-    INDEX_COL_DEFAULT_NAME, AutoEnum, auto, safe_validate_arguments, type_str, Timer, StringUtil, get_default, \
+    INDEX_COL_DEFAULT_NAME, AutoEnum, auto, safe_validate_arguments, type_str, Timer, String, get_default, \
     dispatch, dispatch_executor, accumulate, accumulate_iter, ProgressBar, best_k, keep_keys, format_exception_msg, \
     Executor, iter_batches, get_result, check_isinstance, Log
 from fmcore.framework.ray_base import ActorComposite
@@ -403,7 +403,7 @@ class BM25IndexStoreParams(MappedParameters):
         return str(self)
 
     def __str__(self) -> str:
-        return f'{BM25IndexStoreParams.class_name} with params: {StringUtil.jsonify(self.dict())}'
+        return f'{BM25IndexStoreParams.class_name} with params: {String.jsonify(self.dict())}'
 
     @property
     def index_class_name(self) -> str:

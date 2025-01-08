@@ -2,7 +2,7 @@ import pathlib
 from typing import *
 from abc import abstractmethod, ABC
 import io, numpy as np, pandas as pd
-from fmcore.util import is_list_like, StringUtil, run_concurrent, run_parallel, run_parallel_ray, accumulate, Log, \
+from fmcore.util import is_list_like, String, run_concurrent, run_parallel, run_parallel_ray, accumulate, Log, \
     format_exception_msg, as_list, retry, dispatch
 from fmcore.constants import FileContents, Parallelize, Storage, TensorShortHand, SHORTHAND_TO_TENSOR_LAYOUT_MAP, \
     MLType, MLTypeSchema
@@ -83,7 +83,7 @@ class AssetReader(Reader, ABC):
             s3_path: Union[str, List[str]],
             file_contents: Optional[FileContents] = None,
             data_schema: Optional[MLTypeSchema] = None,
-            files_to_ignore: List[str] = StringUtil.FILES_TO_IGNORE,
+            files_to_ignore: List[str] = String.FILES_TO_IGNORE,
             **kwargs,
     ) -> Union[Asset, List[Asset]]:
         if is_list_like(s3_path):

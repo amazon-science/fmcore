@@ -6,7 +6,7 @@ from datetime import datetime
 from abc import abstractmethod, ABC
 from fmcore.data import FileMetadata
 from fmcore.framework.tracker.Tracker import Tracker
-from fmcore.util import optional_dependency, only_item, safe_validate_arguments, StringUtil, \
+from fmcore.util import optional_dependency, only_item, safe_validate_arguments, String, \
     all_are_true, all_are_false, any_are_not_none, any_are_none, FileSystemUtil, as_list, get_default, \
     set_param_from_alias, Log, format_exception_msg, JupyterNotebook, get_fn_args, keep_keys
 from collections import deque
@@ -58,8 +58,8 @@ with optional_dependency('aim'):
             assert isinstance(self.repo, Repo)
 
             notebook_name: str = get_default(JupyterNotebook.name(), 'kernel')
-            kernel_start_time: str = StringUtil.kernel_start_time(human=True)
-            now: str = StringUtil.now(human=True)
+            kernel_start_time: str = String.kernel_start_time(human=True)
+            now: str = String.now(human=True)
 
             self.experiment_base: str = get_default(
                 experiment_base,
@@ -144,7 +144,7 @@ with optional_dependency('aim'):
             ## Otherwise,
             for log in logs_queue:
                 print(
-                    f'[{StringUtil.readable_datetime(datetime.fromtimestamp(log["timestamp"]), human=True)}]\n{log["message"]}'
+                    f'[{String.readable_datetime(datetime.fromtimestamp(log["timestamp"]), human=True)}]\n{log["message"]}'
                 )
 
         def __del__(self):

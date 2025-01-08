@@ -4,7 +4,7 @@ import pandas as pd
 import math
 from pandas.core.frame import Series as PandasSeries, DataFrame as PandasDataFrame
 from pandas.core.indexes.multi import MultiIndex as PandasMultiIndex
-from fmcore.util import multiple_are_not_none, all_are_none, is_function, wrap_fn_output, get_default, StringUtil, \
+from fmcore.util import multiple_are_not_none, all_are_none, is_function, wrap_fn_output, get_default, String, \
     safe_validate_arguments
 from fmcore.constants import DataLayout, Parallelize
 from fmcore.data.sdf.ScalableSeries import ScalableSeries

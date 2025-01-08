@@ -11,7 +11,7 @@ from dask.dataframe.io.csv import read_csv as Dask_read_csv
 from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType
 from fmcore.data.reader.dataframe import DataFrameReader
 from fmcore.constants import FileFormat, QUOTING_MAP, DataLayout, Storage, MLTypeSchema
-from fmcore.util import StringUtil
+from fmcore.util import String
 from fmcore.util.aws import S3Util
 from pydantic import conint, constr, validator
 
@@ -20,7 +20,7 @@ class CsvReader(DataFrameReader):
     file_formats = [FileFormat.CSV]
 
     class Params(DataFrameReader.Params):
-        sep: constr(min_length=1, max_length=3) = StringUtil.COMMA
+        sep: constr(min_length=1, max_length=3) = String.COMMA
         quoting: Optional[int] = csv.QUOTE_MINIMAL
         encoding: Optional[str]
         keep_default_na: Optional[bool] = True
@@ -103,4 +103,4 @@ class TsvReader(CsvReader):
     file_formats = [FileFormat.TSV]
 
     class Params(CsvReader.Params):
-        sep: constr(min_length=1, max_length=3) = StringUtil.TAB
+        sep: constr(min_length=1, max_length=3) = String.TAB

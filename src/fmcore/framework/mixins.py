@@ -12,7 +12,7 @@ from fmcore.data import ScalableDataFrame, ScalableDataFrameOrRaw, ScalableSerie
 from fmcore.data.reader import AssetReader, DataFrameReader
 from fmcore.data.sdf import TensorScalableSeries
 from fmcore.util import MutableParameters, Registry, FractionalBool, resolve_fractional_bool, Schema, SchemaTemplate, \
-    StringUtil, random_sample, safe_validate_arguments, get_default, run_concurrent, accumulate, as_list, \
+    String, random_sample, safe_validate_arguments, get_default, run_concurrent, accumulate, as_list, \
     str_normalize, optional_dependency, create_progress_bar, TqdmProgressBar, is_null, \
     format_exception_msg, is_abstract, only_item, is_list_or_set_like, accumulate, equal, as_set, \
     pd_partial_column_order, get_fn_args, ProgressBar
@@ -300,7 +300,7 @@ class InputOutputDataMixin(TaskRegistryMixin, ABC):
         if self.name is not None:
             out += self.name
             if self.data_split is not None:
-                out += StringUtil.SLASH
+                out += String.SLASH
         if self.data_split is not None:
             out += self.data_split.capitalize()
         return out

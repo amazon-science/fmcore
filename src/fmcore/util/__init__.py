@@ -1,5 +1,5 @@
 from fmcore.util.language import *
-from fmcore.util.string import *
+from fmcore.util.language import *
 from fmcore.util.jupyter import *
 from fmcore.util.concurrency import *
 from fmcore.util.profiling import *

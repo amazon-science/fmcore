@@ -3,7 +3,7 @@ import numpy as np
 import dask.array as da
 from pandas.core.frame import Series as PandasSeries, DataFrame as PandasDataFrame
 from dask.dataframe.core import Scalar as DaskScalar, Series as DaskSeries, DataFrame as DaskDataFrame
-from fmcore.util import wrap_fn_output, is_function, get_default, RayDaskPersistWaitCallback, StringUtil
+from fmcore.util import wrap_fn_output, is_function, get_default, RayDaskPersistWaitCallback, String
 from fmcore.constants import DataLayout
 from fmcore.data.sdf.ScalableSeries import ScalableSeries, SS_DEFAULT_NAME
 from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame

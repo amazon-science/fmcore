@@ -6,7 +6,7 @@ from fmcore.constants import Parallelize, Task, DataSplit, TaskOrStr, MLType, Al
 from fmcore.util import as_tuple, type_str, optional_dependency, ignore_stdout_and_stderr, dispatch, accumulate, \
     as_list, flatten1d, iter_batches, accumulate_iter, get_default, parameterized_flatten, remove_nulls, \
     only_key, dispatch_executor, Timer, EnvUtil, set_param_from_alias, all_are_none, all_are_not_none, \
-    ignore_warnings_and_stdout, best_k, whitespace_normalize, str_normalize, punct_normalize, remove_keys, StringUtil, \
+    ignore_warnings_and_stdout, best_k, whitespace_normalize, str_normalize, punct_normalize, remove_keys, String, \
     multiple_are_not_none, format_exception_msg, entropy, plotsum
 from fmcore.framework import Dataset, Predictions, TabularMetric, Metric, CountingMetric, PercentageMetric, Evaluator, \
     Metrics, Datasets, Trainer, FileMetadata, SaveDatasetOrPredictions, load_predictions, Chain, ChainExecution, \
@@ -380,7 +380,7 @@ Supported: """.strip() + ' '
             for s_i, single_statement_parsed in enumerate(as_list(d[self.STATEMENTS_PARSED])):
                 rag_gens_with_statements_flattened_df.append({
                     **d,
-                    index_col: f'{d[index_col]}-{self.SINGLE_STATEMENT_PARSED}={StringUtil.pad_zeros(s_i, 1000)}',
+                    index_col: f'{d[index_col]}-{self.SINGLE_STATEMENT_PARSED}={String.pad_zeros(s_i, 1000)}',
                     self.SINGLE_STATEMENT_PARSED: get_default(
                         single_statement_parsed,  ## Can be None.
                         '',

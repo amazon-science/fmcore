@@ -2,7 +2,7 @@ from typing import *
 from abc import abstractmethod, ABC
 import io, numpy as np
 from fmcore.constants import FileContents, MLType, FileFormat, SHORTHAND_TO_TENSOR_LAYOUT_MAP, DataLayout
-from fmcore.util import is_list_like, StringUtil, run_concurrent, run_parallel, run_parallel_ray, accumulate
+from fmcore.util import is_list_like, String, run_concurrent, run_parallel, run_parallel_ray, accumulate
 from fmcore.data.reader.asset.AssetReader import AssetReader
 from pydantic import constr
 from pydantic.typing import Literal

@@ -5,7 +5,7 @@ from math import inf
 from fmcore.constants import FileFormat, Alias, Storage, FileContents, MLTypeSchema, FILE_FORMAT_TO_FILE_ENDING_MAP
 from fmcore.util.language import as_list, classproperty, format_exception_msg, safe_validate_arguments, filter_kwargs, \
     get_default, shuffle_items
-from fmcore.util import StringUtil, FileSystemUtil, Parameters, Registry, Log
+from fmcore.util import String, FileSystemUtil, Parameters, Registry, Log
 from fmcore.util.aws import S3Util
 from fmcore.data.FileMetadata import FileMetadata
 from pydantic import conint, confloat, constr, root_validator, Extra
@@ -143,7 +143,7 @@ class Reader(Parameters, Registry, ABC):
             )
             end = time.perf_counter()
             if log_perf:
-                Log.debug(f'Took {StringUtil.readable_seconds(end - start)} to read from stream.')
+                Log.debug(f'Took {String.readable_seconds(end - start)} to read from stream.')
             return obj
         except Exception as e:
             Log.error(format_exception_msg(e))
@@ -191,7 +191,7 @@ class Reader(Parameters, Registry, ABC):
             )
             end = time.perf_counter()
             if log_perf:
-                Log.debug(f'Took {StringUtil.readable_seconds(end - start)} to read from url: "{url}"')
+                Log.debug(f'Took {String.readable_seconds(end - start)} to read from url: "{url}"')
             return obj
         except Exception as e:
             Log.error(format_exception_msg(e))
@@ -213,10 +213,10 @@ class Reader(Parameters, Registry, ABC):
             self,
             local_path: Union[str, pathlib.Path],
             *,
-            file_glob: str = StringUtil.DOUBLE_ASTERISK,
+            file_glob: str = String.DOUBLE_ASTERISK,
             file_contents: Optional[FileContents] = None,
             data_schema: Optional[MLTypeSchema] = None,
-            files_to_ignore: List[str] = StringUtil.FILES_TO_IGNORE,
+            files_to_ignore: List[str] = String.FILES_TO_IGNORE,
             log_perf: bool = True,
             **kwargs
     ) -> Any:
@@ -262,7 +262,7 @@ class Reader(Parameters, Registry, ABC):
                     local_path,
                     **{
                         **dict(
-                            file_glob=StringUtil.EMPTY,
+                            file_glob=String.EMPTY,
                             ignored_files=files_to_ignore,
                             recursive=True,
                         ),
@@ -287,7 +287,7 @@ class Reader(Parameters, Registry, ABC):
             end = time.perf_counter()
             if log_perf:
                 Log.debug(
-                    f'Took {StringUtil.readable_seconds(end - start)} '
+                    f'Took {String.readable_seconds(end - start)} '
                     f'to read {num_files_to_read} file(s) from local path "{local_path}"'
                 )
             return obj
@@ -311,10 +311,10 @@ class Reader(Parameters, Registry, ABC):
             self,
             s3_path: str,
             *,
-            file_glob: str = StringUtil.DOUBLE_ASTERISK,
+            file_glob: str = String.DOUBLE_ASTERISK,
             file_contents: Optional[FileContents] = None,
             data_schema: Optional[MLTypeSchema] = None,
-            files_to_ignore: List[str] = StringUtil.FILES_TO_IGNORE,
+            files_to_ignore: List[str] = String.FILES_TO_IGNORE,
             log_perf: bool = True,
             **kwargs
     ) -> Any:
@@ -367,7 +367,7 @@ class Reader(Parameters, Registry, ABC):
             end = time.perf_counter()
             if log_perf:
                 Log.debug(
-                    f'Took {StringUtil.readable_seconds(end - start)} '
+                    f'Took {String.readable_seconds(end - start)} '
                     f'to read {num_files_to_read} file(s) from S3 path "{s3_path}"'
                 )
             return obj

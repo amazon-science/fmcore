@@ -7,7 +7,7 @@ import ray
 from ray import tune, air
 from ray.runtime_env import RuntimeEnv as RayRuntimeEnv
 from fmcore.constants import Alias
-from fmcore.util import Parameters, UserEnteredParameters, StringUtil, safe_validate_arguments, accumulate, \
+from fmcore.util import Parameters, UserEnteredParameters, String, safe_validate_arguments, accumulate, \
     ProgressBar, as_list
 from pydantic import Extra, conint, confloat, constr, root_validator, validator
 
@@ -99,7 +99,7 @@ class ActorComposite(Parameters):
             desc=f'Creating Ray actors',
             unit='actors',
         )
-        actor_ids: List[str] = as_list(StringUtil.random_name(num_actors))
+        actor_ids: List[str] = as_list(String.random_name(num_actors))
         actor_composites: List[ActorComposite] = []
         for actor_i, actor_id in zip(range(num_actors), actor_ids):
             request_counter: ray.actor.ActorHandle = RequestCounter.options(

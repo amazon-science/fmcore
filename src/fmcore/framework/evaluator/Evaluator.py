@@ -10,7 +10,7 @@ from fmcore.framework.tracker import Tracker, DEFAULT_TRACKER_PARAMS
 from fmcore.framework.metric import Metric, Metrics
 from fmcore.framework.task_data import Dataset
 from fmcore.framework.predictions import Predictions, load_predictions, save_predictions
-from fmcore.util import Parameters, MutableParameters, Registry, FractionalBool, safe_validate_arguments, StringUtil, \
+from fmcore.util import Parameters, MutableParameters, Registry, FractionalBool, safe_validate_arguments, String, \
     Timeout, Timeout24Hr, TimeoutNever, all_are_false, accumulate, any_are_none, is_function, as_list, get_default, \
     random_sample, Log, format_exception_msg, start_daemon, stop_daemon, run_concurrent, NeverFailJsonEncoder
 from fmcore.util.aws import S3Util
@@ -452,7 +452,7 @@ class Evaluator(MutableParameters, Registry, ABC):
         ## E.g. if s3 model dir is "s3://my-bucket/path/to/model/folder/", copy the model into the following
         ## local folder: "<cache_dir>/my-bucket/path/to/model/folder/"
         cached_local_model_dir: FileMetadata = cache_dir.subdir_in_dir(
-            path=StringUtil.remove_prefix(model_dir.path, StringUtil.S3_PREFIX),
+            path=String.remove_prefix(model_dir.path, String.S3_PREFIX),
             mkdir=True,
             return_metadata=True,
         )
@@ -581,6 +581,6 @@ class Evaluator(MutableParameters, Registry, ABC):
 
     @classmethod
     def _pad_batch_strs(cls, batch_i: int, batches: int) -> Tuple[str, str]:
-        batch_num_str: str = StringUtil.pad_zeros(batch_i + 1, batches)  ## batch_i is in [0, num_batches], inclusive.
-        batches_str: str = StringUtil.pad_zeros(batches, batches)
+        batch_num_str: str = String.pad_zeros(batch_i + 1, batches)  ## batch_i is in [0, num_batches], inclusive.
+        batches_str: str = String.pad_zeros(batches, batches)
         return batch_num_str, batches_str

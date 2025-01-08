@@ -3,7 +3,7 @@ import time, io, os
 from abc import abstractmethod, ABC
 from fmcore.constants import FileFormat, MLType, MLTypeSchema, Storage, FileContents, FILE_FORMAT_TO_FILE_ENDING_MAP
 from fmcore.util.aws import S3Util
-from fmcore.util import Parameters, AutoEnum, auto, FileSystemUtil, StringUtil, Registry, Log, as_list, \
+from fmcore.util import Parameters, AutoEnum, auto, FileSystemUtil, String, Registry, Log, as_list, \
     filter_kwargs, format_exception_msg, classproperty, safe_validate_arguments
 from fmcore.data.FileMetadata import FileMetadata
 from pydantic import root_validator, constr, confloat, conint, Extra
@@ -140,7 +140,7 @@ class Writer(Parameters, Registry, ABC):
             end = time.perf_counter()
             if log_perf:
                 Log.debug(
-                    f'Took {StringUtil.readable_seconds(end - start)} '
+                    f'Took {String.readable_seconds(end - start)} '
                     f'to write to stream of type {str(type(stream))}'
                 )
             return True
@@ -213,7 +213,7 @@ class Writer(Parameters, Registry, ABC):
             if log_perf:
                 if FileSystemUtil.is_path_valid_dir(local_path):
                     Log.debug(
-                        f'Took {StringUtil.readable_seconds(end - start)} '
+                        f'Took {String.readable_seconds(end - start)} '
                         f'to write {len(written_paths)} file(s) totalling '
                         f'size {FileSystemUtil.get_file_size(written_paths)}, to local directory "{local_path}".'
                     )
@@ -221,7 +221,7 @@ class Writer(Parameters, Registry, ABC):
                     assert len(written_paths) == 1
                     written_path: str = written_paths[0]
                     Log.debug(
-                        f'Took {StringUtil.readable_seconds(end - start)} to write file '
+                        f'Took {String.readable_seconds(end - start)} to write file '
                         f'of size {FileSystemUtil.get_file_size(written_path)} to local file "{written_path}".'
                     )
             return True
@@ -284,7 +284,7 @@ class Writer(Parameters, Registry, ABC):
             if log_perf:
                 if S3Util.is_path_valid_s3_dir(s3_path):
                     Log.debug(
-                        f'Took {StringUtil.readable_seconds(end - start)} '
+                        f'Took {String.readable_seconds(end - start)} '
                         f'to write {len(written_s3_paths)} file(s) totalling '
                         f'size {S3Util.get_s3_object_size(written_s3_paths)}, to S3 directory "{s3_path}".'
                     )
@@ -292,7 +292,7 @@ class Writer(Parameters, Registry, ABC):
                     assert len(written_s3_paths) == 1
                     written_s3_path: str = written_s3_paths[0]
                     Log.debug(
-                        f'Took {StringUtil.readable_seconds(end - start)} to write file '
+                        f'Took {String.readable_seconds(end - start)} to write file '
                         f'of size {S3Util.get_s3_object_size(written_s3_path)} to S3 file "{written_s3_path}".'
                     )
             return True

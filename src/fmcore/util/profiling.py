@@ -1,11 +1,11 @@
 from typing import *
-import time
+import time, math
 from datetime import datetime, timedelta
-from fmcore.util.language import Parameters, set_param_from_alias, safe_validate_arguments
-from fmcore.util.string import StringUtil
+from fmcore.util.language import Parameters, MutableParameters, set_param_from_alias, safe_validate_arguments
+from fmcore.util.language import String
 from fmcore.util.logging import Log
 from fmcore.constants import Alias
-from pydantic import root_validator
+from pydantic import root_validator, confloat, conint
 from pydantic.typing import Literal
 
 
@@ -80,19 +80,19 @@ class Timer(Parameters):
 
     @property
     def start_time_str(self) -> str:
-        return StringUtil.readable_datetime(self._start_dt)
+        return String.readable_datetime(self._start_dt)
 
     @property
     def end_time_str(self) -> str:
-        return StringUtil.readable_datetime(self._end_dt)
+        return String.readable_datetime(self._end_dt)
 
     @property
     def time_taken_str(self) -> str:
-        return StringUtil.readable_seconds(self.time_taken_sec, decimals=2)
+        return String.readable_seconds(self.time_taken_sec, decimals=2)
 
     @property
     def time_taken_human(self) -> str:
-        return StringUtil.readable_seconds(self.time_taken_sec, decimals=2)
+        return String.readable_seconds(self.time_taken_sec, decimals=2)
 
     @property
     def time_taken_sec(self) -> float:
@@ -124,7 +124,7 @@ class Timer(Parameters):
 
     def _check_not_started(self):
         if self.has_started:
-            raise TimerError(f'Timer has already been started at {StringUtil.readable_datetime(self._start_dt)}')
+            raise TimerError(f'Timer has already been started at {String.readable_datetime(self._start_dt)}')
 
     def _check_stopped(self):
         if not self.has_stopped:
@@ -132,7 +132,7 @@ class Timer(Parameters):
 
     def _check_not_stopped(self):
         if self.has_stopped:
-            raise TimerError(f'Timer has already been stopped at {StringUtil.readable_datetime(self._end_dt)}')
+            raise TimerError(f'Timer has already been stopped at {String.readable_datetime(self._end_dt)}')
 
     def start(self):
         self._check_not_started()
@@ -175,14 +175,14 @@ class Timer(Parameters):
         out: str = ''
         out += self._task_msg()
         out += self._idx_msg()
-        out += f'Started at {StringUtil.readable_datetime(self._start_dt)}...'
+        out += f'Started at {String.readable_datetime(self._start_dt)}...'
         return out
 
     def _alert_msg(self, text: Optional[str] = None) -> str:
         out: str = ''
         out += self._task_msg()
         out += self._idx_msg()
-        out += f'Timer has been running for {StringUtil.readable_seconds(self.time_taken_sec, decimals=2)}.'
+        out += f'Timer has been running for {String.readable_seconds(self.time_taken_sec, decimals=2)}.'
         if isinstance(text, str):
             out += f' {text}'
         return out
@@ -192,10 +192,10 @@ class Timer(Parameters):
         out += self._task_msg()
         out += self._idx_msg()
         if self.single_line:
-            out += f'Started at {StringUtil.readable_datetime(self._start_dt)}, ' \
-                   f'completed in {StringUtil.readable_seconds(self.time_taken_sec, decimals=2)}.'
+            out += f'Started at {String.readable_datetime(self._start_dt)}, ' \
+                   f'completed in {String.readable_seconds(self.time_taken_sec, decimals=2)}.'
             return out
-        out += f'...completed in {StringUtil.readable_seconds(self.time_taken_sec, decimals=2)}.'
+        out += f'...completed in {String.readable_seconds(self.time_taken_sec, decimals=2)}.'
         return out
 
     def _task_msg(self) -> str:
@@ -207,8 +207,43 @@ class Timer(Parameters):
     def _idx_msg(self) -> str:
         out: str = ''
         if self.i is not None and self.max_i is not None:
-            out += f'[{StringUtil.pad_zeros(i=self.i + 1, max_i=self.max_i)}/' \
-                   f'{StringUtil.pad_zeros(i=self.max_i, max_i=self.max_i)}] '
+            out += f'[{String.pad_zeros(i=self.i + 1, max_i=self.max_i)}/' \
+                   f'{String.pad_zeros(i=self.max_i, max_i=self.max_i)}] '
         elif self.i is not None:
             out += f'[{self.i}] '
         return out
+
+class Timeout(MutableParameters):
+    timeout: confloat(gt=0)  ## In seconds.
+    last_used_time: float = time.time()
+
+    @property
+    def has_expired(self) -> bool:
+        return self.last_used_time + self.timeout < time.time()
+
+    def reset_timeout(self):
+        self.last_used_time: float = time.time()
+
+
+class Timeout1Min(Timeout):
+    timeout: confloat(gt=0, le=60)
+
+
+class Timeout15Min(Timeout):
+    timeout: confloat(gt=0, le=60 * 15)
+
+
+class Timeout1Hr(Timeout):
+    timeout: confloat(gt=0, le=60 * 60)
+
+
+class Timeout24Hr(Timeout):
+    timeout: confloat(gt=0, le=60 * 60 * 24)
+
+
+class TimeoutNever(Timeout):
+    timeout: float = math.inf
+
+
+class Timeout1Week(Timeout):
+    timeout: confloat(gt=0, le=60 * 60 * 24 * 7)

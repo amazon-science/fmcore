@@ -1,7 +1,7 @@
 from typing import *
 from fmcore.data.processor import SingleColumnProcessor, TextOrLabelInputProcessor, EncodedLabelOutputProcessor
 import pandas as pd
-from fmcore.util import AutoEnum, auto, StringUtil, is_null
+from fmcore.util import AutoEnum, auto, String, is_null
 from fmcore.data.sdf import ScalableSeries
 from pydantic import constr
 

@@ -3,7 +3,7 @@ from typing import *
 import pandas as pd
 from copy import deepcopy
 from fmcore.util import Registry, as_list, Schema, SchemaTemplate, equal, safe_validate_arguments, get_default, \
-    StringUtil, accumulate, run_concurrent, any_are_none, remove_keys, format_exception_msg
+    String, accumulate, run_concurrent, any_are_none, remove_keys, format_exception_msg
 from fmcore.data.FileMetadata import FileMetadata
 from fmcore.data.sdf import ScalableDataFrame, ScalableSeries, ScalableSeriesOrRaw, ScalableOrRaw, is_scalable
 from fmcore.constants import MLTypeSchema, DataLayout, TaskOrStr, Task, DataSplit, FILE_FORMAT_TO_FILE_ENDING_MAP, \
@@ -445,7 +445,7 @@ def load_predictions(
         if file_ending is None:
             raise ValueError(f'Cannot detect file ending from path: "{predictions_source.path}"')
         predictions_params_file: FileMetadata = FileMetadata.of(
-            StringUtil.remove_suffix(
+            String.remove_suffix(
                 predictions_source.path,
                 suffix=file_ending
             ) + PREDICTIONS_PARAMS_SAVE_FILE_ENDING,
@@ -488,7 +488,7 @@ def load_predictions(
                 for predictions_params_d in predictions_params_list
             ]
             predictions_params_set: Set[str] = set([
-                StringUtil.stringify(predictions_params_d)
+                String.stringify(predictions_params_d)
                 for predictions_params_d in predictions_params_list
             ])
             if len(predictions_params_set) > 1:
@@ -511,7 +511,7 @@ def load_predictions(
                 file_ending: Optional[str] = None
         if file_ending is None:
             raise ValueError(
-                f'No files ending with {StringUtil.join_human(file_endings, final_join="or")} '
+                f'No files ending with {String.join_human(file_endings, final_join="or")} '
                 f'exist in directory: "{predictions_source.path}"'
             )
         data: ScalableDataFrame = reader.read_metadata(
@@ -564,7 +564,7 @@ def save_predictions(
         if file_ending is None:
             raise ValueError(f'Cannot detect file ending from path: "{predictions_destination.path}"')
         predictions_params_file: FileMetadata = FileMetadata.of(
-            StringUtil.remove_suffix(
+            String.remove_suffix(
                 predictions_destination.path,
                 suffix=file_ending
             ) + PREDICTIONS_PARAMS_SAVE_FILE_ENDING,
@@ -623,7 +623,7 @@ def save_predictions(
 #         if isinstance(scores, ScalableSeries):
 #             scores = ScalableDataFrame.of(scores)
 #
-#         if StringUtil.is_empty(predicted_scores_template):
+#         if String.is_empty(predicted_scores_template):
 #             predicted_scores_template = cls.PREDICTED_SCORES_I_TEMPLATE
 #
 #         n_cols = scores.shape[1]
@@ -651,7 +651,7 @@ def save_predictions(
 #         if isinstance(ground_truths, ScalableSeries):
 #             ground_truths = ScalableDataFrame.of(ground_truths)
 #
-#         if StringUtil.is_empty(ground_truths_template):
+#         if String.is_empty(ground_truths_template):
 #             ground_truths_template = cls.GROUND_TRUTH_I_TEMPLATE
 #
 #         n_cols = ground_truths.shape[1]

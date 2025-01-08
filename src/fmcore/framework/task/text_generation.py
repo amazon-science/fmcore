@@ -5,7 +5,7 @@ from pandas.core.groupby import DataFrameGroupBy as PandasDataFrameGroupBy
 from math import inf, exp, log
 from copy import deepcopy
 from fmcore.util import is_list_like, set_param_from_alias, MappedParameters, Parameters, get_default, as_list, \
-    is_dict_like, as_set, is_even, type_str, ignore_warnings, str_format_args, StringUtil, format_exception_msg
+    is_dict_like, as_set, is_even, type_str, ignore_warnings, str_format_args, String, format_exception_msg
 from fmcore.constants import Task, MLType, MLTypeSchema, DataLayout, DataSplit, Alias, FailureAction
 from fmcore.data import ScalableDataFrame, ScalableSeries, ScalableSeriesRawType, ScalableDataFrameRawType, FileMetadata
 from fmcore.framework import Algorithm, Dataset, Predictions
@@ -749,7 +749,7 @@ class LanguageModelTaskMixin(Algorithm, ABC):
     def _lm_predict(self, prompts: Prompts, **kwargs) -> NextTokens:
         from fmcore.framework.evaluator import Evaluator
         # print('Prompts:')
-        # with pd_extended_display() as disp:
+        # with pd_display() as disp:
         #     disp(prompts.data.pandas())
         ## Calls GenerativeLM._task_preprocess & apply_prompt_template
         if isinstance(self.lm, Evaluator):
@@ -941,7 +941,7 @@ class FewShotRetrievalAugmentedTextGenerator(LanguageModelTaskMixin):
     def _retriever_predict(self, queries: Queries, **kwargs) -> RankedResults:
         from fmcore.framework.evaluator import Evaluator
         # print('Queries:')
-        # with pd_extended_display() as disp:
+        # with pd_display() as disp:
         #     disp(queries.data.pandas())
         if isinstance(self.retriever, Evaluator):
             retriever_batch_size: int = get_default(

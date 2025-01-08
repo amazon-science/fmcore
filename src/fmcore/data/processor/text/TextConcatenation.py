@@ -2,7 +2,7 @@ from typing import *
 from fmcore.data.processor import Nto1ColumnProcessor, TextInputProcessor, TextOutputProcessor
 import pandas as pd
 from fmcore.data.sdf import ScalableDataFrame, ScalableSeries
-from fmcore.util import AutoEnum, auto, StringUtil, get_default, is_list_like, is_null
+from fmcore.util import AutoEnum, auto, String, get_default, is_list_like, is_null
 from pydantic import root_validator, validator, constr
 
 
@@ -24,7 +24,7 @@ class TextConcatenation(Nto1ColumnProcessor, TextInputProcessor, TextOutputProce
     """
 
     class Params(Nto1ColumnProcessor.Params):
-        sep: constr(min_length=1) = StringUtil.SPACE
+        sep: constr(min_length=1) = String.SPACE
         column_order: ColumnOrder = ColumnOrder.SORT_BY_NAME_ASCENDING  ## Do not change this for legacy reasons.
         input_ordering: Optional[List[str]] = None
         prefix_col_name: Optional[bool] = False
@@ -80,7 +80,7 @@ class TextConcatenation(Nto1ColumnProcessor, TextInputProcessor, TextOutputProce
             if self.params.prefix_col_name is False:
                 to_add_col = ""
             if output_series is None:
-                output_series: ScalableSeries = to_add_col + data[col].fillna(StringUtil.EMPTY).astype(str)
+                output_series: ScalableSeries = to_add_col + data[col].fillna(String.EMPTY).astype(str)
             else:
-                output_series += self.params.sep + to_add_col + data[col].fillna(StringUtil.EMPTY).astype(str)
+                output_series += self.params.sep + to_add_col + data[col].fillna(String.EMPTY).astype(str)
         return output_series

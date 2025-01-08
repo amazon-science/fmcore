@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 import time, traceback, pickle, gc, os, json
 from fmcore.util import Registry, MutableParameters, Parameters, set_param_from_alias, is_list_like, as_list, \
-    random_sample, safe_validate_arguments, format_exception_msg, StringUtil, get_fn_spec, Timer, type_str, \
+    random_sample, safe_validate_arguments, format_exception_msg, String, get_fn_spec, Timer, type_str, \
     run_concurrent, get_result, Future, get_default, FunctionSpec, dispatch, is_function, remove_keys, \
     ProgressBar, stop_executor, only_item, dispatch_executor, Executor, accumulate, accumulate_iter, check_isinstance
 from fmcore.data import FileMetadata, ScalableDataFrame, ScalableSeries, Asset
@@ -185,7 +185,7 @@ class Chain(MutableParameters):
         ## Store full trace in log file, but don't always print it on sysout:
         tracker_fn(text)
         if log_notifier:
-            notifier_fn(f'[{StringUtil.now(human=True, microsec=False)}] {text.strip()}')
+            notifier_fn(f'[{String.now(human=True, microsec=False)}] {text.strip()}')
 
     @classmethod
     def _get_chain_loggers(
@@ -384,7 +384,7 @@ class Chain(MutableParameters):
                 f'{exn_name}: '
                 f'Execution started in process#{os.getpid()}, '
                 f'thread#{threading.get_ident()} '
-                f'at {StringUtil.now()}.'
+                f'at {String.now()}.'
             )
             if step_parallelize is Parallelize.sync and not isinstance(self, ParallelMap):
                 ## Run sequentially:
@@ -470,12 +470,12 @@ class Chain(MutableParameters):
                     assert isinstance(step_exn, StepExecution)
                     if step_exn_error is not None:
                         error_msg += f'\n{"-" * 40}' \
-                                     f'\nError in Step ({StringUtil.pad_zeros(step_i + 1, self.num_steps)}/{self.num_steps}) ' \
+                                     f'\nError in Step ({String.pad_zeros(step_i + 1, self.num_steps)}/{self.num_steps}) ' \
                                      f'"{step_exn.step_template.class_name}":' \
                                      f'\n{format_exception_msg(step_exn_error)}'
                     elif step_exn.outputs is None:
                         raise RuntimeError(
-                            f'Error in Step ({StringUtil.pad_zeros(step_i + 1, self.num_steps)}/{self.num_steps}) '
+                            f'Error in Step ({String.pad_zeros(step_i + 1, self.num_steps)}/{self.num_steps}) '
                             f'"{step_exn.step_template.class_name}" with status {step_exn.status}: '
                             f'expected outputs but found None.'
                         )
@@ -519,18 +519,18 @@ class Chain(MutableParameters):
             elif chain_exn.stopped():
                 info_logger(
                     f'{exn_name}: Execution was stopped before starting '
-                    f'Step ({StringUtil.pad_zeros(step_i + 1, self.num_steps)}/{self.num_steps}) '
+                    f'Step ({String.pad_zeros(step_i + 1, self.num_steps)}/{self.num_steps}) '
                     f'"{step.class_name}". Previous steps ran for {timer.time_taken_str}.'
                 )
                 chain_exn_pbar.stopped()
             elif chain_exn.failed():
                 error_logger(
                     f'{exn_name}: Execution failed during '
-                    f'Step {StringUtil.pad_zeros(step_i + 1, self.num_steps)}/{self.num_steps} '
+                    f'Step {String.pad_zeros(step_i + 1, self.num_steps)}/{self.num_steps} '
                     f'"{step.class_name}". Execution ran for {timer.time_taken_str}.'
                 )
                 chain_exn_pbar.failed(
-                    f'Failed at {exn_name} {StringUtil.pad_zeros(step_i + 1, self.num_steps)}/{self.num_steps}: '
+                    f'Failed at {exn_name} {String.pad_zeros(step_i + 1, self.num_steps)}/{self.num_steps}: '
                     f'"{step.class_name}"',
                     append_desc=False,
                 )
@@ -557,7 +557,7 @@ class Chain(MutableParameters):
     ) -> Tuple[StepExecution, Optional[Exception]]:
         debug_logger(
             f'Running {exn_name}'
-            f'Step {StringUtil.pad_zeros(step_i + 1, self.num_steps)}/{self.num_steps}: '
+            f'Step {String.pad_zeros(step_i + 1, self.num_steps)}/{self.num_steps}: '
             f'"{step.class_name}"...'
         )
         ## Start running the step:
@@ -589,7 +589,7 @@ class Chain(MutableParameters):
             step_outputs: Dict = step.run(**step_inputs)
             if not isinstance(step_outputs, dict):
                 raise ValueError(
-                    f'{exn_name} Step {StringUtil.pad_zeros(step_i + 1, self.num_steps)}/{self.num_steps} '
+                    f'{exn_name} Step {String.pad_zeros(step_i + 1, self.num_steps)}/{self.num_steps} '
                     f'"{step.class_name}" '
                     f'should return a dict; found {type_str(step_outputs)}'
                 )
@@ -597,7 +597,7 @@ class Chain(MutableParameters):
             step_exn.status = Status.SUCCEEDED
             debug_logger(
                 f'...Step '
-                f'[{StringUtil.pad_zeros(step_i + 1, self.num_steps)}/{self.num_steps}] '
+                f'[{String.pad_zeros(step_i + 1, self.num_steps)}/{self.num_steps}] '
                 f'({step.class_name}) '
                 f'completed in {step_timer.time_taken_str}.'
             )
@@ -640,7 +640,7 @@ class Chain(MutableParameters):
         }
         if isinstance(step, ChainStep) and exn_name is not None:
             step_inputs['exn_name']: str = \
-                f'({exn_name}: Step {StringUtil.pad_zeros(step_i + 1, num_steps)}/{num_steps})'
+                f'({exn_name}: Step {String.pad_zeros(step_i + 1, num_steps)}/{num_steps})'
         missing_keys: Set[str] = set(step.run_fn_spec.required_args_and_kwargs) - set(step_inputs.keys())
         if len(missing_keys) > 0:
             raise ValueError(
@@ -745,11 +745,11 @@ class ChainExecution(MutableParameters):
         if params.get('uuid') is None:
             chain_template: Chain = params['chain_template']
             uuid_dict: Dict = dict(
-                start_dt=StringUtil.now(),
+                start_dt=String.now(),
                 start_time_ns=str(time.time_ns()),
                 step_classes='_'.join([step.class_name for step in chain_template.steps]),
             )
-            params['uuid'] = f"chain-exn-{StringUtil.hash(uuid_dict, max_len=12)}"
+            params['uuid'] = f"chain-exn-{String.hash(uuid_dict, max_len=12)}"
         return params
 
     @property

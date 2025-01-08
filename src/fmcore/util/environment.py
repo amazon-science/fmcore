@@ -1,6 +1,6 @@
 from typing import *
 import os
-from fmcore.util.string import StringUtil
+from fmcore.util.language import String
 from fmcore.util.language import Utility, get_default
 
 
@@ -17,7 +17,7 @@ class EnvUtil(Utility):
 
     @classmethod
     def var_exists(cls, env_var_key) -> bool:
-        env_var_key: str = StringUtil.assert_not_empty_and_strip(env_var_key)
+        env_var_key: str = String.assert_not_empty_and_strip(env_var_key)
         if os.environ.get(env_var_key) is not None:
             return True
         else:
@@ -25,7 +25,7 @@ class EnvUtil(Utility):
 
     @classmethod
     def get_var(cls, env_var_key: str, check_cases: bool = True) -> Optional[str]:
-        env_var_key: str = StringUtil.assert_not_empty_and_strip(env_var_key)
+        env_var_key: str = String.assert_not_empty_and_strip(env_var_key)
         if cls.var_exists(env_var_key):
             return os.environ.get(env_var_key)
         if check_cases and cls.var_exists(env_var_key.upper()):

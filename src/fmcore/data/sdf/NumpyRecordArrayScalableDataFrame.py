@@ -4,7 +4,7 @@ from math import inf
 import numpy as np
 import pandas as pd
 from pandas.core.frame import Series as PandasSeries, DataFrame as PandasDataFrame
-from fmcore.util import filter_kwargs, StringUtil, get_default, safe_validate_arguments
+from fmcore.util import filter_kwargs, String, get_default, safe_validate_arguments
 from fmcore.constants import DataLayout
 from fmcore.data.sdf.ScalableSeries import ScalableSeries
 from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType
@@ -58,11 +58,11 @@ class NumpyRecordArrayScalableDataFrame(ScalableDataFrame):
         if len(self._data) == 0:
             data_sample = str([])
         elif len(self._data) == 1:
-            data_sample = StringUtil.pretty(self._data[0])
+            data_sample = String.pretty(self._data[0])
         elif len(self._data) == 2:
-            data_sample = f'{StringUtil.pretty(self._data[0])}\n{StringUtil.pretty(self._data[1])}'
+            data_sample = f'{String.pretty(self._data[0])}\n{String.pretty(self._data[1])}'
         else:
-            data_sample = f'{StringUtil.pretty(self._data[0])}\n...\n{StringUtil.pretty(self._data[-1])}'
+            data_sample = f'{String.pretty(self._data[0])}\n...\n{String.pretty(self._data[-1])}'
         out += data_sample
         return out
 
@@ -77,11 +77,11 @@ class NumpyRecordArrayScalableDataFrame(ScalableDataFrame):
         if len(self._data) == 0:
             data_sample = ''
         elif len(self._data) == 1:
-            data_sample = f'<pre>{StringUtil.pretty(self._data[0])}</pre>'
+            data_sample = f'<pre>{String.pretty(self._data[0])}</pre>'
         elif len(self._data) == 2:
-            data_sample = f'<pre>{StringUtil.pretty(self._data[0])}\n{StringUtil.pretty(self._data[1])}</pre>'
+            data_sample = f'<pre>{String.pretty(self._data[0])}\n{String.pretty(self._data[1])}</pre>'
         else:
-            data_sample = f'<pre>{StringUtil.pretty(self._data[0])}\n...\n{StringUtil.pretty(self._data[-1])}</pre>'
+            data_sample = f'<pre>{String.pretty(self._data[0])}\n...\n{String.pretty(self._data[-1])}</pre>'
         out += f'{data_sample}'
         return f'<div>{out}</div>'
 

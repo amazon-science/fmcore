@@ -7,7 +7,7 @@ from datetime import datetime
 from abc import abstractmethod, ABC
 from fmcore.data import FileMetadata
 from fmcore.framework.tracker.Tracker import Tracker
-from fmcore.util import optional_dependency, only_item, safe_validate_arguments, StringUtil, \
+from fmcore.util import optional_dependency, only_item, safe_validate_arguments, String, \
     all_are_true, all_are_false, any_are_not_none, any_are_none, FileSystemUtil, as_list, get_default, \
     set_param_from_alias, Log, format_exception_msg, JupyterNotebook, unset, keep_keys, get_fn_args
 from fmcore.constants import Storage, Alias
@@ -18,7 +18,7 @@ import logging
 
 class LogTrackerFormatter(logging.Formatter):
     def formatTime(self, record, datefmt=None):
-        return StringUtil.readable_datetime(
+        return String.readable_datetime(
             datetime.fromtimestamp(record.created),
             human=False,
             microsec=True,
@@ -67,7 +67,7 @@ class LogFileTracker(Tracker):
 
         ## Log initial message:
         if init_msg:
-            init_msg: str = f'{self.name} logging to "{self.log_file.path}" started at: {StringUtil.now()}'
+            init_msg: str = f'{self.name} logging to "{self.log_file.path}" started at: {String.now()}'
             div_len: int = len(init_msg) + 8
             upper_div: str = (f'▔' * div_len) + '\n' + (f'▔' * div_len)
             lower_div: str = (f'▁' * div_len) + '\n' + (f'▁' * div_len)
@@ -145,7 +145,7 @@ class LogFileTracker(Tracker):
 
     @property
     def id(self) -> str:
-        return StringUtil.hash(str(self.log_file.path))
+        return String.hash(str(self.log_file.path))
 
     @property
     def log_dir(self) -> Optional[str]:

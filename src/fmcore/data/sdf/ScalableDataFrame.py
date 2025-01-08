@@ -7,7 +7,7 @@ from concurrent.futures._base import Future
 from pandas.core.frame import DataFrame as PandasDataFrame
 import dask.dataframe as dd
 from dask.dataframe.core import DataFrame as DaskDataFrame
-from fmcore.util import as_list, resolve_sample_size, SampleSizeType, Registry, StringUtil, get_default, \
+from fmcore.util import as_list, resolve_sample_size, SampleSizeType, Registry, String, get_default, \
     classproperty, accumulate, dispatch, MutableParameters, safe_validate_arguments, is_done, optional_dependency, \
     multiple_are_not_none, all_are_not_none, is_list_of_dict_like, Parameters, dispatch_executor, Executor
 from fmcore.constants import DataLayout, SDF_DATA_LAYOUT_PRIORITY, LAZY_SDF_DATA_LAYOUTS, Parallelize, \
@@ -294,9 +294,9 @@ class ScalableDataFrame(Registry, ABC):
         if layout not in allowed_compression_layouts:
             raise ValueError(
                 f'Cannot compress using layout: {layout}; can only use '
-                f'{StringUtil.join_human(allowed_compression_layouts)}'
+                f'{String.join_human(allowed_compression_layouts)}'
             )
-        data_bytes: bytes = StringUtil.jsonify(
+        data_bytes: bytes = String.jsonify(
             self.to_layout(layout=layout, **kwargs).raw(),
             minify=True,
         ).encode('utf-8')
@@ -346,8 +346,8 @@ class ScalableDataFrame(Registry, ABC):
         for chunk_i in range(0, len(chunks_list)):
             idx_start: int = rows_covered_so_far
             idx_end: int = rows_covered_so_far + len(chunks_list[chunk_i])
-            chunk_name = f'{prefix}-{StringUtil.pad_zeros(chunk_i + 1, len(chunks_list))}'
-            chunk_name += f'-rows-{StringUtil.pad_zeros(idx_start + 1, length)}-{StringUtil.pad_zeros(idx_end, length)}'
+            chunk_name = f'{prefix}-{String.pad_zeros(chunk_i + 1, len(chunks_list))}'
+            chunk_name += f'-rows-{String.pad_zeros(idx_start + 1, length)}-{String.pad_zeros(idx_end, length)}'
             chunks_dict[chunk_name] = chunks_list[chunk_i]
             rows_covered_so_far += len(chunks_list[chunk_i])
         return chunks_dict
@@ -460,7 +460,7 @@ class ScalableDataFrame(Registry, ABC):
                 might mean we drop a negligible number of rows, which should not affect the overall training procuedure.
         :return: yield a single smaller ScalableDataFrame.
         """
-        ## TODO: implement chunk_size: Optional[Union[conint(ge=1), constr(regex=StringUtil.FILE_SIZE_REGEX)]] = None
+        ## TODO: implement chunk_size: Optional[Union[conint(ge=1), constr(regex=String.FILE_SIZE_REGEX)]] = None
         ## docstring for chunk_size: maximum size of each ScalableDataFrame in bytes (int) or string (e.g. "10MB").
         try:
             mapped_sdf_chunks: Deque[Dict[str, Union[int, Future]]] = deque()

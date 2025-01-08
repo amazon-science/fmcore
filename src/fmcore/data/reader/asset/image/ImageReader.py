@@ -2,7 +2,7 @@ from typing import *
 from abc import abstractmethod, ABC
 import io, numpy as np
 from fmcore.constants import FileContents, MLType, FileFormat, DataLayout, Storage, SHORTHAND_TO_TENSOR_LAYOUT_MAP
-from fmcore.util import is_list_like, StringUtil, Parameters
+from fmcore.util import is_list_like, String, Parameters
 from fmcore.data.reader.asset.AssetReader import AssetReader
 from fmcore.data.asset import Image
 from pydantic import constr, conint

@@ -14,7 +14,7 @@ from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFra
 from fmcore.data.sdf.DaskScalableDataFrame import DaskScalableDataFrame
 from fmcore.util import multiple_are_not_none, any_are_not_none, all_are_none, FileSystemUtil, Schema, AutoEnum, auto, \
     accumulate, dispatch, get_default, Future, format_exception_msg, Log, \
-    StringUtil, set_param_from_alias, create_progress_bar, safe_validate_arguments, TqdmProgressBar
+    String, set_param_from_alias, create_progress_bar, safe_validate_arguments, TqdmProgressBar
 from fmcore.util.aws import S3Util
 from fmcore.constants import FileContents, FileFormat, DataLayout, MLTypeSchema, Storage, Parallelize
 from pydantic import root_validator, conint, constr
@@ -42,7 +42,7 @@ class DataFrameWriter(Writer, ABC):
     allow_missing_columns: bool = False
     num_rows: Optional[conint(ge=1)] = None
     num_chunks: Optional[conint(ge=1)] = None
-    ## TODO: implement chunk_size: Optional[Union[conint(ge=1), constr(regex=StringUtil.FILE_SIZE_REGEX)]] = None
+    ## TODO: implement chunk_size: Optional[Union[conint(ge=1), constr(regex=String.FILE_SIZE_REGEX)]] = None
     parallelize: Parallelize = Parallelize.threads
 
     @root_validator(pre=True)
@@ -317,7 +317,7 @@ class DataFrameWriter(Writer, ABC):
             sdf: ScalableDataFrame = sdf.repartition(nrows=self.num_rows)
         ## Note: If we do not set `num_chunks` or `num_rows`, then just write the Dask DataFrame into the same number of
         ## files as we have partitions.
-        num_zeros: int = StringUtil.get_num_zeros_to_pad(sdf.npartitions)
+        num_zeros: int = String.get_num_zeros_to_pad(sdf.npartitions)
 
         ## Function to generate filenames. `idx` indexing starts from 0:
         def name_function(idx) -> str:

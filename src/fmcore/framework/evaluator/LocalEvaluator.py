@@ -2,7 +2,7 @@ from typing import *
 import time, traceback, gc, os, warnings, io, numpy as np, pandas as pd
 from math import inf
 from functools import partial
-from fmcore.util import Log, StringUtil, get_default, confloat, safe_validate_arguments, Timer, Timeout24Hr, Timeout
+from fmcore.util import Log, String, get_default, confloat, safe_validate_arguments, Timer, Timeout24Hr, Timeout
 from fmcore.data import FileMetadata
 from fmcore.framework.tracker.Tracker import Tracker
 from fmcore.framework.evaluator.Evaluator import Evaluator
