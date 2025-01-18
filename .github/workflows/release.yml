@@ -34,8 +34,14 @@ jobs:
     - name: Build Package
       run: hatch build
 
+    - name: Publish to Test PyPI
+      env:
+        TWINE_USERNAME: "__token__"
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: twine upload --repository testpypi dist/*
+
     - name: Publish to PyPI
       env:
         TWINE_USERNAME: "__token__"
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      run: twine upload dist/*
+      run: twine upload --repository pypi dist/*
