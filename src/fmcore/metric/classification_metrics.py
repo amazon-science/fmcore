@@ -1,16 +1,18 @@
-from typing import *
 from abc import ABC, abstractmethod
-import pandas as pd, numpy as np
 from collections import defaultdict
+from typing import *
+
+import numpy as np
+import pandas as pd
+from pydantic import confloat
+from pydantic.typing import Literal
+
 from fmcore.constants import Task, AggregationStrategy, DataSplit
-from fmcore.util import as_tuple, type_str, check_isinstance, argmax, dict_key_with_best_value
-from fmcore.framework import Predictions, PercentageMetric, AggregatedPercentageMetric, TabularMetric
 from fmcore.framework import ClassificationPredictions, TopKClassificationPredictions, LabelwiseClassificationPredictions, \
     TOP_1_PREDICTED_LABEL
-from fmcore.framework.trainer.RayTuneTrainer import _RAY_TRIAL_ID, _RAY_TRAINING_ITERATION, _ray_metric_str
-from functools import singledispatchmethod
-from pydantic import confloat, root_validator
-from pydantic.typing import Literal
+from fmcore.framework import Predictions, PercentageMetric, AggregatedPercentageMetric, TabularMetric
+from fmcore.framework.trainer.RayTuneTrainer import _RAY_TRIAL_ID, _RAY_TRAINING_ITERATION
+from fmcore.util import as_tuple, type_str, check_isinstance, argmax, dict_key_with_best_value
 
 
 def _check_clf_preds(data: Predictions):
@@ -84,15 +86,6 @@ def _check_labelspace(labelspace: Optional[Set[str]], data: ClassificationPredic
             f'labels: {data.labelspace}'
         )
     return set(data.labelspace)
-
-
-"""
-  ___  _                          __  __       _         _         
- | _ )(_) _ _   __ _  _ _  _  _  |  \/  | ___ | |_  _ _ (_) __  ___
- | _ \| || ' \ / _` || '_|| || | | |\/| |/ -_)|  _|| '_|| |/ _|(_-<
- |___/|_||_||_|\__,_||_|   \_, | |_|  |_|\___| \__||_|  |_|\__|/__/
-                           |__/                                                                  
-"""
 
 
 class BinaryClassificationErrorCount(TabularMetric):
@@ -309,14 +302,6 @@ class F1Score(FBetaScore):
 
     class Params(FBetaScore.Params):
         beta: Literal[1] = 1
-
-
-"""
-  __  __        _  _    _           _                 __  __       _         _         
- |  \/  | _  _ | || |_ (_) ___  __ | | __ _  ___ ___ |  \/  | ___ | |_  _ _ (_) __  ___
- | |\/| || || || ||  _|| ||___|/ _|| |/ _` |(_-<(_-< | |\/| |/ -_)|  _|| '_|| |/ _|(_-<
- |_|  |_| \_,_||_| \__||_|     \__||_|\__,_|/__//__/ |_|  |_|\___| \__||_|  |_|\__|/__/
-"""
 
 
 class ConfusionMatrix(TabularMetric):
