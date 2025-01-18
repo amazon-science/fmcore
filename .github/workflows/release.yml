@@ -1,9 +1,9 @@
 name: release
 
 on:
-  push:
-    tags:
-    - "v*"  # Trigger only when a tag like v1.2.3 is pushed
+  release:
+    types:
+    - published  # Published through GitHub UI: https://github.com/amazon-science/fmcore/releases/new
 
 jobs:
   pypi:
