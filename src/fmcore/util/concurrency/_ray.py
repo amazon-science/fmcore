@@ -13,10 +13,11 @@ from typing import *
 from pydantic import Extra, conint, confloat
 
 from fmcore.util.language import Parameters, UserEnteredParameters, String, ProgressBar, as_list, Alias
-from fmcore.util.language._import import _IS_RAY_INSTALLED, _IS_DASK_INSTALLED
+from fmcore.util.language._import import _IS_RAY_INSTALLED, _IS_DASK_INSTALLED, _check_is_ray_installed
 from ._utils import is_done, wait, get_result, _RAY_ACCUMULATE_ITER_WAIT, _RAY_ACCUMULATE_ITEM_WAIT
 
 RayRuntimeEnv = dict
+RequestCounter = 'RequestCounter'
 if _IS_RAY_INSTALLED:
     import ray
     from ray.runtime_env import RuntimeEnv as RayRuntimeEnv
@@ -92,8 +93,7 @@ class RayPoolExecutor(Executor, Parameters):
             **kwargs,
     ):
         # print(f'Running {fn_str(fn)} using {Parallelize.ray} with num_cpus={num_cpus}, num_gpus={num_gpus}')
-        if not _IS_RAY_INSTALLED:
-            raise ImportError(f'Dependency "ray" is not installed.')
+        _check_is_ray_installed()
 
         def _submit_task():
             return _run_parallel_ray_executor.options(
@@ -161,8 +161,7 @@ def run_parallel_ray(
         executor: Optional[RayPoolExecutor] = None,
         **kwargs,
 ):
-    if not _IS_RAY_INSTALLED:
-        raise ImportError(f'Dependency "ray" is not installed.')
+    _check_is_ray_installed()
     # print(f'Running {fn_str(fn)} using {Parallelize.ray} with num_cpus={num_cpus}, num_gpus={num_gpus}')
     if executor is not None:
         assert isinstance(executor, RayPoolExecutor)

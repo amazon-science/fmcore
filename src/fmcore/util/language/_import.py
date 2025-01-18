@@ -89,10 +89,39 @@ with optional_dependency('ray'):
 
     _IS_RAY_INSTALLED: bool = True
 
+
+def _check_is_ray_installed():
+    if not _IS_RAY_INSTALLED:
+        raise ImportError(f'Dependency "ray" is not installed.')
+
+
 _IS_DASK_INSTALLED: bool = False
 
+DaskDataFrame = 'DaskDataFrame'
+DaskSeries = 'DaskSeries'
 with optional_dependency('dask'):
     import dask
-    from dask.dataframe import DataFrame as DaskDataFrame
+    from dask.dataframe import DataFrame as DaskDataFrame, Scalar as DaskScalar, Series as DaskSeries
+
+    assert isinstance(DaskDataFrame, type)
+    assert isinstance(DaskSeries, type)
 
     _IS_DASK_INSTALLED: bool = True
+
+
+def _check_is_dask_installed():
+    if not _IS_DASK_INSTALLED:
+        raise ImportError(f'Dependency "dask" is not installed.')
+
+
+_IS_TORCH_INSTALLED: bool = False
+
+with optional_dependency('torch'):
+    import torch
+
+    _IS_TORCH_INSTALLED: bool = True
+
+
+def _check_is_torch_installed():
+    if not _IS_TORCH_INSTALLED:
+        raise ImportError(f'Dependency "torch" is not installed.')

@@ -1,19 +1,18 @@
+import csv
+import io
 from typing import *
-import csv, io, s3fs, boto3
-from botocore.exceptions import NoCredentialsError
+
+import boto3
 import pandas as pd
-from pandas.core.frame import DataFrame as PandasDataFrame
+from botocore.exceptions import NoCredentialsError
 from pandas import read_csv as Pandas_read_csv
-import dask.dataframe as dd
-from dask.dataframe.core import DataFrame as DaskDataFrame
-from dask.dataframe.core import Series as DaskSeries
-from dask.dataframe.io.csv import read_csv as Dask_read_csv
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType
-from fmcore.data.reader.dataframe import DataFrameReader
+from pydantic import constr, validator
+
 from fmcore.constants import FileFormat, QUOTING_MAP, DataLayout, Storage, MLTypeSchema
+from fmcore.data.reader.dataframe import DataFrameReader
+from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType, DaskDataFrame
 from fmcore.util import String
 from fmcore.util.aws import S3Util
-from pydantic import conint, constr, validator
 
 
 class CsvReader(DataFrameReader):
@@ -68,6 +67,9 @@ class CsvReader(DataFrameReader):
             data_schema: Optional[MLTypeSchema],
             **kwargs
     ) -> DaskDataFrame:
+        import dask.dataframe as dd
+        from dask.dataframe.io.csv import read_csv as Dask_read_csv
+
         if storage is Storage.STREAM:
             ## Read as another layout and convert to Dask:
             df: ScalableDataFrameRawType = self._read_raw_sdf_with_retries(

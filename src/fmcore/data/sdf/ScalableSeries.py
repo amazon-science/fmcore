@@ -1,20 +1,24 @@
-from typing import *
-import collections
 from abc import abstractmethod, ABC
+from typing import *
+
 import numpy as np
-from pandas.core.frame import Series as PandasSeries, DataFrame as PandasDataFrame
-import dask.dataframe as dd
-from dask.dataframe.core import Scalar as DaskScalar, Series as DaskSeries, DataFrame as DaskDataFrame
-from fmcore.util import Registry, resolve_sample_size, SampleSizeType, optional_dependency, MutableParameters, \
-    get_true, safe_validate_arguments, String, only_item
-from fmcore.constants import DataLayout, SS_DATA_LAYOUT_PRIORITY, TENSOR_SS_DATA_LAYOUT_PRIORITY, \
-    SHORTHAND_TO_TENSOR_LAYOUT_MAP
+from pandas.core.frame import Series as PandasSeries
 from pydantic import conint
 from pydantic.typing import Literal
 
+from fmcore.constants import DataLayout, SS_DATA_LAYOUT_PRIORITY, TENSOR_SS_DATA_LAYOUT_PRIORITY, \
+    SHORTHAND_TO_TENSOR_LAYOUT_MAP
+from fmcore.util import Registry, resolve_sample_size, SampleSizeType, optional_dependency, MutableParameters, \
+    get_true, safe_validate_arguments, String, only_item
+from fmcore.util.language._import import _IS_DASK_INSTALLED, _check_is_dask_installed, DaskSeries, \
+    _IS_TORCH_INSTALLED, _check_is_torch_installed
+
 ScalableSeries = "ScalableSeries"
 ScalableDataFrame = "ScalableDataFrame"
-ScalableSeriesRawType = Union[np.ndarray, List, PandasSeries, DaskSeries]
+
+ScalableSeriesRawType = Union[np.ndarray, List, PandasSeries]
+if _IS_DASK_INSTALLED:
+    ScalableSeriesRawType = Union[np.ndarray, List, PandasSeries, DaskSeries]
 ScalableSeriesOrRaw = Union[ScalableSeries, ScalableSeriesRawType]
 RAW_DATA_MEMBER: str = '_data'
 SS_DEFAULT_NAME: str = '0'
@@ -105,7 +109,6 @@ class ScalableSeries(Registry, ABC):
     @property
     def hvplot(self) -> Any:
         with optional_dependency('hvplot', error='raise'):
-            import hvplot.pandas
             return self.pandas().hvplot
 
     @classmethod
@@ -120,7 +123,7 @@ class ScalableSeries(Registry, ABC):
             )
             if ScalableSeriesClass is None:
                 continue
-            if ScalableSeriesClass.layout_validator(data, raise_error=False):
+            if ScalableSeriesClass.layout_validator(data, False):
                 return possible_layout
         if raise_error:
             raise NotImplementedError(
@@ -172,18 +175,18 @@ class ScalableSeries(Registry, ABC):
 
     @classmethod
     def is_torch_tensor(cls, data: Any, raise_error: bool = True) -> bool:
-        with optional_dependency('torch', error='ignore'):
-            import torch
-            if data is None:
-                if raise_error:
-                    raise ValueError(f'Input data cannot be None.')
-                else:
-                    return False
-            valid: bool = isinstance(data, torch.Tensor)
-            if not valid and raise_error:
-                raise ValueError(f'Expected input to be Torch tensor; found input with type: {type(data)}')
-            return valid
-        return False
+        if not _IS_TORCH_INSTALLED:
+            return False
+        import torch
+        if data is None:
+            if raise_error:
+                raise ValueError(f'Input data cannot be None.')
+            else:
+                return False
+        valid: bool = isinstance(data, torch.Tensor)
+        if not valid and raise_error:
+            raise ValueError(f'Expected input to be Torch tensor; found input with type: {type(data)}')
+        return valid
 
     @classmethod
     def is_pandas(cls, data: Any, raise_error: bool = True) -> bool:
@@ -199,6 +202,8 @@ class ScalableSeries(Registry, ABC):
 
     @classmethod
     def is_dask(cls, data: Any, raise_error: bool = True) -> bool:
+        if not _IS_DASK_INSTALLED:
+            return False
         if data is None:
             if raise_error:
                 raise ValueError(f'Input data cannot be None.')
@@ -514,16 +519,11 @@ class ScalableSeries(Registry, ABC):
         """Alias for .as_torch()"""
         return self.as_torch(**kwargs)
 
-    def as_torch(
-            self,
-            error: Literal['raise', 'warn', 'ignore'] = 'raise',
-            **kwargs
-    ) -> Optional[Any]:
-        with optional_dependency('torch', error=error):
-            import torch
-            arr: np.ndarray = self.numpy(**kwargs)
-            return torch.from_numpy(np.stack(arr))
-        return None
+    def as_torch(self, **kwargs) -> Optional[Any]:
+        _check_is_torch_installed()
+        import torch
+        arr: np.ndarray = self.numpy(**kwargs)
+        return torch.from_numpy(np.stack(arr))
 
     def pandas(self, **kwargs) -> PandasSeries:
         """Alias for .as_pandas()"""
@@ -546,6 +546,7 @@ class ScalableSeries(Registry, ABC):
         return self.as_dask(**kwargs)
 
     def as_dask(self, **kwargs) -> DaskSeries:
+        _check_is_dask_installed()
         if 'npartitions' not in kwargs and 'chunksize' not in kwargs:
             kwargs['npartitions'] = 1  ## Create a dask series with a single partition.
         return dd.from_pandas(self.pandas(), **kwargs)

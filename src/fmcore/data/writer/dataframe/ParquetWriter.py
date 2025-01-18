@@ -1,22 +1,13 @@
+import io
 from typing import *
-import io, os
-import numpy as np
-import pandas as pd
-from pandas.core.frame import DataFrame as PandasDataFrame
-from pandas.core.series import Series as PandasSeries
-import dask.dataframe as dd
-from dask.dataframe.core import DataFrame as DaskDataFrame
-from dask.dataframe.core import Series as DaskSeries
+
 from pandas.io.parquet import to_parquet as Pandas_to_parquet
-from dask.dataframe.io.parquet.core import to_parquet as Dask_to_parquet
-from fmcore.data.writer.dataframe.DataFrameWriter import DataFrameWriter
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType
-from fmcore.data.sdf.DaskScalableDataFrame import DaskScalableDataFrame
+from pydantic import Field
+
 from fmcore.constants import FileFormat, DataLayout, Storage
-from fmcore.data.FileMetadata import FileMetadata
-from fmcore.util import FileSystemUtil, all_are_none
-from fmcore.util.aws import S3Util
-from pydantic import root_validator, Field
+from fmcore.data.sdf.DaskScalableDataFrame import DaskScalableDataFrame
+from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame
+from fmcore.data.writer.dataframe.DataFrameWriter import DataFrameWriter
 
 
 class ParquetWriter(DataFrameWriter):
@@ -49,6 +40,7 @@ class ParquetWriter(DataFrameWriter):
             name_function: Optional[Callable[[int], str]] = None,
             **kwargs,
     ) -> NoReturn:
+        from dask.dataframe.io.parquet.core import to_parquet as Dask_to_parquet
         if storage is Storage.STREAM:
             ## Convert dask dataframe to Pandas and write to stream:
             self._write_sdf(

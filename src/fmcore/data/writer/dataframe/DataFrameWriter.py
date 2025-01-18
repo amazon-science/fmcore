@@ -1,23 +1,18 @@
-from typing import *
+import io
 from abc import abstractmethod, ABC
-import io, os, time, math
-import numpy as np
-import pandas as pd
-from pandas.core.frame import DataFrame as PandasDataFrame
-from pandas.core.series import Series as PandasSeries
-import dask.dataframe as dd
-from dask.dataframe.core import DataFrame as DaskDataFrame
-from dask.dataframe.core import Series as DaskSeries
-from fmcore.data.FileMetadata import FileMetadata
-from fmcore.data.writer.Writer import Writer
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType
+from typing import *
+
+from pydantic import root_validator, conint, constr
+
+from fmcore.constants import FileContents, DataLayout, MLTypeSchema, Storage, Parallelize
 from fmcore.data.sdf.DaskScalableDataFrame import DaskScalableDataFrame
-from fmcore.util import multiple_are_not_none, any_are_not_none, all_are_none, FileSystemUtil, Schema, AutoEnum, auto, \
-    accumulate, dispatch, get_default, Future, String, Log, \
+from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType
+from fmcore.data.writer.Writer import Writer
+from fmcore.util import multiple_are_not_none, any_are_not_none, all_are_none, FileSystemUtil, Schema, accumulate, dispatch, \
+    get_default, Log, \
     String, set_param_from_alias, create_progress_bar, safe_validate_arguments, TqdmProgressBar
 from fmcore.util.aws import S3Util
-from fmcore.constants import FileContents, FileFormat, DataLayout, MLTypeSchema, Storage, Parallelize
-from pydantic import root_validator, conint, constr
+from fmcore.util.language._import import _check_is_dask_installed
 
 
 class DataFrameWriter(Writer, ABC):
@@ -258,6 +253,7 @@ class DataFrameWriter(Writer, ABC):
     ) -> Optional[str]:
         if sdf.layout is DataLayout.DASK:
             ## `destination` here could be a filepath (local or remote), or a stream.
+            _check_is_dask_installed()
             self._write_dask_sdf(
                 destination=destination,
                 sdf=sdf,
@@ -311,6 +307,8 @@ class DataFrameWriter(Writer, ABC):
             file_name: constr(min_length=1),
             **kwargs,
     ) -> List[str]:
+        _check_is_dask_installed()
+
         if self.num_chunks is not None:
             sdf: ScalableDataFrame = sdf.repartition(npartitions=self.num_chunks)
         if self.num_rows is not None:

@@ -1,20 +1,19 @@
+import boto3
+import io
+import json
 from typing import *
-import io, json, boto3
-from botocore.exceptions import NoCredentialsError
+
 import pandas as pd
-from pandas.core.frame import DataFrame as PandasDataFrame
+from botocore.exceptions import NoCredentialsError
 from pandas import read_json as Pandas_read_json
-import dask.dataframe as dd
-from dask.dataframe.core import DataFrame as DaskDataFrame
-from dask.dataframe.core import Series as DaskSeries
-from dask.dataframe.io.json import read_json as Dask_read_json
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType
-from fmcore.util import optional_dependency
-from fmcore.data.reader.dataframe import DataFrameReader
-from fmcore.data.FileMetadata import FileMetadata
-from fmcore.util.aws.s3 import S3Util
-from fmcore.constants import FileFormat, Storage, DataLayout, MLTypeSchema
 from pydantic import constr
+
+from fmcore.constants import FileFormat, Storage, DataLayout, MLTypeSchema
+from fmcore.data.FileMetadata import FileMetadata
+from fmcore.data.reader.dataframe import DataFrameReader
+from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType, DaskDataFrame
+from fmcore.util import optional_dependency
+from fmcore.util.aws.s3 import S3Util
 
 
 class JsonLinesReader(DataFrameReader):
@@ -57,6 +56,8 @@ class JsonLinesReader(DataFrameReader):
             data_schema: Optional[MLTypeSchema],
             **kwargs
     ) -> DaskDataFrame:
+        import dask.dataframe as dd
+        from dask.dataframe.io.json import read_json as Dask_read_json
         if storage is Storage.STREAM:
             ## Read as another layout and convert to Dask:
             df: ScalableDataFrameRawType = self._read_raw_sdf_with_retries(

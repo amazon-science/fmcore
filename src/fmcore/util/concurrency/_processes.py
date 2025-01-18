@@ -1,5 +1,4 @@
 """A collection of concurrency utilities to augment the Python language:"""
-import cloudpickle
 import multiprocessing as mp
 import queue
 import random
@@ -12,6 +11,8 @@ from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures._base import Future, Executor
 from concurrent.futures.process import BrokenProcessPool
 from typing import *
+
+import cloudpickle
 
 from fmcore.constants.DataProcessingConstants import Status
 from ._utils import LoadBalancingStrategy
@@ -353,6 +354,10 @@ class ActorPoolExecutor(Executor):
             yield fut.result(timeout=timeout)
 
 
+_GLOBAL_PROCESS_POOL_EXECUTOR = None
+_GLOBAL_PROCESS_POOL_EXECUTOR_MAX_WORKERS: int = max(1, min(32, mp.cpu_count() - 1))
+
+
 def run_parallel(
         fn,
         *args,
@@ -360,6 +365,10 @@ def run_parallel(
         **kwargs,
 ):
     global _GLOBAL_PROCESS_POOL_EXECUTOR
+    if _GLOBAL_PROCESS_POOL_EXECUTOR is None:
+        _GLOBAL_PROCESS_POOL_EXECUTOR = ActorPoolExecutor(
+            max_workers=_GLOBAL_PROCESS_POOL_EXECUTOR_MAX_WORKERS
+        )
     if executor is None:
         executor: ActorPoolExecutor = _GLOBAL_PROCESS_POOL_EXECUTOR
     try:
@@ -367,13 +376,8 @@ def run_parallel(
         return executor.submit(fn, *args, **kwargs)  ## return a future
     except BrokenProcessPool as e:
         if executor is _GLOBAL_PROCESS_POOL_EXECUTOR:
-            executor = ActorPoolExecutor(max_workers=_GLOBAL_PROCESS_POOL_EXECUTOR._max_workers)
+            executor = ActorPoolExecutor(max_workers=_GLOBAL_PROCESS_POOL_EXECUTOR_MAX_WORKERS)
             del _GLOBAL_PROCESS_POOL_EXECUTOR
             _GLOBAL_PROCESS_POOL_EXECUTOR = executor
             return executor.submit(fn, *args, **kwargs)  ## return a future
         raise e
-
-
-_GLOBAL_PROCESS_POOL_EXECUTOR: ActorPoolExecutor = ActorPoolExecutor(
-    max_workers=max(1, min(32, mp.cpu_count() - 1))
-)

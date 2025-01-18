@@ -8,8 +8,7 @@ from pydantic import confloat, conint
 from pydantic.typing import Literal
 
 from ._import import optional_dependency
-from ._structs import flatten1d, as_set, as_list, TORCH_TO_NUMPY_DTYPE_MAP, is_set_like, is_list_like, \
-    is_dict_like, is_sorted
+from ._structs import flatten1d, as_set, as_list, is_set_like, is_list_like, is_dict_like, is_sorted
 from ._typing import type_str
 from ._utils import get_default, is_null, is_scalar
 
@@ -64,6 +63,7 @@ def infer_np_dtype(
         return data.dtype
     with optional_dependency('torch'):
         import torch
+        from ._structs import TORCH_TO_NUMPY_DTYPE_MAP
         if isinstance(data, torch.Tensor):
             return TORCH_TO_NUMPY_DTYPE_MAP[data.dtype]
 

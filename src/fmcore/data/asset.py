@@ -2,7 +2,6 @@ from typing import *
 import pathlib, io
 import numpy as np
 from abc import abstractmethod, ABC
-import torch
 from fmcore.util import Parameters, is_null, auto, String, type_str, optional_dependency, Registry
 from fmcore.constants import FileFormat, DataLayout, Storage, SHORTHAND_TO_TENSOR_LAYOUT_MAP, MLType, \
     AVAILABLE_TENSOR_TYPES, TENSOR_LAYOUT_TO_SHORTHAND_MAP

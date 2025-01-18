@@ -1,22 +1,25 @@
-from typing import *
-import time, warnings, traceback, os, math, numpy as np
+import math
+import os
+import warnings
 from functools import partial
+from typing import *
+
+import numpy as np
+
+from fmcore.data import FileMetadata
+from fmcore.framework.algorithm import Algorithm
+from fmcore.framework.metric import Metric, Metrics
+from fmcore.framework.task_data import DataSplit, Datasets, Dataset
+from fmcore.framework.tracker import Tracker
+from fmcore.framework.trainer.Trainer import Trainer
 from fmcore.util import Log, optional_dependency, safe_validate_arguments, any_are_none, get_default, \
     String, FileSystemUtil, Timer
-from fmcore.data import FileMetadata
-from fmcore.framework.trainer.Trainer import Trainer
-from fmcore.framework.task_data import DataSplit, Datasets, Dataset
-from fmcore.framework.algorithm import Algorithm, TaskOrStr
-from fmcore.framework.metric import Metric, Metrics
-from fmcore.framework.tracker import Tracker
-from pydantic import root_validator
 
 with optional_dependency('accelerate', 'torch'):
     from fmcore.framework.dl.torch import PyTorch, is_accelerator
     from torch.utils.data import DataLoader as TorchDataLoader
     from accelerate import Accelerator, notebook_launcher
     from accelerate.utils import DistributedDataParallelKwargs
-    from accelerate.utils import broadcast_object_list
 
 
     class AccelerateTrainer(Trainer):

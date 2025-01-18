@@ -1,22 +1,13 @@
+import io
 from typing import *
-import io, os
-import numpy as np
-import pandas as pd
+
 from pandas.core.frame import DataFrame as PandasDataFrame
-from pandas.core.series import Series as PandasSeries
-import dask.dataframe as dd
-from dask.dataframe.core import DataFrame as DaskDataFrame
-from dask.dataframe.core import Series as DaskSeries
-from pandas.io.json import to_json as Pandas_to_json
-from dask.dataframe.io.json import to_json as Dask_to_json
-from fmcore.data.writer.dataframe.DataFrameWriter import DataFrameWriter
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType
-from fmcore.data.sdf.DaskScalableDataFrame import DaskScalableDataFrame
+from pydantic import constr
+
 from fmcore.constants import FileFormat, DataLayout, Storage
-from fmcore.data.FileMetadata import FileMetadata
-from fmcore.util import FileSystemUtil, all_are_none
-from fmcore.util.aws import S3Util
-from pydantic import root_validator, constr
+from fmcore.data.sdf.DaskScalableDataFrame import DaskScalableDataFrame
+from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame
+from fmcore.data.writer.dataframe.DataFrameWriter import DataFrameWriter
 
 
 class JsonLinesWriter(DataFrameWriter):
@@ -50,6 +41,7 @@ class JsonLinesWriter(DataFrameWriter):
             name_function: Optional[Callable[[int], str]] = None,
             **kwargs,
     ) -> NoReturn:
+        from dask.dataframe.io.json import to_json as Dask_to_json
         if storage is Storage.STREAM:
             ## Convert dask dataframe to Pandas and write to stream:
             self._write_sdf(

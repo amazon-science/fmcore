@@ -15,7 +15,7 @@ from pydantic import conint
 from pydantic.typing import Literal
 
 TorchScalableSeries = "TorchScalableSeries"
-with optional_dependency('torch', error='warn'):
+with optional_dependency('torch', error='ignore'):
     import torch
     from torch import Tensor as TorchTensor
 

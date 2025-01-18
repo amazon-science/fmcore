@@ -23,36 +23,127 @@ from fmcore.util import RayInitConfig
 from fmcore.util import set_param_from_alias, MappedParameters, append_to_keys, \
     parameterized_flatten, FileSystemUtil, get_default, all_are_not_none, safe_validate_arguments, Log, \
     pd_partial_column_order, Timer, String, retry, any_are_not_none, is_null, type_str
-from fmcore.util.language._import import _IS_RAY_INSTALLED
+from fmcore.util.language._import import _IS_RAY_INSTALLED, _IS_TORCH_INSTALLED
 
 RayTuneTrainer = "RayTuneTrainer"
+_RAY_TRIAL_ID: str = 'trial_id'
+_RAY_EXPERIMENT_ID: str = 'experiment_id'
+_RAY_KFOLD_CURRENT_FOLD_NAME: str = 'current_fold_name'
+_RAY_EPOCH_NUM: str = 'epoch_num'
+_RAY_STEPS_COMPLETED: str = 'steps_completed'
+_RAY_EST_TIME_REMAINING: str = 'est_time_remaining'
+_RAY_TRAINING_ITERATION: str = 'training_iteration'
+_RAY_HYPERPARAMS_STR: str = 'hyperparams_str'
+_RAY_HYPERPARAMS: str = 'hyperparams'
+_RAY_METRIC_IS_DATAFRAME_PREFIX: str = 'RAY_METRIC_DATAFRAME::'
+
+
+class RayTuneTrainerError(Exception):
+    pass
+
+
+class RayTuneTrainerTuneError(Exception):
+    pass
+
+
+class RayTuneTrainerFinalModelsError(Exception):
+    pass
+
+
+def _ray_metric_str(data_split: DataSplit, metric: Metric) -> str:
+    return f'{data_split.capitalize()}/{metric.display_name}'
+
+
+def _ray_col_detect_data_split(col: str) -> Optional[DataSplit]:
+    ## Returns None if it is not a metric column name, otherwise returns the data-split.
+    for data_split in list(DataSplit):
+        if col.startswith(f'{data_split.capitalize()}/'):
+            return data_split
+    return None
+
+
+def _ray_col_is_metric(col: str) -> bool:
+    return _ray_col_detect_data_split(col) is not None
+
+
+def _ray_put_metric_value(metric: Metric) -> Any:
+    if isinstance(metric, TabularMetric):
+        assert isinstance(metric.value, pd.DataFrame)
+        return _RAY_METRIC_IS_DATAFRAME_PREFIX + metric.value.to_json(orient='records')
+    value: Any = metric.value
+    if isinstance(value, (int, float, str)) or np.issubdtype(type(value), np.number):
+        return value
+    buf = io.BytesIO()
+    pickle.dump(value, buf)
+    buf.seek(0)  ## necessary to start reading at the beginning of the "file"
+    return buf
+
+
+def _ray_get_metric_value(value: Optional[Any]) -> Optional[Any]:
+    if value is None:
+        return None
+    if isinstance(value, str) and value.startswith(_RAY_METRIC_IS_DATAFRAME_PREFIX):
+        return pd.DataFrame(json.loads(value.removeprefix(_RAY_METRIC_IS_DATAFRAME_PREFIX)))
+    if isinstance(value, (int, float, str)) or np.issubdtype(type(value), np.number):
+        return value
+    if not isinstance(value, io.BytesIO):
+        raise ValueError(f'Expected metric value to be of type BytesIO, found type: {type_str(value)}')
+    value.seek(0)
+    return pickle.load(value)
+
+
+def _ray_convert_metrics_dataframe(metrics_dataframe: pd.DataFrame) -> pd.DataFrame:
+    for col in metrics_dataframe.columns:
+        if _ray_col_is_metric(col):
+            metrics_dataframe[col] = metrics_dataframe[col].apply(_ray_get_metric_value)
+    return metrics_dataframe
+
+
+def _ray_logger(text: str, verbosity: int, logging_fn: Callable, prefix: Optional[str] = None):
+    prefix: str = get_default(prefix, '')
+    text: str = f'{prefix}{text}'
+    if verbosity == 0:  ## Don't log anything.
+        return
+    logging_fn(text)
+
+
+def _ray_agg_final_model_metric_stats(
+        trialwise_final_model_metrics: Dict[str, Metrics],
+        data_split: DataSplit,
+) -> Dict[str, Dict[str, Union[int, float]]]:
+    student_metrics: Dict[str, Dict[str, Any]] = {}
+    for trial_id, trial_metrics in trialwise_final_model_metrics.items():
+        for student_metric in trial_metrics[data_split]:
+            assert isinstance(student_metric, Metric)
+            student_metric_name: str = student_metric.display_name
+            student_metrics.setdefault(student_metric_name, {})
+            student_metrics[student_metric_name].setdefault('values', [])
+            student_metrics[student_metric_name]['values'].append(student_metric.value)
+            student_metrics[student_metric_name].setdefault('metric_class', None)
+            if student_metrics[student_metric_name]['metric_class'] is None:
+                student_metrics[student_metric_name]['metric_class'] = type(student_metric)
+            else:
+                assert student_metrics[student_metric_name]['metric_class'] == type(student_metric)
+    student_metrics_stats: Dict[str, Dict[str, Union[int, float]]] = {}
+    for student_metric_name, student_metric_d in student_metrics.items():
+        if issubclass(student_metric_d['metric_class'], (PercentageMetric, CountingMetric)):
+            student_metrics_stats.setdefault(student_metric_name, {})
+            vals: pd.Series = pd.Series(student_metric_d['values'])
+            student_metrics_stats[student_metric_name]['mean'] = vals.mean()
+            student_metrics_stats[student_metric_name]['std'] = vals.std()
+            student_metrics_stats[student_metric_name]['mean+std'] = vals.mean() + vals.std()
+            student_metrics_stats[student_metric_name]['mean-std'] = vals.mean() - vals.std()
+            student_metrics_stats[student_metric_name]['min'] = vals.min()
+            student_metrics_stats[student_metric_name]['max'] = vals.max()
+            student_metrics_stats[student_metric_name]['median'] = vals.median()
+            student_metrics_stats[student_metric_name]['count'] = len(vals)
+    return student_metrics_stats
+
+
 if _IS_RAY_INSTALLED:
     import ray
     from ray import tune, air
     from ray.tune.search import SEARCH_ALG_IMPORT, Searcher, Repeater
-
-    _RAY_TRIAL_ID: str = 'trial_id'
-    _RAY_EXPERIMENT_ID: str = 'experiment_id'
-    _RAY_KFOLD_CURRENT_FOLD_NAME: str = 'current_fold_name'
-    _RAY_EPOCH_NUM: str = 'epoch_num'
-    _RAY_STEPS_COMPLETED: str = 'steps_completed'
-    _RAY_EST_TIME_REMAINING: str = 'est_time_remaining'
-    _RAY_TRAINING_ITERATION: str = 'training_iteration'
-    _RAY_HYPERPARAMS_STR: str = 'hyperparams_str'
-    _RAY_HYPERPARAMS: str = 'hyperparams'
-    _RAY_METRIC_IS_DATAFRAME_PREFIX: str = 'RAY_METRIC_DATAFRAME::'
-
-
-    class RayTuneTrainerError(Exception):
-        pass
-
-
-    class RayTuneTrainerTuneError(Exception):
-        pass
-
-
-    class RayTuneTrainerFinalModelsError(Exception):
-        pass
 
 
     ## Overview of what happens when you call tuner.fit():
@@ -125,96 +216,6 @@ if _IS_RAY_INSTALLED:
     ##  the trial is also terminated when the function stops.
     ##  6. PAUSED: A trial can be paused by a Trial scheduler. This means that the trial’s actor will be
     ##  stopped. A paused trial can later be resumed from the most recent checkpoint.
-
-    def _ray_metric_str(data_split: DataSplit, metric: Metric) -> str:
-        return f'{data_split.capitalize()}/{metric.display_name}'
-
-
-    def _ray_col_detect_data_split(col: str) -> Optional[DataSplit]:
-        ## Returns None if it is not a metric column name, otherwise returns the data-split.
-        for data_split in list(DataSplit):
-            if col.startswith(f'{data_split.capitalize()}/'):
-                return data_split
-        return None
-
-
-    def _ray_col_is_metric(col: str) -> bool:
-        return _ray_col_detect_data_split(col) is not None
-
-
-    def _ray_put_metric_value(metric: Metric) -> Any:
-        if isinstance(metric, TabularMetric):
-            assert isinstance(metric.value, pd.DataFrame)
-            return _RAY_METRIC_IS_DATAFRAME_PREFIX + metric.value.to_json(orient='records')
-        value: Any = metric.value
-        if isinstance(value, (int, float, str)) or np.issubdtype(type(value), np.number):
-            return value
-        buf = io.BytesIO()
-        pickle.dump(value, buf)
-        buf.seek(0)  ## necessary to start reading at the beginning of the "file"
-        return buf
-
-
-    def _ray_get_metric_value(value: Optional[Any]) -> Optional[Any]:
-        if value is None:
-            return None
-        if isinstance(value, str) and value.startswith(_RAY_METRIC_IS_DATAFRAME_PREFIX):
-            return pd.DataFrame(json.loads(value.removeprefix(_RAY_METRIC_IS_DATAFRAME_PREFIX)))
-        if isinstance(value, (int, float, str)) or np.issubdtype(type(value), np.number):
-            return value
-        if not isinstance(value, io.BytesIO):
-            raise ValueError(f'Expected metric value to be of type BytesIO, found type: {type_str(value)}')
-        value.seek(0)
-        return pickle.load(value)
-
-
-    def _ray_convert_metrics_dataframe(metrics_dataframe: pd.DataFrame) -> pd.DataFrame:
-        for col in metrics_dataframe.columns:
-            if _ray_col_is_metric(col):
-                metrics_dataframe[col] = metrics_dataframe[col].apply(_ray_get_metric_value)
-        return metrics_dataframe
-
-
-    def _ray_logger(text: str, verbosity: int, logging_fn: Callable, prefix: Optional[str] = None):
-        prefix: str = get_default(prefix, '')
-        text: str = f'{prefix}{text}'
-        if verbosity == 0:  ## Don't log anything.
-            return
-        logging_fn(text)
-
-
-    def _ray_agg_final_model_metric_stats(
-            trialwise_final_model_metrics: Dict[str, Metrics],
-            data_split: DataSplit,
-    ) -> Dict[str, Dict[str, Union[int, float]]]:
-        student_metrics: Dict[str, Dict[str, Any]] = {}
-        for trial_id, trial_metrics in trialwise_final_model_metrics.items():
-            for student_metric in trial_metrics[data_split]:
-                assert isinstance(student_metric, Metric)
-                student_metric_name: str = student_metric.display_name
-                student_metrics.setdefault(student_metric_name, {})
-                student_metrics[student_metric_name].setdefault('values', [])
-                student_metrics[student_metric_name]['values'].append(student_metric.value)
-                student_metrics[student_metric_name].setdefault('metric_class', None)
-                if student_metrics[student_metric_name]['metric_class'] is None:
-                    student_metrics[student_metric_name]['metric_class'] = type(student_metric)
-                else:
-                    assert student_metrics[student_metric_name]['metric_class'] == type(student_metric)
-        student_metrics_stats: Dict[str, Dict[str, Union[int, float]]] = {}
-        for student_metric_name, student_metric_d in student_metrics.items():
-            if issubclass(student_metric_d['metric_class'], (PercentageMetric, CountingMetric)):
-                student_metrics_stats.setdefault(student_metric_name, {})
-                vals: pd.Series = pd.Series(student_metric_d['values'])
-                student_metrics_stats[student_metric_name]['mean'] = vals.mean()
-                student_metrics_stats[student_metric_name]['std'] = vals.std()
-                student_metrics_stats[student_metric_name]['mean+std'] = vals.mean() + vals.std()
-                student_metrics_stats[student_metric_name]['mean-std'] = vals.mean() - vals.std()
-                student_metrics_stats[student_metric_name]['min'] = vals.min()
-                student_metrics_stats[student_metric_name]['max'] = vals.max()
-                student_metrics_stats[student_metric_name]['median'] = vals.median()
-                student_metrics_stats[student_metric_name]['count'] = len(vals)
-        return student_metrics_stats
-
 
     class HyperparameterSearchSpace(MappedParameters):
         _mapping = append_to_keys(
@@ -1110,7 +1111,7 @@ if _IS_RAY_INSTALLED:
                 **kwargs
         ) -> Type[tune.Trainable]:
             trainable: Type[tune.Trainable] = AlgorithmTrainable
-            if PyTorch is not None and issubclass(AlgorithmClass, PyTorch):
+            if _IS_TORCH_INSTALLED and issubclass(AlgorithmClass, PyTorch):
                 if resources.get('gpu', 0.0) > 0:
                     kwargs.setdefault('device', 'cuda')
             if is_n_models_without_tuning:

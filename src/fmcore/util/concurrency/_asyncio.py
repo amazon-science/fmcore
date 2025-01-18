@@ -1,6 +1,7 @@
 """A collection of concurrency utilities to augment the Python language:"""
 ## Jupyter-compatible asyncio usage:
 import asyncio
+import atexit
 import inspect
 import threading
 from functools import partial
@@ -52,3 +53,14 @@ async def async_http_get(url):
 _ASYNCIO_EVENT_LOOP = asyncio.new_event_loop()
 _ASYNCIO_EVENT_LOOP_THREAD = threading.Thread(target=_asyncio_start_event_loop, args=(_ASYNCIO_EVENT_LOOP,))
 _ASYNCIO_EVENT_LOOP_THREAD.start()
+
+
+def _cleanup_event_loop():
+    if _ASYNCIO_EVENT_LOOP.is_running():
+        _ASYNCIO_EVENT_LOOP.call_soon_threadsafe(_ASYNCIO_EVENT_LOOP.stop)
+    _ASYNCIO_EVENT_LOOP_THREAD.join()
+    _ASYNCIO_EVENT_LOOP.close()
+
+
+## Register the cleanup function to be called upon Python program exit
+atexit.register(_cleanup_event_loop)

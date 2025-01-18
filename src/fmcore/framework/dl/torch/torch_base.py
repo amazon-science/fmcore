@@ -1,32 +1,50 @@
-from typing import *
-import gc, os
+import gc
 from abc import ABC, abstractmethod
-from fmcore.data.sdf import ScalableDataFrameOrRaw
-from fmcore.framework.algorithm import Algorithm
-from fmcore.framework.task_data import Dataset
-from fmcore.framework.predictions import Predictions
-from fmcore.constants import DataLayout, MLType, DataPosition, MLTypeSchema
-from fmcore.util import optional_dependency, safe_validate_arguments, MappedParameters, get_default, check_isinstance
-from pydantic import validator, root_validator, conint
 from functools import partial
+from typing import *
 
-with optional_dependency('torch'):
+from pydantic import root_validator, conint
+
+from fmcore.constants import DataLayout, DataPosition, MLTypeSchema
+from fmcore.framework.algorithm import Algorithm
+from fmcore.framework.predictions import Predictions
+from fmcore.framework.task_data import Dataset
+from fmcore.util import optional_dependency, safe_validate_arguments, MappedParameters, get_default
+from fmcore.util.language._import import _IS_TORCH_INSTALLED
+
+PyTorch = 'PyTorch'
+
+
+def clear_device_cache():
+    if not _IS_TORCH_INSTALLED:
+        gc.collect()
+        return
+    for _ in range(2):
+        ## Sometimes torch depends on objects in Python memory, and sometimes the other way around.
+        ## Running this twice ensures cleanup of both torch and python objects.
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        gc.collect()
+
+
+def is_accelerator(device: Any) -> bool:
+    if not _IS_TORCH_INSTALLED:
+        return False
+    return accelerate is not None and isinstance(device, accelerate.Accelerator)
+
+
+if _IS_TORCH_INSTALLED:
     import torch
     from torch import Tensor
     from torch.nn import Module as TorchModule
     from torch.optim import Optimizer as TorchOptimizer
     from torch.optim.lr_scheduler import _LRScheduler as TorchLRScheduler
     from torch.nn.modules.loss import _Loss as TorchLoss
-    from fmcore.data.sdf.TorchScalableSeries import TorchScalableSeries
-    from torch.utils.data import IterableDataset as TorchIterableDataset, DataLoader as TorchDataLoader
+    from torch.utils.data import DataLoader as TorchDataLoader
 
     accelerate = None
     with optional_dependency('accelerate', error='ignore'):
         import accelerate
-
-
-    def is_accelerator(device: Any) -> bool:
-        return accelerate is not None and isinstance(device, accelerate.Accelerator)
 
 
     def move_tensor_to_device(x: Any, device: Any, **kwargs) -> Any:
@@ -110,15 +128,6 @@ with optional_dependency('torch'):
                 )
             return False
         return True
-
-
-    def clear_device_cache():
-        for _ in range(2):
-            ## Sometimes torch depends on objects in Python memory, and sometimes the other way around.
-            ## Running this twice ensures cleanup of both torch and python objects.
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            gc.collect()
 
 
     class Optimizer(MappedParameters):

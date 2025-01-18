@@ -13,7 +13,7 @@ from fmcore.data.sdf import ScalableDataFrame
 from fmcore.util import Parameters, MutableParameters, Registry, classproperty, as_list, \
     safe_validate_arguments, get_default, set_param_from_alias, String, dispatch, dispatch_executor, \
     accumulate, accumulate_iter, partial_sort, is_function, fn_str, as_set, String, is_null, ProgressBar, Alias
-from fmcore.util.language._import import _IS_RAY_INSTALLED
+from fmcore.util.language._import import _check_is_ray_installed
 
 Metric = "Metric"
 Metrics = "Metrics"
@@ -519,7 +519,8 @@ class Metrics(MutableParameters):
             total=len(metrics_list),
             prefer_kwargs=False,
         )
-        if _IS_RAY_INSTALLED and parallelize is Parallelize.ray:
+        if parallelize is Parallelize.ray:
+            _check_is_ray_installed()
             import ray
             data_ref = ray.put(data)
             data = data_ref

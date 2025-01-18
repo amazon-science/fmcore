@@ -6,7 +6,6 @@ import pandas as pd
 from pandas.api.types import is_string_dtype
 from pandas.api.types import is_numeric_dtype
 from pandas.core.frame import Series as PandasSeries, DataFrame as PandasDataFrame
-from dask.dataframe.core import Scalar as DaskScalar, Series as DaskSeries, DataFrame as DaskDataFrame
 from fmcore.data import ScalableDataFrame, ScalableDataFrameOrRaw, ScalableSeries, ScalableOrRaw, \
     ScalableSeriesOrRaw, is_scalable, FileMetadata, Asset
 from fmcore.data.reader import AssetReader, DataFrameReader
@@ -352,7 +351,7 @@ class InputOutputDataMixin(TaskRegistryMixin, ABC):
         kwargs['exclude'] = as_set(kwargs['exclude'])
         orig_exclude: Set[str] = deepcopy(kwargs['exclude'])
         kwargs['exclude'].add('data')
-        params: Dict = super(InputOutputDataMixin, self).dict(*args, **kwargs)
+        params: Dict = super(self.__class__, self).dict(*args, **kwargs)
         if 'data' not in orig_exclude:
             ## Add `data` key back in the correct format:
             if self.in_memory():

@@ -1,25 +1,32 @@
-import logging
-from typing import *
+import base64
+import base64
+import gzip
+import json
+import math
+import warnings
 from abc import abstractmethod, ABC
-import math, time, warnings, json, gzip, base64
-import numpy as np, pandas as pd, multiprocessing as mp, threading as th
+from collections import deque
 from concurrent.futures._base import Future
+from typing import *
+
+import numpy as np
 from pandas.core.frame import DataFrame as PandasDataFrame
-import dask.dataframe as dd
-from dask.dataframe.core import DataFrame as DaskDataFrame
-from fmcore.util import as_list, resolve_sample_size, SampleSizeType, Registry, String, get_default, \
-    classproperty, accumulate, dispatch, MutableParameters, safe_validate_arguments, is_done, optional_dependency, \
-    multiple_are_not_none, all_are_not_none, is_list_of_dict_like, Parameters, dispatch_executor, Executor, Alias
+from pydantic import conint, constr, root_validator
+from pydantic.typing import Literal
+
 from fmcore.constants import DataLayout, SDF_DATA_LAYOUT_PRIORITY, LAZY_SDF_DATA_LAYOUTS, Parallelize, \
     CompressionEngine
 from fmcore.data.sdf.ScalableSeries import ScalableSeries, ScalableSeriesOrRaw
-from pydantic import conint, constr, root_validator
-from pydantic.typing import Literal
-from collections import deque
+from fmcore.util import as_list, resolve_sample_size, SampleSizeType, Registry, String, get_default, \
+    classproperty, accumulate, dispatch, MutableParameters, safe_validate_arguments, is_done, optional_dependency, \
+    multiple_are_not_none, all_are_not_none, is_list_of_dict_like, Parameters, dispatch_executor, Executor, Alias
+from fmcore.util.language._import import _IS_DASK_INSTALLED, _check_is_dask_installed, DaskDataFrame
 
 ScalableDataFrame = "ScalableDataFrame"
 CompressedScalableDataFrame = "CompressedScalableDataFrame"
-ScalableDataFrameRawType = Union[Dict, List[Dict], np.recarray, PandasDataFrame, DaskDataFrame]
+ScalableDataFrameRawType = Union[Dict, List[Dict], np.recarray, PandasDataFrame]
+if _IS_DASK_INSTALLED:
+    ScalableDataFrameRawType = Union[Dict, List[Dict], np.recarray, PandasDataFrame, DaskDataFrame]
 ScalableDataFrameOrRaw = Union[ScalableDataFrame, ScalableDataFrameRawType]
 ScalableOrRaw = Union[ScalableSeriesOrRaw, ScalableDataFrameOrRaw]
 RAW_DATA_MEMBER = '_data'
@@ -122,7 +129,6 @@ class ScalableDataFrame(Registry, ABC):
     @property
     def hvplot(self) -> Any:
         with optional_dependency('hvplot', error='raise'):
-            import hvplot.pandas
             return self.pandas().hvplot
 
     @classmethod
@@ -136,7 +142,7 @@ class ScalableDataFrame(Registry, ABC):
             )
             if ScalableDataFrameClass is None:
                 continue
-            if ScalableDataFrameClass.layout_validator(data, raise_error=False):
+            if ScalableDataFrameClass.layout_validator(data, False):
                 return possible_layout
         if raise_error:
             raise NotImplementedError(
@@ -227,6 +233,8 @@ class ScalableDataFrame(Registry, ABC):
 
     @classmethod
     def is_dask(cls, data: Any, raise_error: bool = True) -> bool:
+        if not _IS_DASK_INSTALLED:
+            return False
         if data is None:
             if raise_error:
                 raise ValueError(f'Input data cannot be None.')
@@ -1764,6 +1772,7 @@ class ScalableDataFrame(Registry, ABC):
         return self.as_dask(**kwargs)
 
     def as_dask(self, **kwargs) -> DaskDataFrame:
+        _check_is_dask_installed()
         if 'npartitions' not in kwargs and 'chunksize' not in kwargs:
             kwargs['npartitions'] = 1  ## Create a dask dataframe with a single partition.
         return dd.from_pandas(self.pandas(), **kwargs)

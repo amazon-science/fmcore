@@ -1,21 +1,17 @@
+import boto3
+import io
 from typing import *
-import io, s3fs, boto3
-from botocore.exceptions import NoCredentialsError
-import numpy as np
+
 import pandas as pd
-from pandas.core.frame import DataFrame as PandasDataFrame
-from pandas.core.series import Series as PandasSeries
+from botocore.exceptions import NoCredentialsError
 from pandas import read_parquet as Pandas_read_parquet
-import dask.dataframe as dd
-from dask.dataframe.core import DataFrame as DaskDataFrame
-from dask.dataframe.core import Series as DaskSeries
-from dask.dataframe import read_parquet as Dask_read_parquet
+
+from fmcore.constants import FileFormat, Storage, DataLayout, MLTypeSchema
+from fmcore.data.FileMetadata import FileMetadata
+from fmcore.data.reader.dataframe import DataFrameReader
+from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType, DaskDataFrame
 from fmcore.util import optional_dependency, as_list
 from fmcore.util.aws import S3Util
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType
-from fmcore.data.reader.dataframe import DataFrameReader
-from fmcore.data.FileMetadata import FileMetadata
-from fmcore.constants import FileFormat, Storage, DataLayout, MLTypeSchema
 
 
 class ParquetReader(DataFrameReader):
@@ -57,6 +53,9 @@ class ParquetReader(DataFrameReader):
             data_schema: Optional[MLTypeSchema],
             **kwargs
     ) -> DaskDataFrame:
+        import dask.dataframe as dd
+        from dask.dataframe import read_parquet as Dask_read_parquet
+
         if storage is Storage.STREAM:
             ## Read as another layout and convert to Dask:
             df: ScalableDataFrameRawType = self._read_raw_sdf_with_retries(

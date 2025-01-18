@@ -1,23 +1,13 @@
+import io
 from typing import *
-import io, os
-import numpy as np
-import pandas as pd
-from pandas.core.frame import DataFrame as PandasDataFrame
-from pandas.core.series import Series as PandasSeries
-import dask.dataframe as dd
-from dask.dataframe.core import DataFrame as DaskDataFrame
-from dask.array import to_npy_stack as DaskArray_to_npy
-from dask.dataframe.core import Series as DaskSeries
+
 from numpy import savez as Pandas_to_npz
-from fmcore.data.writer.dataframe.DataFrameWriter import DataFrameWriter
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType
-from fmcore.data.sdf.DaskScalableDataFrame import DaskScalableDataFrame
+from pydantic import Field
+
 from fmcore.constants import FileFormat, DataLayout, Storage
-from fmcore.data.FileMetadata import FileMetadata
-from fmcore.util import FileSystemUtil, all_are_none
-from fmcore.util.aws import S3Util
-from pydantic import root_validator, Field
-from fmcore.util import Log
+from fmcore.data.sdf.DaskScalableDataFrame import DaskScalableDataFrame
+from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, DaskDataFrame
+from fmcore.data.writer.dataframe.DataFrameWriter import DataFrameWriter
 
 
 class NpzWriter(DataFrameWriter):

@@ -200,6 +200,10 @@ class RestrictedConcurrencyThreadPoolExecutor(ThreadPoolExecutor):
         return future
 
 
+_GLOBAL_THREAD_POOL_EXECUTOR = None
+_GLOBAL_THREAD_POOL_EXECUTOR_MAX_WORKERS: int = 16
+
+
 def run_concurrent(
         fn,
         *args,
@@ -207,6 +211,10 @@ def run_concurrent(
         **kwargs,
 ):
     global _GLOBAL_THREAD_POOL_EXECUTOR
+    if _GLOBAL_THREAD_POOL_EXECUTOR is None:
+        _GLOBAL_THREAD_POOL_EXECUTOR = RestrictedConcurrencyThreadPoolExecutor(
+            max_workers=_GLOBAL_THREAD_POOL_EXECUTOR_MAX_WORKERS
+        )
     if executor is None:
         executor: ThreadPoolExecutor = _GLOBAL_THREAD_POOL_EXECUTOR
     try:
@@ -214,7 +222,7 @@ def run_concurrent(
         return executor.submit(fn, *args, **kwargs)  ## return a future
     except BrokenThreadPool as e:
         if executor is _GLOBAL_THREAD_POOL_EXECUTOR:
-            executor = RestrictedConcurrencyThreadPoolExecutor(max_workers=_GLOBAL_THREAD_POOL_EXECUTOR._max_workers)
+            executor = RestrictedConcurrencyThreadPoolExecutor(max_workers=_GLOBAL_THREAD_POOL_EXECUTOR_MAX_WORKERS)
             del _GLOBAL_THREAD_POOL_EXECUTOR
             _GLOBAL_THREAD_POOL_EXECUTOR = executor
             return executor.submit(fn, *args, **kwargs)  ## return a future
@@ -222,4 +230,3 @@ def run_concurrent(
 
 
 suppress_ThreadKilledSystemException()
-_GLOBAL_THREAD_POOL_EXECUTOR: ThreadPoolExecutor = RestrictedConcurrencyThreadPoolExecutor(max_workers=16)

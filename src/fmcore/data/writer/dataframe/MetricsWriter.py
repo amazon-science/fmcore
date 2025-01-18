@@ -1,15 +1,17 @@
-from typing import *
 import io
+from typing import *
+
 import pandas as pd
-from fmcore.data.writer.dataframe.DataFrameWriter import DataFrameWriter
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame
-from fmcore.data.sdf.DaskScalableDataFrame import DaskScalableDataFrame
+from pandas.core.frame import DataFrame as PandasDataFrame
+from pydantic import *
+
+from fmcore.constants import FileContents
 from fmcore.constants import FileFormat, Storage, Task
+from fmcore.data.sdf.DaskScalableDataFrame import DaskScalableDataFrame
+from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame
+from fmcore.data.writer.dataframe.DataFrameWriter import DataFrameWriter
 from fmcore.framework.metric import Metric
 from fmcore.framework.predictions import Predictions
-from fmcore.constants import FileContents
-from pydantic import *
-from pandas.core.frame import DataFrame as PandasDataFrame
 
 
 class MetricsWriter(DataFrameWriter):
@@ -60,6 +62,13 @@ class MetricsWriter(DataFrameWriter):
         metrics_df = metrics_df[sorted(metrics_df.columns)]
         metrics_df.to_json(path_or_buf=destination, orient='records')
 
-    def _write_dask_sdf(self, destination: Union[io.IOBase, str], sdf: DaskScalableDataFrame, storage: Storage,
-                        is_dir: bool, name_function: Optional[Callable[[int], str]] = None, **kwargs) -> NoReturn:
+    def _write_dask_sdf(
+            self,
+            destination: Union[io.IOBase, str],
+            sdf: DaskScalableDataFrame,
+            storage: Storage,
+            is_dir: bool,
+            name_function: Optional[Callable[[int], str]] = None,
+            **kwargs
+    ) -> NoReturn:
         self._write_sdf(destination=destination, sdf=sdf, storage=storage, **kwargs)

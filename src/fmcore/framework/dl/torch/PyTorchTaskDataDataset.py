@@ -1,12 +1,9 @@
 from typing import *
-import gc, os
-from abc import ABC, abstractmethod
-from fmcore.framework.mixins import InputOutputDataMixin
-from fmcore.constants import DataLayout, MLType, DataPosition
-from fmcore.util import optional_dependency, safe_validate_arguments, MappedParameters, get_default
-from pydantic import validator, root_validator, conint
 
-with optional_dependency('torch'):
+from fmcore.framework.mixins import InputOutputDataMixin
+from fmcore.util.language._import import _IS_TORCH_INSTALLED
+
+if _IS_TORCH_INSTALLED:
     import torch
     from torch.utils.data import IterableDataset as TorchIterableDataset, DataLoader as TorchDataLoader
 

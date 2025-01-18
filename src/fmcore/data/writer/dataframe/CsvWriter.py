@@ -1,19 +1,14 @@
+import io
 from typing import *
-import io, os, csv
-import numpy as np
-import pandas as pd
+
 from pandas.core.frame import DataFrame as PandasDataFrame
-from pandas.core.series import Series as PandasSeries
-import dask.dataframe as dd
-from dask.dataframe.core import DataFrame as DaskDataFrame
-from dask.dataframe.core import Series as DaskSeries
-from dask.dataframe.io.csv import to_csv as Dask_to_csv
-from fmcore.data.writer.dataframe.DataFrameWriter import DataFrameWriter
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType
-from fmcore.data.sdf.DaskScalableDataFrame import DaskScalableDataFrame
-from fmcore.util import String
-from fmcore.constants import FileFormat, Storage, DataLayout, QUOTING_MAP
 from pydantic import validator, constr
+
+from fmcore.constants import FileFormat, Storage, DataLayout
+from fmcore.data.sdf.DaskScalableDataFrame import DaskScalableDataFrame
+from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame
+from fmcore.data.writer.dataframe.DataFrameWriter import DataFrameWriter
+from fmcore.util import String
 
 
 class CsvWriter(DataFrameWriter):
@@ -56,6 +51,7 @@ class CsvWriter(DataFrameWriter):
             name_function: Optional[Callable[[int], str]] = None,
             **kwargs,
     ) -> NoReturn:
+        from dask.dataframe.io.csv import to_csv as Dask_to_csv
         if storage is Storage.STREAM:
             ## Convert dask dataframe to Pandas and write to stream:
             self._write_sdf(

@@ -1,19 +1,13 @@
-from typing import *
+import io
 from abc import abstractmethod, ABC
-import logging, io, time
-import numpy as np
-import pandas as pd
-from pandas.core.frame import DataFrame as PandasDataFrame
-from pandas.core.series import Series as PandasSeries
-import dask.dataframe as dd
-from dask.dataframe.core import DataFrame as DaskDataFrame
-from dask.dataframe.core import Series as DaskSeries
-from fmcore.util import String, Future, Log, accumulate, dispatch, retry as retry_fn, \
-    is_list_like, only_item, get_default, String, Schema, safe_validate_arguments, ProgressBar, Alias
+from typing import *
+
 from fmcore.constants import Storage, FileContents, DataLayout, Parallelize, MLTypeSchema
 from fmcore.data.reader.Reader import Reader
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType, ScalableDataFrameOrRaw, \
-    is_scalable
+from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType, ScalableDataFrameOrRaw, DaskDataFrame
+from fmcore.util import Future, Log, accumulate, dispatch, retry as retry_fn, \
+    is_list_like, only_item, get_default, String, Schema, safe_validate_arguments, ProgressBar, Alias
+from fmcore.util.language._import import _check_is_dask_installed
 
 
 class DataFrameReader(Reader, ABC):
@@ -326,6 +320,7 @@ class DataFrameReader(Reader, ABC):
             retry_wait: Optional[float] = None,
             **kwargs
     ) -> DaskDataFrame:
+        _check_is_dask_installed()
         return retry_fn(
             self._read_raw_dask_sdf,
             retries=get_default(retry, self.retry),

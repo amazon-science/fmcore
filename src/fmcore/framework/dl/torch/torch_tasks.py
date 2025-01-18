@@ -1,29 +1,26 @@
-from typing import *
 from abc import ABC, abstractmethod
+from typing import *
+
 import numpy as np
-import pandas as pd
-from fmcore.framework.algorithm import Algorithm
-from fmcore.framework.task_data import Dataset
+from pydantic.typing import Literal
+
+from fmcore.constants import Task, Storage
+from fmcore.data import FileMetadata
 from fmcore.framework.task import Embedder, \
     EncodingRange, Classifier, ClassificationData, MultiLabelClassifier, MultiLabelClassificationData, \
     Regressor
-from fmcore.constants import Task, TaskOrStr, MLType, Storage
-from fmcore.data import FileMetadata
-from fmcore.util import optional_dependency, FileSystemUtil
-from pydantic import validator, root_validator, Extra, confloat
-from pydantic.typing import Literal
+from fmcore.framework.task_data import Dataset
+from fmcore.util import FileSystemUtil
+from fmcore.util.language._import import _IS_TORCH_INSTALLED
 
-with optional_dependency('torch'):
+PyTorchBaseModel = 'PyTorchBaseModel'
+if _IS_TORCH_INSTALLED:
     import torch
     from torch import Tensor
     from torch.nn import Module as TorchModule
-    from torch.optim import Optimizer as TorchOptimizer
-    from torch.optim.lr_scheduler import _LRScheduler as TorchLRScheduler
-    from torch.nn.modules.loss import _Loss as TorchLoss
     from torch.nn.functional import softmax
 
-    from fmcore.framework.dl.torch.torch_base import PyTorch, Loss, Optimizer, LRScheduler, \
-        move_data_to_device, get_model_device, is_accelerator
+    from fmcore.framework.dl.torch.torch_base import PyTorch, Loss, is_accelerator
 
 
     class PyTorchBaseModel(Embedder, PyTorch, ABC):

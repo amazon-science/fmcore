@@ -1,20 +1,14 @@
-from typing import *
 import io
+from typing import *
+
 import numpy as np
-import pandas as pd
-from pandas.core.frame import DataFrame as PandasDataFrame
-from pandas.core.series import Series as PandasSeries
-from pandas import read_parquet as Pandas_read_parquet
-import dask.dataframe as dd
-from dask.dataframe.core import DataFrame as DaskDataFrame
-from dask.dataframe.core import Series as DaskSeries
-from dask.dataframe import read_parquet as Dask_read_parquet
-from fmcore.util import optional_dependency, as_list
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType
-from fmcore.data.reader.dataframe import DataFrameReader
-from fmcore.util import accumulate, run_concurrent
-from fmcore.data.FileMetadata import FileMetadata
+
 from fmcore.constants import FileFormat, Storage, DataLayout, MLTypeSchema
+from fmcore.data.FileMetadata import FileMetadata
+from fmcore.data.reader.dataframe import DataFrameReader
+from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType, DaskDataFrame
+from fmcore.util import accumulate, run_concurrent
+from fmcore.util import as_list
 
 
 class NpzReader(DataFrameReader):
@@ -60,6 +54,8 @@ class NpzReader(DataFrameReader):
             data_schema: Optional[MLTypeSchema],
             **kwargs
     ) -> DaskDataFrame:
+        import dask.dataframe as dd
+
         if storage is Storage.STREAM:
             ## Read as another layout and convert to Dask:
             df: ScalableDataFrameRawType = self._read_raw_sdf_with_retries(
