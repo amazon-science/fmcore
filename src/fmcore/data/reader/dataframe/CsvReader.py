@@ -8,9 +8,9 @@ from botocore.exceptions import NoCredentialsError
 from pandas import read_csv as Pandas_read_csv
 from pydantic import constr, validator
 
-from fmcore.constants import FileFormat, QUOTING_MAP, DataLayout, Storage, MLTypeSchema
-from fmcore.data.reader.dataframe import DataFrameReader
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType, DaskDataFrame
+from fmcore.constants import QUOTING_MAP, DataLayout, FileFormat, MLTypeSchema, Storage
+from fmcore.data.reader.dataframe.DataFrameReader import DataFrameReader
+from fmcore.data.sdf.ScalableDataFrame import DaskDataFrame, ScalableDataFrame, ScalableDataFrameRawType
 from fmcore.util import String
 from fmcore.util.aws import S3Util
 
@@ -25,7 +25,7 @@ class CsvReader(DataFrameReader):
         keep_default_na: Optional[bool] = True
         na_values: Optional[List[str]] = []
 
-        @validator('quoting')
+        @validator("quoting")
         def validate_quoting(cls, quoting):
             if quoting is None:
                 return None
@@ -34,38 +34,38 @@ class CsvReader(DataFrameReader):
             return QUOTING_MAP[quoting]
 
     def _read_raw_sdf(
-            self,
-            source: Union[str, io.IOBase],
-            storage: Storage,
-            data_schema: Optional[MLTypeSchema],
-            read_as: Optional[DataLayout],
-            **kwargs
+        self,
+        source: Union[str, io.IOBase],
+        storage: Storage,
+        data_schema: Optional[MLTypeSchema],
+        read_as: Optional[DataLayout],
+        **kwargs,
     ) -> ScalableDataFrameRawType:
         csv_params: Dict = self.filtered_params(Pandas_read_csv)
         try:
             return pd.read_csv(
                 source,
                 usecols=self._filtered_data_columns(source=source, storage=storage, data_schema=data_schema),
-                **csv_params
+                **csv_params,
             )
         except NoCredentialsError:
             assert storage is Storage.S3
             ## Create a new session and read manually:
             bucket_name, file_key = S3Util.s3_path_exploder(source)
-            response = boto3.Session().client('s3').get_object(Bucket=bucket_name, Key=file_key)
-            csv_data = response['Body'].read().decode('utf-8')
+            response = boto3.Session().client("s3").get_object(Bucket=bucket_name, Key=file_key)
+            csv_data = response["Body"].read().decode("utf-8")
             return pd.read_csv(
                 io.StringIO(csv_data),
                 usecols=self._filtered_data_columns(source=source, storage=storage, data_schema=data_schema),
-                **csv_params
+                **csv_params,
             )
 
     def _read_raw_dask_sdf(
-            self,
-            source: Union[List[str], str, io.IOBase],
-            storage: Storage,
-            data_schema: Optional[MLTypeSchema],
-            **kwargs
+        self,
+        source: Union[List[str], str, io.IOBase],
+        storage: Storage,
+        data_schema: Optional[MLTypeSchema],
+        **kwargs,
     ) -> DaskDataFrame:
         import dask.dataframe as dd
         from dask.dataframe.io.csv import read_csv as Dask_read_csv
@@ -73,9 +73,7 @@ class CsvReader(DataFrameReader):
         if storage is Storage.STREAM:
             ## Read as another layout and convert to Dask:
             df: ScalableDataFrameRawType = self._read_raw_sdf_with_retries(
-                source=source,
-                storage=storage,
-                **kwargs
+                source=source, storage=storage, **kwargs
             )
             return ScalableDataFrame.of(df, layout=DataLayout.DASK, **kwargs).raw()
         else:
@@ -87,11 +85,11 @@ class CsvReader(DataFrameReader):
             )
 
     def _filtered_data_columns(
-            self,
-            *,
-            source: Union[List[str], str],
-            storage: Storage,
-            data_schema: Optional[MLTypeSchema],
+        self,
+        *,
+        source: Union[List[str], str],
+        storage: Storage,
+        data_schema: Optional[MLTypeSchema],
     ) -> Optional[Union[Callable, List[str]]]:
         columns: Optional[List[str]] = self._data_columns(data_schema)
         if columns is not None and self.allow_missing_columns:

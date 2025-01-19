@@ -1,9 +1,13 @@
 from typing import *
-from fmcore.data.processor import SingleColumnProcessor, TextOrLabelInputProcessor, EncodedLabelOutputProcessor
-import pandas as pd
-from fmcore.util import AutoEnum, auto, String, is_null
-from fmcore.data.sdf import ScalableSeries
+
 from pydantic import constr
+
+from fmcore.data.processor import (
+    EncodedLabelOutputProcessor,
+    SingleColumnProcessor,
+    TextOrLabelInputProcessor,
+)
+from fmcore.util import is_null
 
 
 class LabelAffix(SingleColumnProcessor, TextOrLabelInputProcessor, EncodedLabelOutputProcessor):
@@ -16,8 +20,8 @@ class LabelAffix(SingleColumnProcessor, TextOrLabelInputProcessor, EncodedLabelO
     """
 
     class Params(SingleColumnProcessor.Params):
-        prefix: constr(min_length=0) = ''
-        suffix: constr(min_length=0) = ''
+        prefix: constr(min_length=0) = ""
+        suffix: constr(min_length=0) = ""
 
     # def _transform_series(self, data: ScalableSeries) -> ScalableSeries:
     #     nulls: ScalableSeries = data.isna()

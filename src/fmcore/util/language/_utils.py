@@ -3,7 +3,8 @@ from typing import *
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_scalar as pd_is_scalar
-from pandas.core.frame import Series as PandasSeries, DataFrame as PandasDataFrame
+from pandas.core.frame import DataFrame as PandasDataFrame
+from pandas.core.frame import Series as PandasSeries
 
 
 def get_default(*vals) -> Optional[Any]:
@@ -93,7 +94,7 @@ def multiple_are_not_none(*args) -> bool:
 
 def equal(*args) -> bool:
     if len(args) == 0:
-        raise ValueError(f'Cannot find equality for zero arguments')
+        raise ValueError("Cannot find equality for zero arguments")
     if len(args) == 1:
         return True
     first_arg = args[0]
@@ -103,12 +104,12 @@ def equal(*args) -> bool:
     return True
 
 
-def is_scalar(x: Any, method: Literal['numpy', 'pandas'] = 'pandas') -> bool:
-    if method == 'pandas':
+def is_scalar(x: Any, method: Literal["numpy", "pandas"] = "pandas") -> bool:
+    if method == "pandas":
         ## Ref: https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.api.types.is_scalar.html
         ## Actual code: github.com/pandas-dev/pandas/blob/0402367c8342564538999a559e057e6af074e5e4/pandas/_libs/lib.pyx#L162
         return pd_is_scalar(x)
-    if method == 'numpy':
+    if method == "numpy":
         ## Ref: https://numpy.org/doc/stable/reference/arrays.scalars.html#built-in-scalar-types
         return np.isscalar(x)
     raise NotImplementedError(f'Unsupported method: "{method}"')

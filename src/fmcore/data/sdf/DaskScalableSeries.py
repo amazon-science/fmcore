@@ -1,21 +1,23 @@
 from typing import *
 
 import numpy as np
-from pandas.core.frame import Series as PandasSeries, DataFrame as PandasDataFrame
+from pandas.core.frame import DataFrame as PandasDataFrame
+from pandas.core.frame import Series as PandasSeries
 from pydantic.typing import Literal
 
 from fmcore.constants import DataLayout
 from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame
-from fmcore.data.sdf.ScalableSeries import ScalableSeries, SS_DEFAULT_NAME
-from fmcore.util import wrap_fn_output, is_function, get_default, RayDaskPersistWaitCallback
+from fmcore.data.sdf.ScalableSeries import SS_DEFAULT_NAME, ScalableSeries
+from fmcore.util import RayDaskPersistWaitCallback, get_default, is_function, wrap_fn_output
 from fmcore.util.language._import import _IS_DASK_INSTALLED
 
 DaskScalableSeries = "DaskScalableSeries"
 
 if _IS_DASK_INSTALLED:
     import dask.array as da
-    from dask.dataframe.core import Scalar as DaskScalar, Series as DaskSeries, DataFrame as DaskDataFrame
-
+    from dask.dataframe.core import DataFrame as DaskDataFrame
+    from dask.dataframe.core import Scalar as DaskScalar
+    from dask.dataframe.core import Series as DaskSeries
 
     class DaskScalableSeries(ScalableSeries):
         layout = DataLayout.DASK
@@ -29,8 +31,8 @@ if _IS_DASK_INSTALLED:
             self._data: DaskSeries = data
             if name is not None and not isinstance(name, (str, int, float)):
                 raise ValueError(
-                    f'`name` used to construct {self.__class__} can only be int, str or float; '
-                    f'found object of type: {type(name)} with value: {name}'
+                    f"`name` used to construct {self.__class__} can only be int, str or float; "
+                    f"found object of type: {type(name)} with value: {name}"
                 )
             else:
                 self._data.name = name
@@ -40,7 +42,7 @@ if _IS_DASK_INSTALLED:
             return len(self._data)
 
         def __str__(self):
-            name_str: str = '' if self._name is None else f'"{self._name}": '
+            name_str: str = "" if self._name is None else f'"{self._name}": '
             out = f"{name_str}Dask Series of dtype `{self._data.dtype}` with {len(self)} items:\n"
             # out += '\n' + '-' * len(out) + '\n'
             out += str(self._data)
@@ -77,7 +79,7 @@ if _IS_DASK_INSTALLED:
 
         def __setitem__(self, key: Any, value: Any):
             # self._data[key] = value
-            raise NotImplementedError(f'Cannot set at the moment')
+            raise NotImplementedError("Cannot set at the moment")
 
         def as_pandas(self, **kwargs) -> PandasSeries:
             return self._data.compute()
@@ -86,7 +88,7 @@ if _IS_DASK_INSTALLED:
             return self._data
 
         def _to_frame_raw(self, **kwargs):
-            kwargs['name']: Any = get_default(self._name, SS_DEFAULT_NAME)
+            kwargs["name"]: Any = get_default(self._name, SS_DEFAULT_NAME)
             return self._data.to_frame(**kwargs)
 
         def loc(self) -> Any:
@@ -103,7 +105,7 @@ if _IS_DASK_INSTALLED:
             :return: ScalableSeries.
             """
             if not isinstance(wait, bool):
-                raise ValueError(f'Attribute `wait` must be a boolean, found value of type {type(wait)}')
+                raise ValueError(f"Attribute `wait` must be a boolean, found value of type {type(wait)}")
             if wait:
                 with RayDaskPersistWaitCallback():
                     self._data = self._data.persist(**kwargs)
@@ -138,10 +140,10 @@ if _IS_DASK_INSTALLED:
         def bool(self) -> bool:
             length = len(self)
             if length != 1:
-                raise ValueError(f'Can only run `.bool()` with Series having one element; found {length}.')
+                raise ValueError(f"Can only run `.bool()` with Series having one element; found {length}.")
             data = self._data.compute()[0]
             if not (np.issubdtype(self._data.dtype, bool) or isinstance(data, bool)):
-                raise ValueError(f'Can only obtain `.bool()` value of Series having True or False data.')
+                raise ValueError("Can only obtain `.bool()` value of Series having True or False data.")
             return bool(data)
 
         """
@@ -153,7 +155,7 @@ if _IS_DASK_INSTALLED:
         def item(self) -> bool:
             length = len(self)
             if length != 1:
-                raise ValueError(f'Can only run `.item()` with Series having one element; found {length}.')
+                raise ValueError(f"Can only run `.item()` with Series having one element; found {length}.")
             data = self._data.compute()[0]
             return data
 
@@ -164,10 +166,10 @@ if _IS_DASK_INSTALLED:
         """
 
         def map(
-                self,
-                arg: Union[Callable, Dict, ScalableSeries],
-                *,
-                na_action: Optional[Literal['ignore']] = None,
+            self,
+            arg: Union[Callable, Dict, ScalableSeries],
+            *,
+            na_action: Optional[Literal["ignore"]] = None,
         ) -> ScalableSeries:
             return self._constructor(
                 self._data.map_partitions(

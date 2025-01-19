@@ -1,24 +1,26 @@
 from typing import *
-from PIL import Image
+
 import torch
-from torch.utils.data import DataLoader, IterableDataset
+from PIL import Image
+from torch.utils.data import IterableDataset
 from torchvision.transforms import functional as F
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame
-from fmcore.util import run_concurrent, accumulate, run_concurrent
+
 from fmcore.constants import DataLayout
+from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame
+from fmcore.util import accumulate, run_concurrent
 
 
 class ScalableDataFrameDataset(IterableDataset):
     def __init__(
-            self,
-            sdf: ScalableDataFrame,
-            schema: Dict,
-            batch_size: int,
-            layout: DataLayout,
-            fetch_assets: bool,
-            shuffle: bool,
-            ## TODO: add dict of pytorch transforms for each column.
-            ## Ref: https://pytorch.org/tutorials/beginner/data_loading_tutorial.html#compose-transforms
+        self,
+        sdf: ScalableDataFrame,
+        schema: Dict,
+        batch_size: int,
+        layout: DataLayout,
+        fetch_assets: bool,
+        shuffle: bool,
+        ## TODO: add dict of pytorch transforms for each column.
+        ## Ref: https://pytorch.org/tutorials/beginner/data_loading_tutorial.html#compose-transforms
     ):
         self.__sdf: ScalableDataFrame = sdf
         self.__sdf_len: int = len(sdf)
@@ -35,18 +37,22 @@ class ScalableDataFrameDataset(IterableDataset):
 
     def fetch_data_and_yield(self):
         for sdf_batch in self.__sdf.stream(
-                stream_as=self.__layout,
-                num_rows=self.__batch_size,
-                shuffle=self.__shuffle,
+            stream_as=self.__layout,
+            num_rows=self.__batch_size,
+            shuffle=self.__shuffle,
         ):
             if self.__fetch_assets:
                 if sdf_batch.layout == DataLayout.DICT:
-                    imgs_tensor = torch.stack(accumulate([
-                        run_concurrent(self.read_from_disk, img_path=sdf_batch._data['img'][i])
-                        for i in range(len(sdf_batch))
-                    ]))
-                    sdf_batch._data['img'] = imgs_tensor
-                    sdf_batch.loc[:, 'img'] = imgs_tensor
+                    imgs_tensor = torch.stack(
+                        accumulate(
+                            [
+                                run_concurrent(self.read_from_disk, img_path=sdf_batch._data["img"][i])
+                                for i in range(len(sdf_batch))
+                            ]
+                        )
+                    )
+                    sdf_batch._data["img"] = imgs_tensor
+                    sdf_batch.loc[:, "img"] = imgs_tensor
                 else:
                     raise NotImplementedError()
             yield sdf_batch
@@ -60,7 +66,7 @@ class ScalableDataFrameDataset(IterableDataset):
             ## Refs:
             ## - https://medium.com/speechmatics/how-to-build-a-streaming-dataloader-with-pytorch-a66dd891d9dd
             ## -
-            raise NotImplementedError('Cannot handle multi-process sdf loading yet')
+            raise NotImplementedError("Cannot handle multi-process sdf loading yet")
         ## Single-process sdf loading, return the full iterator
         return self.fetch_data_and_yield()
 

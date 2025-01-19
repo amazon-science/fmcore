@@ -1,24 +1,21 @@
 from typing import *
-import random, copy, math
+
 import numpy as np
-from scipy import stats
-import pandas as pd
 from pandas.core.frame import Series as PandasSeries
-from fmcore.util import wrap_fn_output, is_function, all_are_none, all_are_not_none, String, \
-    SampleSizeType, as_list, is_null, optional_dependency
-from fmcore.constants import DataLayout
-from fmcore.data.sdf.ScalableSeries import ScalableSeries
-from fmcore.data.sdf.TensorScalableSeries import TensorScalableSeries
-from fmcore.data.sdf.NumpyArrayScalableSeries import NumpyArrayScalableSeries
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame
 from pydantic import conint
 from pydantic.typing import Literal
 
+from fmcore.constants import DataLayout
+from fmcore.data.sdf.NumpyArrayScalableSeries import NumpyArrayScalableSeries
+from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame
+from fmcore.data.sdf.ScalableSeries import ScalableSeries
+from fmcore.data.sdf.TensorScalableSeries import TensorScalableSeries
+from fmcore.util import String, all_are_none, all_are_not_none, optional_dependency
+
 TorchScalableSeries = "TorchScalableSeries"
-with optional_dependency('torch', error='ignore'):
+with optional_dependency("torch", error="ignore"):
     import torch
     from torch import Tensor as TorchTensor
-
 
     class TorchScalableSeries(TensorScalableSeries):
         layout = DataLayout.TORCH
@@ -26,10 +23,10 @@ with optional_dependency('torch', error='ignore'):
         TensorType = torch.Tensor
 
         def __init__(
-                self,
-                data: Union[TorchTensor, List, Tuple, Set, np.ndarray, ScalableSeries],
-                name: Optional[str] = None,
-                **kwargs
+            self,
+            data: Union[TorchTensor, List, Tuple, Set, np.ndarray, ScalableSeries],
+            name: Optional[str] = None,
+            **kwargs,
         ):
             super(self.__class__, self).__init__(**kwargs)
             if isinstance(data, ScalableSeries):
@@ -41,8 +38,8 @@ with optional_dependency('torch', error='ignore'):
             self._data: TorchTensor = data
             if name is not None and not isinstance(name, (str, int, float)):
                 raise ValueError(
-                    f'`name` used to construct {self.__class__} can only be int, str or float; '
-                    f'found object of type: {type(name)} with value: {name}'
+                    f"`name` used to construct {self.__class__} can only be int, str or float; "
+                    f"found object of type: {type(name)} with value: {name}"
                 )
             self._name: Optional[str] = name
 
@@ -55,35 +52,41 @@ with optional_dependency('torch', error='ignore'):
             return len(self.tensor_shape) == 0
 
         def __str__(self):
-            name_str: str = '' if self._name is None else f'"{self._name}": '
+            name_str: str = "" if self._name is None else f'"{self._name}": '
             out = f"{name_str}PyTorch Tensor of dtype `{self._data.dtype}` with shape {self.tensor_shape}:\n"
             # out += '\n' + '-' * len(out) + '\n'
             length: int = len(self._data)
             if length == 0:
                 data_sample = str([])
             elif length == 1:
-                data_sample = f'[0]: {String.pretty(self._data[0])}'
+                data_sample = f"[0]: {String.pretty(self._data[0])}"
             elif length == 2:
-                data_sample = f'[0]: {String.pretty(self._data[0])}\n[1]: {String.pretty(self._data[1])}'
+                data_sample = f"[0]: {String.pretty(self._data[0])}\n[1]: {String.pretty(self._data[1])}"
             else:
-                data_sample = f'[{String.pad_zeros(0, length - 1)}]: {String.pretty(self._data[0])}\n' \
-                              f'...\n' \
-                              f'[{String.pad_zeros(length - 1, length - 1)}]: {String.pretty(self._data[-1])}'
+                data_sample = (
+                    f"[{String.pad_zeros(0, length - 1)}]: {String.pretty(self._data[0])}\n"
+                    f"...\n"
+                    f"[{String.pad_zeros(length - 1, length - 1)}]: {String.pretty(self._data[-1])}"
+                )
             out += data_sample
             return out
 
         def _repr_html_(self):
-            name_str: str = '' if self._name is None else f'"{self._name}": '
-            out = f"<b>{name_str}PyTorch Tensor of dtype <code>{self._data.dtype}</code> " \
-                  f"with shape <code>{self.tensor_shape}</code> values.</b>"
-            out += '<hr>'
+            name_str: str = "" if self._name is None else f'"{self._name}": '
+            out = (
+                f"<b>{name_str}PyTorch Tensor of dtype <code>{self._data.dtype}</code> "
+                f"with shape <code>{self.tensor_shape}</code> values.</b>"
+            )
+            out += "<hr>"
             if len(self._data) == 0:
-                data_sample = ''
+                data_sample = ""
             else:
-                with np.printoptions(threshold=self.display.max_rows + 1, edgeitems=self.display.max_rows // 2):
-                    data_sample = f'<pre>{str(self._data)}</pre><br>'
-            out += f'{data_sample}'
-            return f'<div>{out}</div>'
+                with np.printoptions(
+                    threshold=self.display.max_rows + 1, edgeitems=self.display.max_rows // 2
+                ):
+                    data_sample = f"<pre>{str(self._data)}</pre><br>"
+            out += f"{data_sample}"
+            return f"<div>{out}</div>"
 
         def _repr_latex_(self):
             return self._repr_html_()
@@ -118,10 +121,12 @@ with optional_dependency('torch', error='ignore'):
                 np_arr: np.ndarray = np.array(list(self._data.cpu().detach()), dtype=object)
             return np_arr
 
-        def as_tensor(self, tensor_type: Optional[Literal['torch', 'pt']] = 'torch', **kwargs) -> Optional[Any]:
+        def as_tensor(
+            self, tensor_type: Optional[Literal["torch", "pt"]] = "torch", **kwargs
+        ) -> Optional[Any]:
             return self.as_torch(**kwargs)
 
-        def as_torch(self, error: Literal['raise', 'warn', 'ignore'] = 'raise', **kwargs) -> TorchTensor:
+        def as_torch(self, error: Literal["raise", "warn", "ignore"] = "raise", **kwargs) -> TorchTensor:
             return self._data
 
         """
@@ -154,11 +159,11 @@ with optional_dependency('torch', error='ignore'):
             data: Optional[Any] = self._convert_0d_tensor_to_python()
             if data is None:
                 raise ValueError(
-                    f'Can only run `.bool()` with Series having one element; '
-                    f'found Torch Tensor {self.tensor_shape}.'
+                    f"Can only run `.bool()` with Series having one element; "
+                    f"found Torch Tensor {self.tensor_shape}."
                 )
             if not isinstance(data, bool):
-                raise ValueError(f'Can only obtain `.bool()` value of Series having True or False data.')
+                raise ValueError("Can only obtain `.bool()` value of Series having True or False data.")
             return data
 
         def _convert_0d_tensor_to_python(self) -> Optional[Any]:
@@ -182,7 +187,7 @@ with optional_dependency('torch', error='ignore'):
             return self
 
         @property
-        def iloc(self) -> 'ILocIndexer':
+        def iloc(self) -> "ILocIndexer":
             return self.ILocIndexer(self)
 
         def __getitem__(self, key) -> Union[Any, TorchScalableSeries]:
@@ -199,28 +204,39 @@ with optional_dependency('torch', error='ignore'):
                 return self._constructor(self._data[key])
             if isinstance(key, np.ndarray):
                 if key.ndim > 1:
-                    raise TypeError(f'Can only index with 1-D NumPy array; found array with shape {key.shape}')
+                    raise TypeError(
+                        f"Can only index with 1-D NumPy array; found array with shape {key.shape}"
+                    )
                 ## Ref: https://stackoverflow.com/a/37727662
                 if np.issubdtype(key.dtype, int) or np.issubdtype(key.dtype, bool):
                     return self._constructor(self._data[key])
-                raise TypeError(f'Indexing with Numpy arrays must be done with integer or bool arrays; '
-                                f'found array with dtype: {key.dtype}')
+                raise TypeError(
+                    f"Indexing with Numpy arrays must be done with integer or bool arrays; "
+                    f"found array with dtype: {key.dtype}"
+                )
             if isinstance(key, TorchTensor):
                 ## Ref: https://pytorch.org/docs/stable/tensor_attributes.html#torch-dtype
                 if key.dtype in {
                     torch.bool,
-                    torch.uint8, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64
+                    torch.uint8,
+                    torch.uint8,
+                    torch.int8,
+                    torch.int16,
+                    torch.int32,
+                    torch.int64,
                 }:
                     return self._constructor(self._data[key])
-                raise TypeError(f'Indexing with Torch tensors must be done with integer or bool tensors; '
-                                f'found tensor with dtype: {key.dtype}')
+                raise TypeError(
+                    f"Indexing with Torch tensors must be done with integer or bool tensors; "
+                    f"found tensor with dtype: {key.dtype}"
+                )
 
             if isinstance(key, list):
                 return self._constructor(self._data[key])
-            raise IndexError(f'Unsupported indexing using: {type(key)} with value: {key}')
+            raise IndexError(f"Unsupported indexing using: {type(key)} with value: {key}")
 
         def __setitem__(self, key: Any, value: Any):
-            raise NotImplementedError(f'Cannot set at the moment')
+            raise NotImplementedError("Cannot set at the moment")
 
         def astype(self, dtype: Union[torch.dtype, str]) -> TorchScalableSeries:
             out: TorchTensor = self._data.to(dtype=dtype)
@@ -230,8 +246,8 @@ with optional_dependency('torch', error='ignore'):
             data: Optional[Any] = self._convert_0d_tensor_to_python()
             if data is None:
                 raise ValueError(
-                    f'Can only run `.item()` with Series having one element; '
-                    f'found Torch Tensor of shape {self.tensor_shape}.'
+                    f"Can only run `.item()` with Series having one element; "
+                    f"found Torch Tensor of shape {self.tensor_shape}."
                 )
             return data
 
@@ -242,11 +258,7 @@ with optional_dependency('torch', error='ignore'):
         """
 
         def apply(
-                self,
-                func: Callable,
-                convert_dtype: bool = True,
-                args: Tuple[Any, ...] = (),
-                **kwargs
+            self, func: Callable, convert_dtype: bool = True, args: Tuple[Any, ...] = (), **kwargs
         ) -> Union[ScalableSeries, ScalableDataFrame]:
             return self._constructor(self._data.apply_(lambda x: func(x, *args, **kwargs)))
 
@@ -264,55 +276,57 @@ with optional_dependency('torch', error='ignore'):
             return self._constructor(torch.mode(data))
 
         def mean(
-                self,
-                axis: int = 0,
-                skipna: bool = True,
-                level: Literal[None] = None,
-                numeric_only: Literal[None] = None,
-                **kwargs
+            self,
+            axis: int = 0,
+            skipna: bool = True,
+            level: Literal[None] = None,
+            numeric_only: Literal[None] = None,
+            **kwargs,
         ) -> float:
             if skipna:
                 return float(torch.mean(self.dropna()._data))
             return float(torch.mean(self._data))
 
         def median(
-                self,
-                axis: int = 0,
-                skipna: bool = True,
-                level: Literal[None] = None,
-                numeric_only: Literal[None] = None,
-                **kwargs
+            self,
+            axis: int = 0,
+            skipna: bool = True,
+            level: Literal[None] = None,
+            numeric_only: Literal[None] = None,
+            **kwargs,
         ) -> float:
             if skipna:
                 return float(torch.median(self.dropna()._data))
             return float(torch.median(self._data))
 
         def max(
-                self,
-                axis: int = 0,
-                skipna: bool = True,
-                level: Literal[None] = None,
-                numeric_only: Literal[None] = None,
-                **kwargs,
+            self,
+            axis: int = 0,
+            skipna: bool = True,
+            level: Literal[None] = None,
+            numeric_only: Literal[None] = None,
+            **kwargs,
         ) -> float:
             if skipna:
                 return float(np.max(self.dropna()._data))
             return float(np.max(self._data))
 
         def min(
-                self,
-                axis: int = 0,
-                skipna: bool = True,
-                level: Literal[None] = None,
-                numeric_only: Literal[None] = None,
-                **kwargs,
+            self,
+            axis: int = 0,
+            skipna: bool = True,
+            level: Literal[None] = None,
+            numeric_only: Literal[None] = None,
+            **kwargs,
         ) -> float:
             if skipna:
                 return float(np.min(self.dropna()._data))
             return float(np.min(self._data))
 
         def unique(self) -> ScalableSeries:
-            return self._constructor(np.unique(self._data))  ## As of Numpy>=1.21.0, np.unique returns single NaN
+            return self._constructor(
+                np.unique(self._data)
+            )  ## As of Numpy>=1.21.0, np.unique returns single NaN
 
         """
         ---------------------------------------------
@@ -338,23 +352,23 @@ with optional_dependency('torch', error='ignore'):
             return self._constructor(data)
 
         def fillna(
-                self,
-                value: Optional[Union[Any, Dict, ScalableSeries, ScalableDataFrame]] = None,
-                method: Optional[Literal["backfill", "bfill", "ffill", "pad"]] = None,
-                axis: Literal[0, 'index'] = 0,
-                inplace: bool = False,
-                limit: Optional[conint(ge=1)] = None,
-                downcast: Optional[Dict] = None,
+            self,
+            value: Optional[Union[Any, Dict, ScalableSeries, ScalableDataFrame]] = None,
+            method: Optional[Literal["backfill", "bfill", "ffill", "pad"]] = None,
+            axis: Literal[0, "index"] = 0,
+            inplace: bool = False,
+            limit: Optional[conint(ge=1)] = None,
+            downcast: Optional[Dict] = None,
         ) -> Optional[ScalableSeries]:
             if all_are_none(value, method):
-                raise ValueError(f'Must specify a fill `value` or `method`.')
+                raise ValueError("Must specify a fill `value` or `method`.")
             if all_are_not_none(value, method):
-                raise ValueError(f'Cannot specify both `value` and `method`.')
+                raise ValueError("Cannot specify both `value` and `method`.")
             if method is not None:
-                raise NotImplementedError(f'`method` is not currently supported')
+                raise NotImplementedError("`method` is not currently supported")
             if value is not None:
                 if isinstance(value, (dict, ScalableSeries, ScalableDataFrame)):
-                    raise NotImplementedError(f'Unsupported `value` of type {type(value)}')
+                    raise NotImplementedError(f"Unsupported `value` of type {type(value)}")
                 data: TorchTensor = self._data.fill_(value)
                 if inplace:
                     self._data = data
@@ -378,7 +392,7 @@ with optional_dependency('torch', error='ignore'):
                 self._ss: TorchScalableSeries = ss
 
             def __setitem__(self, key, value):
-                raise NotImplementedError(f'Can only use for retrieving.')
+                raise NotImplementedError("Can only use for retrieving.")
 
             def __getitem__(self, key) -> TorchScalableSeries:
                 return self._ss[key]

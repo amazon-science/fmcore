@@ -33,16 +33,14 @@ from ._utils import (
 )
 
 RayRuntimeEnv = dict
-RequestCounter = 'RequestCounter'
+RequestCounter = "RequestCounter"
 if _IS_RAY_INSTALLED:
     import ray
     from ray.runtime_env import RuntimeEnv as RayRuntimeEnv
 
-
     @ray.remote(num_cpus=1)
     def _run_parallel_ray_executor(fn, *args, **kwargs):
         return fn(*args, **kwargs)
-
 
     @ray.remote
     class RequestCounter:
@@ -83,8 +81,8 @@ class RayPoolExecutor(Executor, Parameters):
     Example usage:
         >>> executor = RayPoolExecutor(max_workers=4)  ## Must have ray installed
         >>> future = executor.submit(
-                my_function, 
-                arg1, 
+                my_function,
+                arg1,
                 arg2,
                 num_cpus=2  ## Allocate 2 CPUs for this task
             )
@@ -123,18 +121,18 @@ class RayPoolExecutor(Executor, Parameters):
             # print(f'Started _asyncio_event_loop_thread')
 
     def submit(
-            self,
-            fn: Callable,
-            *args,
-            scheduling_strategy: str = "SPREAD",
-            num_cpus: int = 1,
-            num_gpus: int = 0,
-            max_retries: int = 0,
-            retry_exceptions: Union[List, bool] = True,
-            **kwargs,
+        self,
+        fn: Callable,
+        *args,
+        scheduling_strategy: str = "SPREAD",
+        num_cpus: int = 1,
+        num_gpus: int = 0,
+        max_retries: int = 0,
+        retry_exceptions: Union[List, bool] = True,
+        **kwargs,
     ):
         """
-        Submits a function for execution using Ray. When max_workers is infinite, tasks are submitted 
+        Submits a function for execution using Ray. When max_workers is infinite, tasks are submitted
         directly to Ray. Otherwise, uses asyncio to limit concurrent tasks.
 
         Args:
@@ -178,9 +176,9 @@ class RayPoolExecutor(Executor, Parameters):
         return fut
 
     async def _ray_run_fn_async(
-            self,
-            submit_task: Callable,
-            task_uid: str,
+        self,
+        submit_task: Callable,
+        task_uid: str,
     ):
         """
         Coroutine that manages task submission while respecting max_workers limit.
@@ -210,8 +208,8 @@ class RayPoolExecutor(Executor, Parameters):
             if len(self._running_tasks) < self.max_workers:
                 break  ## Break the outer loop to submit the task.
             ## There is not enough capacity, keep waiting:
-            time.sleep(self.iter_wait)  
-            
+            time.sleep(self.iter_wait)
+
         ## Now that we have capacity, submit the task and track it:
         fut = submit_task()
         self._running_tasks[task_uid] = fut
@@ -226,15 +224,15 @@ class RayPoolExecutor(Executor, Parameters):
 
 
 def run_parallel_ray(
-        fn,
-        *args,
-        scheduling_strategy: str = "SPREAD",
-        num_cpus: int = 1,
-        num_gpus: int = 0,
-        max_retries: int = 0,
-        retry_exceptions: Union[List, bool] = True,
-        executor: Optional[RayPoolExecutor] = None,
-        **kwargs,
+    fn,
+    *args,
+    scheduling_strategy: str = "SPREAD",
+    num_cpus: int = 1,
+    num_gpus: int = 0,
+    max_retries: int = 0,
+    retry_exceptions: Union[List, bool] = True,
+    executor: Optional[RayPoolExecutor] = None,
+    **kwargs,
 ):
     _check_is_ray_installed()
     # print(f'Running {fn_str(fn)} using {Parallelize.ray} with num_cpus={num_cpus}, num_gpus={num_gpus}')
@@ -270,7 +268,6 @@ if _IS_RAY_INSTALLED and _IS_DASK_INSTALLED:
     import ray
     from ray.util.dask import RayDaskCallback
 
-
     class RayDaskPersistWaitCallback(RayDaskCallback):
         ## Callback to wait for computation to complete when .persist() is called with block=True
         def _ray_postsubmit_all(self, object_refs, dsk):
@@ -278,8 +275,8 @@ if _IS_RAY_INSTALLED and _IS_DASK_INSTALLED:
 
 
 def max_num_resource_actors(
-        model_num_resources: Union[conint(ge=0), confloat(ge=0.0, lt=1.0)],
-        ray_num_resources: int,
+    model_num_resources: Union[conint(ge=0), confloat(ge=0.0, lt=1.0)],
+    ray_num_resources: int,
 ) -> Union[int, float]:
     ## Returns number of models possible, restricted by a particular resource; takes into account
     ## fractional resource requirements.
@@ -300,7 +297,7 @@ class RayInitConfig(UserEnteredParameters):
         extra = Extra.allow
 
     ## Default values:
-    address: str = 'auto'
+    address: str = "auto"
     temp_dir: Optional[str] = None
     include_dashboard: bool = False
     runtime_env: RayRuntimeEnv = {}
@@ -324,20 +321,20 @@ class RayActorComposite(Parameters):
 
     @classmethod
     def create_actors(
-            cls,
-            actor_factory: Callable,
-            *,
-            num_actors: int,
-            request_counter_num_cpus: float = 0.1,
-            request_counter_max_concurrency: int = 1000,
-            **kwargs
+        cls,
+        actor_factory: Callable,
+        *,
+        num_actors: int,
+        request_counter_num_cpus: float = 0.1,
+        request_counter_max_concurrency: int = 1000,
+        **kwargs,
     ) -> List[RayActorComposite]:
         progress_bar: Optional[Dict] = Alias.get_progress_bar(kwargs)
         actors_progress_bar: ProgressBar = ProgressBar.of(
             progress_bar,
             total=num_actors,
-            desc=f'Creating Ray actors',
-            unit='actors',
+            desc="Creating Ray actors",
+            unit="actors",
         )
         actor_ids: List[str] = as_list(String.random_name(num_actors))
         actor_composites: List[RayActorComposite] = []
@@ -361,10 +358,10 @@ class RayActorComposite(Parameters):
             actors_progress_bar.update(1)
             time.sleep(0.100)
         if len(actor_composites) != num_actors:
-            msg: str = f'Creation of {num_actors - len(actor_composites)} actors failed'
+            msg: str = f"Creation of {num_actors - len(actor_composites)} actors failed"
             actors_progress_bar.failed(msg)
             raise ValueError(msg)
         else:
-            msg: str = f'Created {num_actors} actors'
+            msg: str = f"Created {num_actors} actors"
             actors_progress_bar.success(msg)
         return actor_composites

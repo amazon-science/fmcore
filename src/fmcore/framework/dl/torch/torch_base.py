@@ -3,16 +3,16 @@ from abc import ABC, abstractmethod
 from functools import partial
 from typing import *
 
-from pydantic import root_validator, conint
+from pydantic import conint, root_validator
 
 from fmcore.constants import DataLayout, DataPosition, MLTypeSchema
 from fmcore.framework.algorithm import Algorithm
 from fmcore.framework.predictions import Predictions
 from fmcore.framework.task_data import Dataset
-from fmcore.util import optional_dependency, safe_validate_arguments, MappedParameters, get_default
+from fmcore.util import MappedParameters, get_default, optional_dependency, safe_validate_arguments
 from fmcore.util.language._import import _IS_TORCH_INSTALLED
 
-PyTorch = 'PyTorch'
+PyTorch = "PyTorch"
 
 
 def clear_device_cache():
@@ -37,15 +37,14 @@ if _IS_TORCH_INSTALLED:
     import torch
     from torch import Tensor
     from torch.nn import Module as TorchModule
+    from torch.nn.modules.loss import _Loss as TorchLoss
     from torch.optim import Optimizer as TorchOptimizer
     from torch.optim.lr_scheduler import _LRScheduler as TorchLRScheduler
-    from torch.nn.modules.loss import _Loss as TorchLoss
     from torch.utils.data import DataLoader as TorchDataLoader
 
     accelerate = None
-    with optional_dependency('accelerate', error='ignore'):
+    with optional_dependency("accelerate", error="ignore"):
         import accelerate
-
 
     def move_tensor_to_device(x: Any, device: Any, **kwargs) -> Any:
         """Moves a torch.Tensor to a device. Supports HuggingFace Accelerate."""
@@ -59,11 +58,8 @@ if _IS_TORCH_INSTALLED:
             pass
         return x.to(device=device, **kwargs)
 
-
     def move_data_to_device(
-            vals: Union[Tuple, List, Set, Dict, Any],
-            device: Any,
-            **kwargs
+        vals: Union[Tuple, List, Set, Dict, Any], device: Any, **kwargs
     ) -> Union[Tuple, List, Set, Dict, Any]:
         """Moves a collection of torch.Tensor or torch.nn.Module to a device"""
         if isinstance(vals, list):
@@ -77,17 +73,17 @@ if _IS_TORCH_INSTALLED:
         else:
             return move_tensor_to_device(vals, device=device, **kwargs)
 
-
-    def get_model_device(model: TorchModule, allow_multiple: bool = False) -> Union[torch.device, Set[torch.device]]:
+    def get_model_device(
+        model: TorchModule, allow_multiple: bool = False
+    ) -> Union[torch.device, Set[torch.device]]:
         device = {x.device for x in model.parameters()}
         if len(device) > 1:
             if allow_multiple:
                 return device
-            raise ValueError(f'Found multiple devices for model: ')
+            raise ValueError("Found multiple devices for model: ")
         elif len(device) == 0:
-            raise ValueError(f'Did not find any parameters for model.')
+            raise ValueError("Did not find any parameters for model.")
         return next(iter(device))
-
 
     def models_are_equal(model_1: TorchModule, model_2: TorchModule, raise_error: bool = True) -> bool:
         mismatches = []
@@ -97,27 +93,26 @@ if _IS_TORCH_INSTALLED:
                 continue
             ## Models are not equal at certain position:
             if key_item_1[0] == key_item_2[0]:
-                mismatches.append(f'Mismtach found at: {key_item_1[0]}')
+                mismatches.append(f"Mismtach found at: {key_item_1[0]}")
             else:
                 if raise_error:
-                    raise ValueError(f'Models do not have the same architecture.')
+                    raise ValueError("Models do not have the same architecture.")
                 return False
         if len(mismatches) > 0:
             if raise_error:
                 mismatches_str: str = "\n".join(mismatches)
-                raise ValueError(f'Models differ as follows:\n{mismatches_str}')
+                raise ValueError(f"Models differ as follows:\n{mismatches_str}")
             return False
         return True
 
-
     def validate_data_on_device(
-            tensor: Tensor,
-            device: torch.device,
-            raise_error: bool = True,
+        tensor: Tensor,
+        device: torch.device,
+        raise_error: bool = True,
     ) -> bool:
         if not isinstance(tensor, Tensor):
             if raise_error:
-                raise ValueError(f'Expected value to be PyTorch Tensor; found object of type: {type(tensor)}')
+                raise ValueError(f"Expected value to be PyTorch Tensor; found object of type: {type(tensor)}")
             return False
         if is_accelerator(device):
             device = device.device
@@ -129,7 +124,6 @@ if _IS_TORCH_INSTALLED:
             return False
         return True
 
-
     class Optimizer(MappedParameters):
         _mapping: ClassVar[Dict[str, Type[TorchOptimizer]]] = {
             name: val
@@ -137,38 +131,37 @@ if _IS_TORCH_INSTALLED:
             if isinstance(val, type) and issubclass(val, TorchOptimizer)
         }
 
-
     class Loss(MappedParameters):
         _mapping: ClassVar[Dict[str, Type[TorchLoss]]] = {
-            'KLDivLoss': torch.nn.KLDivLoss,
-            'NLLLoss': torch.nn.NLLLoss,
-            'SmoothL1Loss': torch.nn.SmoothL1Loss,
-            'HuberLoss': torch.nn.HuberLoss,
-            'MultiLabelMarginLoss': torch.nn.MultiLabelMarginLoss,
-            'HingeEmbeddingLoss': torch.nn.HingeEmbeddingLoss,
-            'SoftMarginLoss': torch.nn.SoftMarginLoss,
-            'MultiMarginLoss': torch.nn.MultiMarginLoss,
-            'CosineEmbeddingLoss': torch.nn.CosineEmbeddingLoss,
-            'TripletMarginLoss': torch.nn.TripletMarginLoss,
-            'MarginRankingLoss': torch.nn.MarginRankingLoss,
-            'CTCLoss': torch.nn.CTCLoss,
-            'CrossEntropyLoss': torch.nn.CrossEntropyLoss,
-            'BCELoss': torch.nn.BCELoss,
-            'BCEWithLogitsLoss': torch.nn.BCEWithLogitsLoss,
-            'L1Loss': torch.nn.L1Loss,
-            'MSELoss': torch.nn.MSELoss,
+            "KLDivLoss": torch.nn.KLDivLoss,
+            "NLLLoss": torch.nn.NLLLoss,
+            "SmoothL1Loss": torch.nn.SmoothL1Loss,
+            "HuberLoss": torch.nn.HuberLoss,
+            "MultiLabelMarginLoss": torch.nn.MultiLabelMarginLoss,
+            "HingeEmbeddingLoss": torch.nn.HingeEmbeddingLoss,
+            "SoftMarginLoss": torch.nn.SoftMarginLoss,
+            "MultiMarginLoss": torch.nn.MultiMarginLoss,
+            "CosineEmbeddingLoss": torch.nn.CosineEmbeddingLoss,
+            "TripletMarginLoss": torch.nn.TripletMarginLoss,
+            "MarginRankingLoss": torch.nn.MarginRankingLoss,
+            "CTCLoss": torch.nn.CTCLoss,
+            "CrossEntropyLoss": torch.nn.CrossEntropyLoss,
+            "BCELoss": torch.nn.BCELoss,
+            "BCEWithLogitsLoss": torch.nn.BCEWithLogitsLoss,
+            "L1Loss": torch.nn.L1Loss,
+            "MSELoss": torch.nn.MSELoss,
         }
-
 
     ## Copied from `transformers`:
     @safe_validate_arguments
     def get_linear_schedule_with_warmup(
-            optimizer: torch.optim.Optimizer,
-            num_warmup_steps: conint(ge=1),
-            num_training_steps: conint(ge=1),
-            last_epoch: int = -1
+        optimizer: torch.optim.Optimizer,
+        num_warmup_steps: conint(ge=1),
+        num_training_steps: conint(ge=1),
+        last_epoch: int = -1,
     ):
         from torch.optim.lr_scheduler import LambdaLR
+
         """
         Create a schedule with a learning rate that decreases linearly from the initial lr set in the optimizer to 0, after
         a warmup period during which it increases linearly from 0 to the initial lr set in the optimizer.
@@ -193,44 +186,42 @@ if _IS_TORCH_INSTALLED:
         )
         return LambdaLR(optimizer, lr_lambda, last_epoch)
 
-
     def _get_linear_schedule_with_warmup_lr_lambda(
-            current_step: int, *,
-            num_warmup_steps: int,
-            num_training_steps: int
+        current_step: int, *, num_warmup_steps: int, num_training_steps: int
     ):
         if current_step < num_warmup_steps:
             return float(current_step) / float(max(1, num_warmup_steps))
-        return max(0.0, float(num_training_steps - current_step) / float(max(1, num_training_steps - num_warmup_steps)))
-
+        return max(
+            0.0,
+            float(num_training_steps - current_step) / float(max(1, num_training_steps - num_warmup_steps)),
+        )
 
     class LRScheduler(MappedParameters):
         _mapping: ClassVar[Dict[str, Type[TorchLRScheduler]]] = {
-            'LinearLR': torch.optim.lr_scheduler.LinearLR,
-            'ConstantLR': torch.optim.lr_scheduler.ConstantLR,
-            'LambdaLR': torch.optim.lr_scheduler.LambdaLR,
-            'MultiplicativeLR': torch.optim.lr_scheduler.MultiplicativeLR,
-            'StepLR': torch.optim.lr_scheduler.StepLR,
-            'MultiStepLR': torch.optim.lr_scheduler.MultiStepLR,
-            'ExponentialLR': torch.optim.lr_scheduler.ExponentialLR,
-            'SequentialLR': torch.optim.lr_scheduler.SequentialLR,
-            'CosineAnnealingLR': torch.optim.lr_scheduler.CosineAnnealingLR,
-            'ChainedScheduler': torch.optim.lr_scheduler.ChainedScheduler,
-            'ReduceLROnPlateau': torch.optim.lr_scheduler.ReduceLROnPlateau,
-            'CyclicLR': torch.optim.lr_scheduler.CyclicLR,
-            'CosineAnnealingWarmRestarts': torch.optim.lr_scheduler.CosineAnnealingWarmRestarts,
-            'OneCycleLR': torch.optim.lr_scheduler.OneCycleLR,
-            'PolynomialLR': torch.optim.lr_scheduler.PolynomialLR,
+            "LinearLR": torch.optim.lr_scheduler.LinearLR,
+            "ConstantLR": torch.optim.lr_scheduler.ConstantLR,
+            "LambdaLR": torch.optim.lr_scheduler.LambdaLR,
+            "MultiplicativeLR": torch.optim.lr_scheduler.MultiplicativeLR,
+            "StepLR": torch.optim.lr_scheduler.StepLR,
+            "MultiStepLR": torch.optim.lr_scheduler.MultiStepLR,
+            "ExponentialLR": torch.optim.lr_scheduler.ExponentialLR,
+            "SequentialLR": torch.optim.lr_scheduler.SequentialLR,
+            "CosineAnnealingLR": torch.optim.lr_scheduler.CosineAnnealingLR,
+            "ChainedScheduler": torch.optim.lr_scheduler.ChainedScheduler,
+            "ReduceLROnPlateau": torch.optim.lr_scheduler.ReduceLROnPlateau,
+            "CyclicLR": torch.optim.lr_scheduler.CyclicLR,
+            "CosineAnnealingWarmRestarts": torch.optim.lr_scheduler.CosineAnnealingWarmRestarts,
+            "OneCycleLR": torch.optim.lr_scheduler.OneCycleLR,
+            "PolynomialLR": torch.optim.lr_scheduler.PolynomialLR,
             ## Equivalent to get_linear_schedule_with_warmup from transformers
-            'linear_schedule_with_warmup': get_linear_schedule_with_warmup,
+            "linear_schedule_with_warmup": get_linear_schedule_with_warmup,
         }
 
-
     class PyTorch(Algorithm, ABC):
-        model_file_name: ClassVar[str] = 'model.pt'
+        model_file_name: ClassVar[str] = "model.pt"
 
         default_batching_params: ClassVar[Dict[str, Any]] = {
-            'stream_as': DataLayout.DICT,
+            "stream_as": DataLayout.DICT,
         }
         batch_dim: ClassVar[int] = 0
         input_dtype: ClassVar[Optional[torch.dtype]] = None
@@ -242,7 +233,7 @@ if _IS_TORCH_INSTALLED:
         optimizer: Optional[Any] = None
         loss: Optional[Any] = None
         lr_scheduler: Optional[Any] = None
-        device: Any = 'cpu'  ## Use CPU by default.
+        device: Any = "cpu"  ## Use CPU by default.
 
         class Hyperparameters(Algorithm.Hyperparameters):
             optimizer: Optional[Union[Optimizer, Dict, str]] = None
@@ -250,28 +241,28 @@ if _IS_TORCH_INSTALLED:
             lr_scheduler: Union[LRScheduler, Dict, str] = {
                 ## ConstantLR(factor=1, total_iters=0) will not change the learning rate at all.
                 ## Note that the LRScheduler *assigns* the learning rate, the optimizer *uses* this learning rate.
-                'name': 'ConstantLR',
-                'factor': 1,
-                'total_iters': 0,
+                "name": "ConstantLR",
+                "factor": 1,
+                "total_iters": 0,
             }
             gradient_accumulation_steps: conint(ge=1) = 1
 
             @root_validator(pre=False)  ## Run this post all values set by subclasses.
             def convert_hyperparams(cls, hyperparams: Dict) -> Dict:
-                if hyperparams.get('optimizer', None) is not None:
-                    hyperparams['optimizer'] = Optimizer.of(hyperparams['optimizer'])
+                if hyperparams.get("optimizer", None) is not None:
+                    hyperparams["optimizer"] = Optimizer.of(hyperparams["optimizer"])
 
-                if hyperparams.get('loss', None) is not None:
-                    hyperparams['loss'] = Loss.of(hyperparams['loss'])
+                if hyperparams.get("loss", None) is not None:
+                    hyperparams["loss"] = Loss.of(hyperparams["loss"])
 
-                if hyperparams.get('lr_scheduler', None) is not None:
-                    hyperparams['lr_scheduler'] = LRScheduler.of(hyperparams['lr_scheduler'])
+                if hyperparams.get("lr_scheduler", None) is not None:
+                    hyperparams["lr_scheduler"] = LRScheduler.of(hyperparams["lr_scheduler"])
 
                 return hyperparams
 
         def __str__(self):
-            params_str: str = self.json(indent=4, include={'hyperparams'})
-            out: str = f'{self.class_name} running on {self.device} with params:\n{params_str}'
+            params_str: str = self.json(indent=4, include={"hyperparams"})
+            out: str = f"{self.class_name} running on {self.device} with params:\n{params_str}"
             return out
 
         def post_initialize(self):
@@ -280,34 +271,34 @@ if _IS_TORCH_INSTALLED:
         def init_training_components(self):
             if not isinstance(self.model, TorchModule):
                 raise ValueError(
-                    f'.initialize() should create or load a subclass of torch.nn.Module; '
-                    f'found object of type: {type(self.model)}.'
+                    f".initialize() should create or load a subclass of torch.nn.Module; "
+                    f"found object of type: {type(self.model)}."
                 )
             if self.optimizer is None:
                 if self.hyperparams.optimizer is None:
                     raise ValueError(
-                        f'Please pass `optimizer` in hyperparams. '
-                        f'`optimizer` should be a dict, where the "name" key is the name of a subclass of '
-                        f'torch.optim.Optimizer (e.g. "AdamW"), and the other keys are constructor-args '
-                        f'for this Optimizer (e.g. "lr", "weight_decay", "eps", etc.)'
+                        "Please pass `optimizer` in hyperparams. "
+                        '`optimizer` should be a dict, where the "name" key is the name of a subclass of '
+                        'torch.optim.Optimizer (e.g. "AdamW"), and the other keys are constructor-args '
+                        'for this Optimizer (e.g. "lr", "weight_decay", "eps", etc.)'
                     )
                 self.optimizer = self.init_optimizer()
             if self.loss is None:
                 if self.hyperparams.loss is None:
                     raise ValueError(
-                        f'Please pass `loss` in hyperparams. '
-                        f'`loss` should be a dict, where the "name" key is the name of a subclass of '
-                        f'torch.nn.modules.loss._Loss (e.g. "CrossEntropyLoss"), and the other keys are '
-                        f'constructor-args for this Loss (e.g. "weight", "label_smoothing", etc.)'
+                        "Please pass `loss` in hyperparams. "
+                        '`loss` should be a dict, where the "name" key is the name of a subclass of '
+                        'torch.nn.modules.loss._Loss (e.g. "CrossEntropyLoss"), and the other keys are '
+                        'constructor-args for this Loss (e.g. "weight", "label_smoothing", etc.)'
                     )
                 self.loss = self.init_loss()
             if self.lr_scheduler is None:
                 if self.hyperparams.lr_scheduler is None:
                     raise ValueError(
-                        f'Please pass `lr_scheduler` in hyperparams. '
-                        f'`lr_scheduler` should be a dict, where the "name" key is the name of a subclass of '
-                        f'torch.optim.lr_scheduler._LRScheduler (e.g. "ConstantLR"), and the other keys are '
-                        f'constructor-args for this LRScheduler (e.g. "factor", "total_iters", etc.)'
+                        "Please pass `lr_scheduler` in hyperparams. "
+                        '`lr_scheduler` should be a dict, where the "name" key is the name of a subclass of '
+                        'torch.optim.lr_scheduler._LRScheduler (e.g. "ConstantLR"), and the other keys are '
+                        'constructor-args for this LRScheduler (e.g. "factor", "total_iters", etc.)'
                     )
                 ## TODO: add warmup steps via `from transformers.optimization import get_scheduler`, or another way.
                 self.lr_scheduler = self.init_lr_scheduler()
@@ -333,16 +324,16 @@ if _IS_TORCH_INSTALLED:
         @staticmethod
         def preprocess(batch: Dataset, **kwargs) -> Dataset:
             if batch.data.layout is DataLayout.DICT:
-                batch = batch.assets_to_tensor(tensor_type='pt', stack=True)
+                batch = batch.assets_to_tensor(tensor_type="pt", stack=True)
             else:
-                batch = batch.assets_to_tensor(tensor_type='pt')
+                batch = batch.assets_to_tensor(tensor_type="pt")
             return batch
 
         @safe_validate_arguments
         def train_iter(
-                self,
-                dataset: Any,
-                **kwargs,
+            self,
+            dataset: Any,
+            **kwargs,
         ) -> Generator[Optional[Dict], None, None]:
             self.init_training_components()
             self.prepare_model_for_train(**kwargs)
@@ -353,12 +344,12 @@ if _IS_TORCH_INSTALLED:
             self.model.train()
 
         def train_step(
-                self,
-                batch: Dataset,
-                input_dtype: Optional[torch.dtype] = None,
-                output_dtype: Optional[torch.dtype] = None,
-                target_dtype: Optional[torch.dtype] = None,
-                **kwargs
+            self,
+            batch: Dataset,
+            input_dtype: Optional[torch.dtype] = None,
+            output_dtype: Optional[torch.dtype] = None,
+            target_dtype: Optional[torch.dtype] = None,
+            **kwargs,
         ):
             input_dtype: Optional[torch.dtype] = get_default(input_dtype, self.input_dtype)
             output_dtype: Optional[torch.dtype] = get_default(output_dtype, self.output_dtype)
@@ -382,30 +373,32 @@ if _IS_TORCH_INSTALLED:
             else:
                 loss.backward()
             if (
-                    batch.data_idx % self.hyperparams.gradient_accumulation_steps == 0
-                    or batch.data_position is DataPosition.END  ## Last batch in epoch.
+                batch.data_idx % self.hyperparams.gradient_accumulation_steps == 0
+                or batch.data_position is DataPosition.END  ## Last batch in epoch.
             ):
                 self.optimizer.step()
                 self.lr_scheduler.step()
                 self.optimizer.zero_grad()
-            return {'loss': float(loss)}
+            return {"loss": float(loss)}
 
         def prepare_prediction_dataset(
-                self,
-                dataset: Any,
-                data_schema: Optional[MLTypeSchema] = None,
-                **kwargs,
+            self,
+            dataset: Any,
+            data_schema: Optional[MLTypeSchema] = None,
+            **kwargs,
         ) -> Any:
             if isinstance(dataset, TorchDataLoader):
                 return dataset
             else:
-                return super(PyTorch, self).prepare_prediction_dataset(dataset, data_schema=data_schema, **kwargs)
+                return super(PyTorch, self).prepare_prediction_dataset(
+                    dataset, data_schema=data_schema, **kwargs
+                )
 
         @safe_validate_arguments
         def predict_iter(
-                self,
-                dataset: Any,
-                **kwargs,
+            self,
+            dataset: Any,
+            **kwargs,
         ) -> Generator[Optional[Predictions], None, None]:
             self.prepare_model_for_predict(**kwargs)
             predict_epoch_gen: Generator[Predictions, None, None] = super(PyTorch, self).predict_iter(
@@ -419,12 +412,12 @@ if _IS_TORCH_INSTALLED:
             self.model.eval()
 
         def predict_step(
-                self,
-                batch: Dataset,
-                input_dtype: Optional[torch.dtype] = None,
-                output_dtype: Optional[torch.dtype] = None,
-                return_tensors: bool = False,
-                **kwargs
+            self,
+            batch: Dataset,
+            input_dtype: Optional[torch.dtype] = None,
+            output_dtype: Optional[torch.dtype] = None,
+            return_tensors: bool = False,
+            **kwargs,
         ) -> Any:
             input_dtype: Optional[torch.dtype] = get_default(input_dtype, self.input_dtype)
             output_dtype: Optional[torch.dtype] = get_default(output_dtype, self.output_dtype)
@@ -434,15 +427,15 @@ if _IS_TORCH_INSTALLED:
                 output: Any = self.forward(input, **kwargs)
                 if return_tensors is True:
                     return output
-                output: Any = move_data_to_device(output, device='cpu', dtype=output_dtype)
+                output: Any = move_data_to_device(output, device="cpu", dtype=output_dtype)
                 # if is_accelerator(self.device):
                 #     output: Any = self.device.gather(output)
                 return self.prepare_predictions(output, input=input, **kwargs)
 
         def prepare_input(
-                self,
-                batch: Dataset,
-                **kwargs,
+            self,
+            batch: Dataset,
+            **kwargs,
         ) -> Any:
             return batch.features().torch()
 
@@ -451,9 +444,9 @@ if _IS_TORCH_INSTALLED:
             pass
 
         def prepare_target(
-                self,
-                batch: Dataset,
-                **kwargs,
+            self,
+            batch: Dataset,
+            **kwargs,
         ) -> Any:
             return batch.ground_truths().torch()
 
@@ -470,14 +463,16 @@ if _IS_TORCH_INSTALLED:
             pass
 
         def _validate_dims(
-                self,
-                tensor: Tensor,
-                batch_size: int,
-                raise_error: bool = True,
+            self,
+            tensor: Tensor,
+            batch_size: int,
+            raise_error: bool = True,
         ) -> bool:
             if not isinstance(tensor, Tensor):
                 if raise_error:
-                    raise ValueError(f'Expected value to be PyTorch Tensor; found object of type: {type(tensor)}')
+                    raise ValueError(
+                        f"Expected value to be PyTorch Tensor; found object of type: {type(tensor)}"
+                    )
                 return False
             if tensor.shape[self.batch_dim] != batch_size:
                 if raise_error:
@@ -492,7 +487,11 @@ if _IS_TORCH_INSTALLED:
         def save_param_names(cls) -> Set[str]:
             return super(PyTorch, cls).save_param_names() - {
                 ## Remove all params PyTorch-specific params which should not be saved in __model_params__.pkl file:
-                'model', 'optimizer', 'loss', 'lr_scheduler', 'device'
+                "model",
+                "optimizer",
+                "loss",
+                "lr_scheduler",
+                "device",
             }
 
         def post_train_cleanup(self):

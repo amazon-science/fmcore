@@ -1,20 +1,41 @@
-from typing import *
-import json, io, gc, copy, cloudpickle, time, math
-from math import inf
-from abc import abstractmethod, ABC
-import numpy as np
-import pandas as pd
-from fmcore.util import as_list, is_list_like, AutoEnum, auto, Parameters, UserEnteredParameters, String, \
-    safe_validate_arguments, Log, String, FractionalBool, measure_time_ms, Registry, is_subset, \
-    get_subset, keep_values, filter_string_list, keep_keys, type_str
-from fmcore.constants import ProcessingMode, MLType, MLTypeSchema, FileContents, MissingColumnBehavior
-from fmcore.data.FileMetadata import FileMetadata
-from fmcore.data.sdf import ScalableDataFrame, ScalableDataFrameRawType, DataLayout
-from fmcore.data.reader import Reader, ConfigReader
-from fmcore.data.writer import Writer, DataFrameWriter
-from fmcore.data.processor import DataProcessor, SingleColumnProcessor, Nto1ColumnProcessor
-from pydantic import root_validator, constr, conint, confloat
+import copy
+import io
+import json
+import time
+from abc import ABC, abstractmethod
 from collections import OrderedDict
+from math import inf
+from typing import *
+
+import cloudpickle
+import numpy as np
+from pydantic import confloat, conint, constr, root_validator
+
+from fmcore.constants import FileContents, MissingColumnBehavior, MLType, MLTypeSchema, ProcessingMode
+from fmcore.data.FileMetadata import FileMetadata
+from fmcore.data.processor import DataProcessor, Nto1ColumnProcessor, SingleColumnProcessor
+from fmcore.data.reader import ConfigReader, Reader
+from fmcore.data.sdf import DataLayout, ScalableDataFrame, ScalableDataFrameRawType
+from fmcore.data.writer import DataFrameWriter, Writer
+from fmcore.util import (
+    AutoEnum,
+    FractionalBool,
+    Log,
+    Parameters,
+    Registry,
+    String,
+    UserEnteredParameters,
+    as_list,
+    auto,
+    filter_string_list,
+    get_subset,
+    is_subset,
+    keep_keys,
+    keep_values,
+    measure_time_ms,
+    safe_validate_arguments,
+    type_str,
+)
 
 AlgorithmDatasetWriter = "AlgorithmDatasetWriter"
 DataProcessingPipeline = "DataProcessingPipeline"
@@ -46,7 +67,7 @@ class ProcessorPerf(Parameters):
 
     @root_validator(pre=True)
     def set_time_ms(cls, params):
-        params['time_ms'] = 1000 * (params['end_time'] - params['start_time'])
+        params["time_ms"] = 1000 * (params["end_time"] - params["start_time"])
         return params
 
 
@@ -62,7 +83,7 @@ class PipelineStepPerf(Parameters):
 
     @root_validator(pre=True)
     def set_time_ms(cls, params):
-        params['time_ms'] = 1000 * (params['end_time'] - params['start_time'])
+        params["time_ms"] = 1000 * (params["end_time"] - params["start_time"])
         return params
 
 
@@ -76,7 +97,7 @@ class PipelineWriterPerf(Parameters):
 
     @root_validator(pre=True)
     def set_time_ms(cls, params):
-        params['time_ms'] = 1000 * (params['end_time'] - params['start_time'])
+        params["time_ms"] = 1000 * (params["end_time"] - params["start_time"])
         return params
 
 
@@ -110,7 +131,7 @@ class ProcessingPipelinePerf(Parameters):
 
     @root_validator(pre=True)
     def set_time_ms(cls, params):
-        params['time_ms'] = 1000 * (params['end_time'] - params['start_time'])
+        params["time_ms"] = 1000 * (params["end_time"] - params["start_time"])
         return params
 
 
@@ -119,7 +140,7 @@ class DataProcessingPipelineConfig(UserEnteredParameters):
 
     class StepConfig(UserEnteredParameters):
         input: Union[List[Union[MLType, str]], MLType, str]
-        output: constr(min_length=1, strip_whitespace=True) = '{col_name}'
+        output: constr(min_length=1, strip_whitespace=True) = "{col_name}"
         params: Optional[Dict[str, Any]] = None
         transformer: constr(min_length=1, strip_whitespace=True)  ## Data Processor name
 
@@ -146,12 +167,12 @@ class DataProcessingPipelineStepProcessor(Parameters, Registry, ABC):
     @classmethod
     @abstractmethod
     def create_pipeline_step_processors(
-            cls,
-            DataProcessorClass: Type[DataProcessor],
-            filtered_input_schema: MLTypeSchema,
-            name: str,
-            params: Dict,
-            output_pattern: str,
+        cls,
+        DataProcessorClass: Type[DataProcessor],
+        filtered_input_schema: MLTypeSchema,
+        name: str,
+        params: Dict,
+        output_pattern: str,
     ) -> Dict[Union[str, Tuple[str]], DataProcessingPipelineStepProcessor]:
         """
         Static factory to create a mapping from input column(s) to data processor instances and their output.
@@ -181,9 +202,9 @@ class DataProcessingPipelineStepProcessor(Parameters, Registry, ABC):
     @classmethod
     @abstractmethod
     def get_pipeline_step_output_schema(
-            cls,
-            input_schema: MLTypeSchema,
-            pipeline_step_processors: Dict[Union[str, Tuple[str]], DataProcessingPipelineStepProcessor]
+        cls,
+        input_schema: MLTypeSchema,
+        pipeline_step_processors: Dict[Union[str, Tuple[str]], DataProcessingPipelineStepProcessor],
     ) -> MLTypeSchema:
         """
         Obtains the output schema from the input data processors dict.
@@ -202,12 +223,12 @@ class DataProcessingPipelineStepSingleColumnProcessor(DataProcessingPipelineStep
 
     @classmethod
     def create_pipeline_step_processors(
-            cls,
-            DataProcessorClass: Type[SingleColumnProcessor],
-            filtered_input_schema: MLTypeSchema,
-            name: str,
-            params: Dict,
-            output_pattern: str,
+        cls,
+        DataProcessorClass: Type[SingleColumnProcessor],
+        filtered_input_schema: MLTypeSchema,
+        name: str,
+        params: Dict,
+        output_pattern: str,
     ) -> Dict[Union[str, Tuple[str]], DataProcessingPipelineStepProcessor]:
         pipeline_step_processors: Dict[Union[str, Tuple[str]], DataProcessingPipelineStepProcessor] = {}
         for input_col, input_mltype in filtered_input_schema.items():
@@ -218,29 +239,28 @@ class DataProcessingPipelineStepSingleColumnProcessor(DataProcessingPipelineStep
                 params=params,
             )
             supported_input_mltypes: Tuple[MLType] = data_processor.input_mltypes
-            assert input_mltype in supported_input_mltypes, \
+            assert input_mltype in supported_input_mltypes, (
                 f'"{str(input_mltype)}" not included in supported MLTypes: "{str(supported_input_mltypes)}"'
+            )
             ## For 1:1 data processors, the supported input MLType should be a list of MLTypes
             if not all([isinstance(mltype, MLType) for mltype in supported_input_mltypes]):
                 raise AttributeError(
-                    f'Supported input types for class {str(cls)} (1:1 data processor) ' + \
-                    f'should be a list of MLTypes, not: {supported_input_mltypes}'
+                    f"Supported input types for class {str(cls)} (1:1 data processor) "
+                    + f"should be a list of MLTypes, not: {supported_input_mltypes}"
                 )
             ## Converts '{col_name}_XYZ' to 'MyCol_XYZ' but leaves 'XYZ' unchanged.
             output_col_name = output_pattern.format(col_name=input_col)
             output_mltype = data_processor.output_mltype
             pipeline_step_processors[input_col] = cls(
-                data_processor=data_processor,
-                output_col_name=output_col_name,
-                output_mltype=output_mltype
+                data_processor=data_processor, output_col_name=output_col_name, output_mltype=output_mltype
             )
         return pipeline_step_processors
 
     @classmethod
     def get_pipeline_step_output_schema(
-            cls,
-            input_schema: MLTypeSchema,
-            pipeline_step_processors: Dict[Union[str, Tuple[str]], DataProcessingPipelineStepProcessor]
+        cls,
+        input_schema: MLTypeSchema,
+        pipeline_step_processors: Dict[Union[str, Tuple[str]], DataProcessingPipelineStepProcessor],
     ) -> MLTypeSchema:
         output_schema = copy.deepcopy(input_schema)
         for input_cols, step_processor in pipeline_step_processors.items():
@@ -254,12 +274,12 @@ class DataProcessingPipelineStepNto1ColumnProcessor(DataProcessingPipelineStepPr
 
     @classmethod
     def create_pipeline_step_processors(
-            cls,
-            DataProcessorClass: Type[Nto1ColumnProcessor],
-            filtered_input_schema: MLTypeSchema,
-            name: str,
-            params: Dict,
-            output_pattern: str,
+        cls,
+        DataProcessorClass: Type[Nto1ColumnProcessor],
+        filtered_input_schema: MLTypeSchema,
+        name: str,
+        params: Dict,
+        output_pattern: str,
     ) -> Dict[Union[str, Tuple[str]], DataProcessingPipelineStepProcessor]:
         pipeline_step_processors: Dict[Union[str, Tuple[str]], DataProcessingPipelineStepProcessor] = {}
         ## Sorted tuple of columns we want to pass to this data processor.
@@ -274,15 +294,15 @@ class DataProcessingPipelineStepNto1ColumnProcessor(DataProcessingPipelineStepPr
             ## For N:1 data processors, the supported input MLType should be a list of MLTypes
             if not all([isinstance(mltype, MLType) for mltype in supported_input_mltypes]):
                 raise AttributeError(
-                    f'Supported input types for {str(cls)} (N:1 data processor) ' + \
-                    f'should be a list of MLTypes, not: {supported_input_mltypes}'
+                    f"Supported input types for {str(cls)} (N:1 data processor) "
+                    + f"should be a list of MLTypes, not: {supported_input_mltypes}"
                 )
             if not all([mltype in supported_input_mltypes for mltype in filtered_input_schema.values()]):
                 raise AttributeError(
-                    f'MLTypes of selected columns passed to {str(cls)} (N:1 data processor) ' + \
-                    f'should be supported by this data processor. Supported types are ' + \
-                    f'{supported_input_mltypes}, selected columns have MLTypes: ' + \
-                    f'{list(filtered_input_schema.values())}'
+                    f"MLTypes of selected columns passed to {str(cls)} (N:1 data processor) "
+                    + "should be supported by this data processor. Supported types are "
+                    + f"{supported_input_mltypes}, selected columns have MLTypes: "
+                    + f"{list(filtered_input_schema.values())}"
                 )
             output_col_name = output_pattern  ## Assume it does not have {col_name} in it.
             output_mltype: MLType = processor.output_mltype
@@ -295,9 +315,9 @@ class DataProcessingPipelineStepNto1ColumnProcessor(DataProcessingPipelineStepPr
 
     @classmethod
     def get_pipeline_step_output_schema(
-            cls,
-            input_schema: MLTypeSchema,
-            pipeline_step_processors: Dict[Union[str, Tuple[str]], DataProcessingPipelineStepProcessor]
+        cls,
+        input_schema: MLTypeSchema,
+        pipeline_step_processors: Dict[Union[str, Tuple[str]], DataProcessingPipelineStepProcessor],
     ) -> MLTypeSchema:
         output_schema = copy.deepcopy(input_schema)
         ## dict returned by create_pipeline_step_processors should have exactly one item.
@@ -314,28 +334,24 @@ class DataProcessingPipelineStep(Parameters):
     output_schema: MLTypeSchema
 
     def __str__(self):
-        out_str = f'{self.__class__.__name__}:'
-        out_str += '\n  >> Input schema: ' + str(
-            MLType.convert_values_to_str(self.input_schema)
-        )
-        out_str += '\n  >> Data Processors map:'
+        out_str = f"{self.__class__.__name__}:"
+        out_str += "\n  >> Input schema: " + str(MLType.convert_values_to_str(self.input_schema))
+        out_str += "\n  >> Data Processors map:"
         for cols_to_transform, step_processor in self.pipeline_step_processors.items():
-            out_str += f'\n  - Columns to transform: {str(cols_to_transform)}'
-            out_str += f'\n    Data Processor: {step_processor.data_processor.class_name}'
+            out_str += f"\n  - Columns to transform: {str(cols_to_transform)}"
+            out_str += f"\n    Data Processor: {step_processor.data_processor.class_name}"
             if len(step_processor.data_processor.params.dict()) > 0:
-                out_str += f' ({step_processor.data_processor.params})'
-            out_str += f'\n    Output column: {str(step_processor.output_col_name)} ({str(step_processor.output_mltype)})'
-        out_str += '\n  >> Output schema: ' + str(
-            MLType.convert_values_to_str(self.output_schema)
-        )
+                out_str += f" ({step_processor.data_processor.params})"
+            out_str += f"\n    Output column: {str(step_processor.output_col_name)} ({str(step_processor.output_mltype)})"
+        out_str += "\n  >> Output schema: " + str(MLType.convert_values_to_str(self.output_schema))
         return out_str
 
     @classmethod
     @safe_validate_arguments
     def from_config(
-            cls,
-            step_cfg: DataProcessingPipelineConfig.StepConfig,
-            step_input_schema: MLTypeSchema,
+        cls,
+        step_cfg: DataProcessingPipelineConfig.StepConfig,
+        step_input_schema: MLTypeSchema,
     ) -> Any:
         """
         Static factory to resolve and instantiate a pipeline step object.
@@ -355,12 +371,13 @@ class DataProcessingPipelineStep(Parameters):
             DataProcessorSuperClass: Type[DataProcessor] = Nto1ColumnProcessor
         else:
             raise NotImplementedError(
-                f'Unsupported subtype of {DataProcessor}: {DataProcessorClass}, '
-                f'with following inheritance: {DataProcessorClass.__mro__}'
+                f"Unsupported subtype of {DataProcessor}: {DataProcessorClass}, "
+                f"with following inheritance: {DataProcessorClass.__mro__}"
             )
 
-        DataProcessingPipelineStepProcessorClass: Type[DataProcessingPipelineStepProcessor] = \
+        DataProcessingPipelineStepProcessorClass: Type[DataProcessingPipelineStepProcessor] = (
             DataProcessingPipelineStepProcessor.get_subclass(DataProcessorSuperClass)
+        )
         ## Create data processors and output schema:
         ## Note: selection of columns from the pipeline config is case insensitive. User might enter 'AbCD' but the
         ## appropriate columns 'abcd' will be picked up from the DataFrame schema.
@@ -369,7 +386,7 @@ class DataProcessingPipelineStep(Parameters):
             step_cfg.input,
         )
         try:
-            pipeline_step_processors: Dict[Union[str, Tuple[str]], DataProcessingPipelineStepProcessor] = \
+            pipeline_step_processors: Dict[Union[str, Tuple[str]], DataProcessingPipelineStepProcessor] = (
                 DataProcessingPipelineStepProcessorClass.create_pipeline_step_processors(
                     DataProcessorClass=DataProcessorClass,
                     filtered_input_schema=filtered_step_input_schema,
@@ -377,16 +394,18 @@ class DataProcessingPipelineStep(Parameters):
                     params=step_cfg.params,
                     output_pattern=step_cfg.output,
                 )
+            )
         except Exception as e:
             print(String.format_exception_msg(e))
             raise AttributeError(
                 f'Error while creating data processor of type "{str(DataProcessorClass)}" '
-                f'with params: {str(step_cfg.params)} '
-                f'and filtered input schema {str(filtered_step_input_schema)}'
+                f"with params: {str(step_cfg.params)} "
+                f"and filtered input schema {str(filtered_step_input_schema)}"
             )
-        output_schema: MLTypeSchema = DataProcessingPipelineStepProcessorClass.get_pipeline_step_output_schema(
-            input_schema=step_input_schema,
-            pipeline_step_processors=pipeline_step_processors
+        output_schema: MLTypeSchema = (
+            DataProcessingPipelineStepProcessorClass.get_pipeline_step_output_schema(
+                input_schema=step_input_schema, pipeline_step_processors=pipeline_step_processors
+            )
         )
         return DataProcessingPipelineStep(
             input_schema=filtered_step_input_schema,
@@ -395,12 +414,12 @@ class DataProcessingPipelineStep(Parameters):
         )
 
     def execute_pipeline_step(
-            self,
-            sdf: ScalableDataFrame,
-            processing_mode: ProcessingMode,
-            persist: PersistLevel,
-            should_measure_perf: bool,
-            should_log_perf: bool,
+        self,
+        sdf: ScalableDataFrame,
+        processing_mode: ProcessingMode,
+        persist: PersistLevel,
+        should_measure_perf: bool,
+        should_log_perf: bool,
     ) -> Tuple[ScalableDataFrame, Optional[PipelineStepPerf]]:
         """
         Runs the particular pipeline step on the input ScalableDataFrame.
@@ -413,30 +432,31 @@ class DataProcessingPipelineStep(Parameters):
         """
         step_start_time = time.perf_counter()
         if should_log_perf:
-            Log.debug(f'\n>> Running {processing_mode.lower().replace("_", "-")} on pipeline step...')
+            Log.debug(f"\n>> Running {processing_mode.lower().replace('_', '-')} on pipeline step...")
         _processor_perfs: List[ProcessorPerf] = []
         for input_cols, step_processors in self.pipeline_step_processors.items():
             data_processor: DataProcessor = step_processors.data_processor
             output_col_name: str = step_processors.output_col_name
             input_cols: List[str] = as_list(input_cols)
             sdf_cols: List[str] = list(sdf.columns)
-            if is_subset(input_cols, sdf_cols) or \
-                    data_processor.missing_column_behavior is MissingColumnBehavior.EXECUTE:
+            if (
+                is_subset(input_cols, sdf_cols)
+                or data_processor.missing_column_behavior is MissingColumnBehavior.EXECUTE
+            ):
                 ## Apply data processor on whatever subset exists, retaining column order:
                 cols_to_process_set: Set[str] = get_subset(input_cols, sdf_cols)
                 cols_to_process_in_order: List[str] = [
-                    col for col in input_cols
-                    if col in cols_to_process_set
+                    col for col in input_cols if col in cols_to_process_set
                 ]
                 if isinstance(data_processor, SingleColumnProcessor):
                     if len(cols_to_process_in_order) != 1:
-                        raise ValueError(f'Expected only one column, found: {cols_to_process_in_order}')
+                        raise ValueError(f"Expected only one column, found: {cols_to_process_in_order}")
                     cols_to_process_in_order: str = cols_to_process_in_order[0]
                 processor_start_time = time.perf_counter()
                 if should_log_perf:
                     Log.debug(
-                        f'\n>> Running {processing_mode.lower().replace("_", "-")} '
-                        f'on {type_str(sdf)}, using:\n{str(data_processor)}'
+                        f"\n>> Running {processing_mode.lower().replace('_', '-')} "
+                        f"on {type_str(sdf)}, using:\n{str(data_processor)}"
                     )
                 sdf: ScalableDataFrame = self._execute_data_processor(
                     sdf=sdf,
@@ -447,57 +467,52 @@ class DataProcessingPipelineStep(Parameters):
                 )
                 persist_time_ms: Optional[float] = None
                 if persist is PersistLevel.EVERY_PROCESSOR:
-                    sdf, persist_time_ms = measure_time_ms(
-                        lambda: sdf.persist(wait=True)
-                    )
+                    sdf, persist_time_ms = measure_time_ms(lambda: sdf.persist(wait=True))
 
                 processor_end_time: float = time.perf_counter()
                 if should_log_perf:
                     Log.debug(
-                        f'\r...processor ran in '
-                        f'{String.readable_seconds(processor_end_time - processor_start_time)}.'
+                        f"\r...processor ran in "
+                        f"{String.readable_seconds(processor_end_time - processor_start_time)}."
                     )
                 if should_measure_perf:
-                    _processor_perfs.append(ProcessorPerf(
-                        start_time=processor_start_time,
-                        processing_mode=processing_mode,
-                        input_columns=as_list(cols_to_process_in_order),
-                        output_columns=as_list(output_col_name),
-                        data_processor_class_name=data_processor.class_name,
-                        data_processor_params=data_processor.params.dict(),
-                        persist_time_ms=persist_time_ms,
-                        end_time=processor_end_time,
-                    ))
+                    _processor_perfs.append(
+                        ProcessorPerf(
+                            start_time=processor_start_time,
+                            processing_mode=processing_mode,
+                            input_columns=as_list(cols_to_process_in_order),
+                            output_columns=as_list(output_col_name),
+                            data_processor_class_name=data_processor.class_name,
+                            data_processor_params=data_processor.params.dict(),
+                            persist_time_ms=persist_time_ms,
+                            end_time=processor_end_time,
+                        )
+                    )
             elif data_processor.missing_column_behavior is MissingColumnBehavior.SKIP:
                 continue
             elif data_processor.missing_column_behavior is MissingColumnBehavior.ERROR:
                 raise ValueError(
-                    f'Cannot transform {type_str(sdf)} using {data_processor.class_name} due to insufficient columns: '
-                    f'columns required for transformation: {input_cols}; '
-                    f'columns actually present: {sdf_cols}'
+                    f"Cannot transform {type_str(sdf)} using {data_processor.class_name} due to insufficient columns: "
+                    f"columns required for transformation: {input_cols}; "
+                    f"columns actually present: {sdf_cols}"
                 )
             else:
                 raise NotImplementedError(
-                    f'Unsupported value for {MissingColumnBehavior}: {data_processor.missing_column_behavior}'
+                    f"Unsupported value for {MissingColumnBehavior}: {data_processor.missing_column_behavior}"
                 )
         persist_time_ms: Optional[float] = None
         if persist is PersistLevel.EVERY_PIPELINE_STEP:
-            sdf, persist_time_ms = measure_time_ms(
-                lambda: sdf.persist(wait=True)
-            )
+            sdf, persist_time_ms = measure_time_ms(lambda: sdf.persist(wait=True))
 
         step_end_time: float = time.perf_counter()
         if should_log_perf:
             Log.debug(
-                f'\r...pipeline-step ran in '
-                f'{String.readable_seconds(step_end_time - step_start_time)}.'
+                f"\r...pipeline-step ran in {String.readable_seconds(step_end_time - step_start_time)}."
             )
         step_end_time: float = time.perf_counter()
         if should_measure_perf:
             if sdf.layout is not DataLayout.DASK:
-                sdf_num_rows, length_calculation_ms = measure_time_ms(
-                    lambda: len(sdf)
-                )
+                sdf_num_rows, length_calculation_ms = measure_time_ms(lambda: len(sdf))
             else:
                 sdf_num_rows, length_calculation_ms = None, None
             return sdf, PipelineStepPerf(
@@ -512,12 +527,12 @@ class DataProcessingPipelineStep(Parameters):
         return sdf, None
 
     def _execute_data_processor(
-            self,
-            sdf: ScalableDataFrame,
-            cols_to_process_in_order: List[str],
-            data_processor: DataProcessor,
-            processing_mode: ProcessingMode,
-            output_col_name: str,
+        self,
+        sdf: ScalableDataFrame,
+        cols_to_process_in_order: List[str],
+        data_processor: DataProcessor,
+        processing_mode: ProcessingMode,
+        output_col_name: str,
     ) -> ScalableDataFrame:
         if processing_mode is ProcessingMode.FIT_TRANSFORM:
             sdf[output_col_name] = data_processor.fit_transform(sdf[cols_to_process_in_order])
@@ -579,12 +594,12 @@ class DataProcessingPipeline(Parameters):
     @classmethod
     @safe_validate_arguments
     def from_config(
-            cls,
-            config: Union[DataProcessingPipelineConfig, FileMetadata],
-            input_schema: MLTypeSchema,
-            only_writers: bool = False,
-            *args,
-            **kwargs,
+        cls,
+        config: Union[DataProcessingPipelineConfig, FileMetadata],
+        input_schema: MLTypeSchema,
+        only_writers: bool = False,
+        *args,
+        **kwargs,
     ) -> DataProcessingPipeline:
         """
         Static factory to resolve each pipeline step and instantiate the pipeline object.
@@ -596,9 +611,11 @@ class DataProcessingPipeline(Parameters):
         if isinstance(config, FileMetadata):
             reader: Reader = Reader.of(config.format)
             assert isinstance(reader, ConfigReader)
-            Log.debug('\nReading pipeline config...')
-            config: DataProcessingPipelineConfig = DataProcessingPipelineConfig(**reader.read_metadata(config))
-            Log.debug('...done reading pipeline config.')
+            Log.debug("\nReading pipeline config...")
+            config: DataProcessingPipelineConfig = DataProcessingPipelineConfig(
+                **reader.read_metadata(config)
+            )
+            Log.debug("...done reading pipeline config.")
         if not only_writers:
             return cls._resolve_pipeline(
                 input_schema=input_schema,
@@ -618,13 +635,12 @@ class DataProcessingPipeline(Parameters):
 
     @classmethod
     def _resolve_pipeline(
-            cls,
-            input_schema: MLTypeSchema,
-            pipeline_steps: List[DataProcessingPipelineConfig.StepConfig],
-            writers: Optional[List[DataProcessingPipelineConfig.WriterConfig]] = None,
-            *args,
-            **kwargs,
-
+        cls,
+        input_schema: MLTypeSchema,
+        pipeline_steps: List[DataProcessingPipelineConfig.StepConfig],
+        writers: Optional[List[DataProcessingPipelineConfig.WriterConfig]] = None,
+        *args,
+        **kwargs,
     ) -> DataProcessingPipeline:
         """
         Static factory to resolve each pipeline step and instantiate the pipeline object.
@@ -635,37 +651,37 @@ class DataProcessingPipeline(Parameters):
         :return: Serializable DataProcessingPipeline instance.
         """
 
-        Log.debug('\nInitializing DataProcessingPipeline...')
-        Log.debug(f'\n> Input schema to pipeline: {input_schema}')
+        Log.debug("\nInitializing DataProcessingPipeline...")
+        Log.debug(f"\n> Input schema to pipeline: {input_schema}")
 
         ## Resolve pipeline steps:
         resolved_pipeline: List[DataProcessingPipelineStep] = []
         cur_schema = input_schema
-        Log.debug(f'\n> Resolving pipeline transformation steps: {str(pipeline_steps)}')
+        Log.debug(f"\n> Resolving pipeline transformation steps: {str(pipeline_steps)}")
         for pipeline_step in pipeline_steps:
             resolved_pipeline_step: DataProcessingPipelineStep = DataProcessingPipelineStep.from_config(
                 step_cfg=pipeline_step,
                 step_input_schema=cur_schema,
             )
             resolved_pipeline.append(resolved_pipeline_step)
-            Log.debug(f'Added {str(resolved_pipeline_step)}')
+            Log.debug(f"Added {str(resolved_pipeline_step)}")
             cur_schema: MLTypeSchema = resolved_pipeline_step.output_schema
         output_schema: MLTypeSchema = cur_schema
-        Log.debug(f'...resolved pipeline transformation steps.')
-        Log.debug(f'\n> Output schema from pipeline: \n{json.dumps(output_schema, indent=4)}')
+        Log.debug("...resolved pipeline transformation steps.")
+        Log.debug(f"\n> Output schema from pipeline: \n{json.dumps(output_schema, indent=4)}")
 
         ## Resolve writers:
         if writers is None:
             writers: Dict[FileContents, PipelineWriter] = {}
         else:
-            Log.debug(f'\n> Resolving pipeline writers...')
+            Log.debug("\n> Resolving pipeline writers...")
             writers: Dict[FileContents, PipelineWriter] = cls._resolve_pipeline_writers(
                 writers=writers,
                 output_schema=output_schema,
                 *args,
                 **kwargs,
             )
-            Log.debug('...resolved pipeline writers.')
+            Log.debug("...resolved pipeline writers.")
 
         ## Instantiate:
         pipeline = DataProcessingPipeline(
@@ -674,17 +690,17 @@ class DataProcessingPipeline(Parameters):
             output_schema=output_schema,
             writers=writers,
         )
-        Log.debug('...done initializing pipeline.')
+        Log.debug("...done initializing pipeline.")
         return pipeline
 
     @classmethod
     @safe_validate_arguments
     def _resolve_pipeline_writers(
-            cls,
-            writers: List[DataProcessingPipelineConfig.WriterConfig],
-            output_schema: MLTypeSchema,
-            *args,
-            **kwargs,
+        cls,
+        writers: List[DataProcessingPipelineConfig.WriterConfig],
+        output_schema: MLTypeSchema,
+        *args,
+        **kwargs,
     ) -> Dict[FileContents, PipelineWriter]:
         pipeline_writers: Dict[FileContents, PipelineWriter] = {}
         for writer_cfg in writers:
@@ -695,8 +711,8 @@ class DataProcessingPipeline(Parameters):
             for supported_file_content in writer.file_contents:
                 if supported_file_content in pipeline_writers:
                     raise KeyError(
-                        f'Only one writer of {supported_file_content} contents can be present'
-                        f'in the pipeline. Found two writers of type {supported_file_content}.'
+                        f"Only one writer of {supported_file_content} contents can be present"
+                        f"in the pipeline. Found two writers of type {supported_file_content}."
                     )
                 pipeline_writers[supported_file_content] = writer
                 Log.debug(f'Set writer of key "{str(supported_file_content)}" as {str(writer)}')
@@ -704,17 +720,19 @@ class DataProcessingPipeline(Parameters):
 
     @classmethod
     def _create_pipeline_writer(
-            cls,
-            writer_cfg: DataProcessingPipelineConfig.WriterConfig,
-            output_schema: MLTypeSchema,
+        cls,
+        writer_cfg: DataProcessingPipelineConfig.WriterConfig,
+        output_schema: MLTypeSchema,
     ) -> PipelineWriter:
         writer_cfg: DataProcessingPipelineConfig.WriterConfig = writer_cfg.copy(deep=True)
         WriterClass: Type[Writer] = Writer.get_subclass(writer_cfg.writer)
-        if not (isinstance(WriterClass, DataFrameWriter.__class__) or
-                isinstance(WriterClass, AlgorithmDatasetWriter.__class__)):
+        if not (
+            isinstance(WriterClass, DataFrameWriter.__class__)
+            or isinstance(WriterClass, AlgorithmDatasetWriter.__class__)
+        ):
             raise TypeError(
-                f'Pipeline writers must be of type {str(DataFrameWriter.class_name)} or '
-                f'{str(AlgorithmDatasetWriter.class_name)}, found: {WriterClass.class_name}.'
+                f"Pipeline writers must be of type {str(DataFrameWriter.class_name)} or "
+                f"{str(AlgorithmDatasetWriter.class_name)}, found: {WriterClass.class_name}."
             )
 
         ## Overwrite keys in the output schema with those present in the writer config (if any):
@@ -723,10 +741,9 @@ class DataProcessingPipeline(Parameters):
             **writer_cfg.schema_override,
         }
         writer_data_schema: MLTypeSchema = PipelineUtil.filter_schema_by_input_patterns(
-            schema=writer_data_schema,
-            input_patterns=writer_cfg.input
+            schema=writer_data_schema, input_patterns=writer_cfg.input
         )
-        writer_cfg.params['data_schema'] = writer_data_schema
+        writer_cfg.params["data_schema"] = writer_data_schema
         return WriterClass(**writer_cfg.params)
 
     @safe_validate_arguments
@@ -739,17 +756,17 @@ class DataProcessingPipeline(Parameters):
 
     @safe_validate_arguments
     def execute(
-            self,
-            data: Union[ScalableDataFrame, ScalableDataFrameRawType],
-            processing_mode: ProcessingMode,
-            process_as: Optional[DataLayout] = None,
-            measure_perf: FractionalBool = True,
-            log_perf: FractionalBool = True,
-            persist: PersistLevel = PersistLevel.DONT_PERSIST,
-            write_to: Optional[Union[List[FileMetadata], FileMetadata]] = None,
-            overwrite: bool = False,
-            rnd: Optional[confloat(ge=0.0, le=1.0)] = None,
-            **kwargs
+        self,
+        data: Union[ScalableDataFrame, ScalableDataFrameRawType],
+        processing_mode: ProcessingMode,
+        process_as: Optional[DataLayout] = None,
+        measure_perf: FractionalBool = True,
+        log_perf: FractionalBool = True,
+        persist: PersistLevel = PersistLevel.DONT_PERSIST,
+        write_to: Optional[Union[List[FileMetadata], FileMetadata]] = None,
+        overwrite: bool = False,
+        rnd: Optional[confloat(ge=0.0, le=1.0)] = None,
+        **kwargs,
     ) -> Union[ScalableDataFrame, ScalableDataFrameRawType]:
         """
         Executes each pipeline step on the input DataFrame in a sequential fashion.
@@ -775,13 +792,11 @@ class DataProcessingPipeline(Parameters):
         should_log_perf: bool = rnd <= log_perf
 
         if should_measure_perf:
-            Log.info(f'\nRunning pipeline in {processing_mode.lower().replace("_", "-")} mode on dataset...')
+            Log.info(f"\nRunning pipeline in {processing_mode.lower().replace('_', '-')} mode on dataset...")
 
         ## Detect layout if the input is raw data:
         is_input_ScalableDataFrame: bool = isinstance(data, ScalableDataFrame)
-        sdf, layout_detection_time_ms = measure_time_ms(
-            lambda: ScalableDataFrame.of(data, layout=None)
-        )
+        sdf, layout_detection_time_ms = measure_time_ms(lambda: ScalableDataFrame.of(data, layout=None))
         input_data_layout: DataLayout = sdf.layout
 
         ## For lazy-loaded DataFrames (e.g. Dask, Spark), read data from file:
@@ -792,34 +807,30 @@ class DataProcessingPipeline(Parameters):
             PersistLevel.EVERY_PIPELINE_STEP,
             PersistLevel.EVERY_PROCESSOR,
         }:
-            sdf, persist_read_time_ms = measure_time_ms(
-                lambda: sdf.persist(wait=True)
-            )
+            sdf, persist_read_time_ms = measure_time_ms(lambda: sdf.persist(wait=True))
 
         ## Convert to different layout used to process:
         sdf_num_rows: Optional[int] = None
         length_calculation_ms: Optional[float] = None
         if process_as is None:
             if sdf_num_rows is None:
-                sdf_num_rows, length_calculation_ms = measure_time_ms(
-                    lambda: len(sdf)
-                )
-            for (sdf_num_rows_limit, process_as) in self.layout_scaling[processing_mode]:
+                sdf_num_rows, length_calculation_ms = measure_time_ms(lambda: len(sdf))
+            for sdf_num_rows_limit, process_as in self.layout_scaling[processing_mode]:
                 if sdf_num_rows <= sdf_num_rows_limit:
                     break  ## Sets data_layout
         layout_conversion_ms: float = 0.0
         if process_as is not DataLayout.RECORD:
-            sdf, layout_conversion_ms = measure_time_ms(
-                lambda: sdf.as_layout(layout=process_as)
-            )
+            sdf, layout_conversion_ms = measure_time_ms(lambda: sdf.as_layout(layout=process_as))
 
         ## Run the pipeline:
         pipeline_step_perfs: Optional[List[PipelineStepPerf]] = None
         pipeline_steps_compute_time_ms: Optional[float] = None
         if len(self.pipeline) > 0:
             pipeline_steps_compute_start_time: float = time.time()
-            if processing_mode is ProcessingMode.TRANSFORM and \
-                    process_as in {DataLayout.LIST_OF_DICT, DataLayout.RECORD}:
+            if processing_mode is ProcessingMode.TRANSFORM and process_as in {
+                DataLayout.LIST_OF_DICT,
+                DataLayout.RECORD,
+            }:
                 sdf, pipeline_step_perfs = self._transform_as_records(
                     sdf=sdf,
                     processing_mode=processing_mode,
@@ -839,7 +850,7 @@ class DataProcessingPipeline(Parameters):
 
             pipeline_steps_compute_end_time: float = time.time()
             pipeline_steps_compute_time_ms: float = 1000 * (
-                    pipeline_steps_compute_end_time - pipeline_steps_compute_start_time
+                pipeline_steps_compute_end_time - pipeline_steps_compute_start_time
             )
 
         ## For lazy-loaded DataFrames (e.g. Dask, Spark), this actually starts the data-processing:
@@ -848,9 +859,7 @@ class DataProcessingPipeline(Parameters):
             PersistLevel.AFTER_PIPELINE,
             PersistLevel.BEFORE_AFTER_PIPELINE,
         }:
-            sdf, persist_compute_time_ms = measure_time_ms(
-                lambda: sdf.persist(wait=True)
-            )
+            sdf, persist_compute_time_ms = measure_time_ms(lambda: sdf.persist(wait=True))
 
         ## Write data to files
         pipeline_writer_perfs: Optional[List[PipelineWriterPerf]] = None
@@ -865,7 +874,7 @@ class DataProcessingPipeline(Parameters):
                 should_log_perf=should_log_perf,
                 write_to=write_to,
                 overwrite=overwrite,
-                **kwargs
+                **kwargs,
             )
             pipeline_write_end_time: float = time.time()
             pipeline_write_time_ms: float = 1000 * (pipeline_write_end_time - pipeline_write_start_time)
@@ -873,60 +882,56 @@ class DataProcessingPipeline(Parameters):
         ## Log and measure performance
         pipeline_end_time: float = time.time()
         if should_log_perf:
-            writers_log_str: str = f' and running {len(self.writers)} writers ' if write_to is not None else ' '
+            writers_log_str: str = (
+                f" and running {len(self.writers)} writers " if write_to is not None else " "
+            )
             Log.info(
-                f'...done running pipeline in {processing_mode.lower().replace("_", "-")} mode{writers_log_str}in '
-                f'{String.readable_seconds(pipeline_end_time - pipeline_start_time)}.'
+                f"...done running pipeline in {processing_mode.lower().replace('_', '-')} mode{writers_log_str}in "
+                f"{String.readable_seconds(pipeline_end_time - pipeline_start_time)}."
             )
         if should_measure_perf:
             if sdf_num_rows is None:
-                sdf_num_rows, length_calculation_ms = measure_time_ms(
-                    lambda: len(sdf)
-                )
+                sdf_num_rows, length_calculation_ms = measure_time_ms(lambda: len(sdf))
             pipeline_end_time: float = time.time()
-            self._performance.append(ProcessingPipelinePerf(
-                processing_mode=processing_mode,
-                persist=persist,
-                is_input_ScalableDataFrame=is_input_ScalableDataFrame,
-                should_log_perf=should_log_perf,
-
-                start_time=pipeline_start_time,
-                layout_detection_time_ms=layout_detection_time_ms,
-                input_data_layout=input_data_layout,
-
-                persist_read_time_ms=persist_read_time_ms,
-
-                length_calculation_ms=length_calculation_ms,
-                process_as=process_as,
-                layout_conversion_ms=layout_conversion_ms,
-
-                pipeline_steps_compute_time_ms=pipeline_steps_compute_time_ms,
-                pipeline_step_perfs=pipeline_step_perfs,
-                persist_compute_time_ms=persist_compute_time_ms,
-
-                pipeline_write_time_ms=pipeline_write_time_ms,
-                pipeline_writer_perfs=pipeline_writer_perfs,
-
-                num_rows_processed=sdf_num_rows,
-                end_time=pipeline_end_time,
-            ))
+            self._performance.append(
+                ProcessingPipelinePerf(
+                    processing_mode=processing_mode,
+                    persist=persist,
+                    is_input_ScalableDataFrame=is_input_ScalableDataFrame,
+                    should_log_perf=should_log_perf,
+                    start_time=pipeline_start_time,
+                    layout_detection_time_ms=layout_detection_time_ms,
+                    input_data_layout=input_data_layout,
+                    persist_read_time_ms=persist_read_time_ms,
+                    length_calculation_ms=length_calculation_ms,
+                    process_as=process_as,
+                    layout_conversion_ms=layout_conversion_ms,
+                    pipeline_steps_compute_time_ms=pipeline_steps_compute_time_ms,
+                    pipeline_step_perfs=pipeline_step_perfs,
+                    persist_compute_time_ms=persist_compute_time_ms,
+                    pipeline_write_time_ms=pipeline_write_time_ms,
+                    pipeline_writer_perfs=pipeline_writer_perfs,
+                    num_rows_processed=sdf_num_rows,
+                    end_time=pipeline_end_time,
+                )
+            )
         if is_input_ScalableDataFrame:
             return sdf
         return sdf._data
 
     def _transform_as_records(
-            self,
-            sdf: ScalableDataFrame,
-            processing_mode: ProcessingMode,
-            persist: PersistLevel,
-            should_measure_perf: bool,
-            should_log_perf: bool,
+        self,
+        sdf: ScalableDataFrame,
+        processing_mode: ProcessingMode,
+        persist: PersistLevel,
+        should_measure_perf: bool,
+        should_log_perf: bool,
     ) -> Tuple[ScalableDataFrame, List[PipelineStepPerf]]:
         record_sdfs: List[ScalableDataFrame] = list(
             sdf.stream(stream_as=DataLayout.RECORD, num_rows=1, shuffle=False, raw=False)
         )
         for i in range(len(record_sdfs)):
-            for (pipeline_step_i, pipeline_step) in enumerate(self.pipeline):
+            for pipeline_step_i, pipeline_step in enumerate(self.pipeline):
                 record_sdfs[i], _step_perf = pipeline_step.execute_pipeline_step(
                     sdf=record_sdfs[i],
                     processing_mode=processing_mode,
@@ -942,19 +947,19 @@ class DataProcessingPipeline(Parameters):
         )
         if record_sdf_concat.layout != sdf.layout:
             raise ValueError(
-                f'Expected the output {ScalableDataFrame.__name__} to have layout '
-                f'{sdf.layout}; found layout {record_sdf_concat.layout}'
+                f"Expected the output {ScalableDataFrame.__name__} to have layout "
+                f"{sdf.layout}; found layout {record_sdf_concat.layout}"
             )
         return record_sdf_concat, []
 
     def _execute_as_sdf(
-            self,
-            sdf: ScalableDataFrame,
-            processing_mode: ProcessingMode,
-            persist: PersistLevel,
-            should_measure_perf: bool,
-            should_log_perf: bool,
-            process_as: DataLayout,
+        self,
+        sdf: ScalableDataFrame,
+        processing_mode: ProcessingMode,
+        persist: PersistLevel,
+        should_measure_perf: bool,
+        should_log_perf: bool,
+        process_as: DataLayout,
     ) -> Tuple[ScalableDataFrame, List[PipelineStepPerf]]:
         pipeline_step_perfs: List[PipelineStepPerf] = []
         for pipeline_step in self.pipeline:
@@ -967,28 +972,28 @@ class DataProcessingPipeline(Parameters):
             )
             if sdf.layout != process_as:
                 raise ValueError(
-                    f'Expected the output {ScalableDataFrame.__name__} of the following step to have layout '
-                    f'{process_as}; found layout {sdf.layout}: {str(pipeline_step)}'
+                    f"Expected the output {ScalableDataFrame.__name__} of the following step to have layout "
+                    f"{process_as}; found layout {sdf.layout}: {str(pipeline_step)}"
                 )
             if should_measure_perf:
                 pipeline_step_perfs.append(_step_perf)
         return sdf, pipeline_step_perfs
 
     def _write_processed(
-            self,
-            sdf: ScalableDataFrame,
-            processing_mode: ProcessingMode,
-            should_measure_perf: bool,
-            should_log_perf: bool,
-            write_to: List[FileMetadata],
-            overwrite: bool = False,
-            **kwargs
+        self,
+        sdf: ScalableDataFrame,
+        processing_mode: ProcessingMode,
+        should_measure_perf: bool,
+        should_log_perf: bool,
+        write_to: List[FileMetadata],
+        overwrite: bool = False,
+        **kwargs,
     ) -> Optional[List[PipelineWriterPerf]]:
         writers_start_time: float = time.time()
         if should_log_perf:
             Log.debug(
-                f'\nWriting dataset after {processing_mode.lower().replace("_", "-")}, '
-                f'using {len(self.writers)} writers...'
+                f"\nWriting dataset after {processing_mode.lower().replace('_', '-')}, "
+                f"using {len(self.writers)} writers..."
             )
 
         _writer_perfs: List[PipelineWriterPerf] = []
@@ -997,33 +1002,34 @@ class DataProcessingPipeline(Parameters):
             writer: Writer = self.writers.get(file.contents)
             if writer is None:
                 raise KeyError(
-                    f'While writing from pipeline, could not find writer for the following output metadata '
-                    f'(with contents {file.contents}):\n{str(file)}'
+                    f"While writing from pipeline, could not find writer for the following output metadata "
+                    f"(with contents {file.contents}):\n{str(file)}"
                 )
             if should_log_perf:
-                Log.debug(f'\n>> Writing processed data using {str(writer)}')
+                Log.debug(f"\n>> Writing processed data using {str(writer)}")
             if not writer.write_metadata(file, sdf, overwrite=overwrite, **kwargs):
-                raise IOError(f'Could not write pipeline output to file.')
+                raise IOError("Could not write pipeline output to file.")
             writer_end_time: float = time.time()
             if should_log_perf:
                 Log.debug(
-                    f'\r...writer ran in '
-                    f'{String.readable_seconds(writer_end_time - writer_start_time)}.'
+                    f"\r...writer ran in {String.readable_seconds(writer_end_time - writer_start_time)}."
                 )
             if should_measure_perf:
-                _writer_perfs.append(PipelineWriterPerf(
-                    start_time=writer_start_time,
-                    input_columns=sorted(list(writer.data_schema.keys())),
-                    writer_class_name=writer.class_name,
-                    writer_params=writer.params.dict(),
-                    end_time=writer_end_time,
-                ))
+                _writer_perfs.append(
+                    PipelineWriterPerf(
+                        start_time=writer_start_time,
+                        input_columns=sorted(list(writer.data_schema.keys())),
+                        writer_class_name=writer.class_name,
+                        writer_params=writer.params.dict(),
+                        end_time=writer_end_time,
+                    )
+                )
         writers_end_time: float = time.time()
         if should_log_perf:
             if processing_mode is ProcessingMode.FIT_TRANSFORM:
                 Log.info(
-                    f'...done running writers in '
-                    f'{String.readable_seconds(writers_end_time - writers_start_time)}.'
+                    f"...done running writers in "
+                    f"{String.readable_seconds(writers_end_time - writers_start_time)}."
                 )
         return _writer_perfs
 
@@ -1033,22 +1039,24 @@ class DataProcessingPipeline(Parameters):
         Ref: https://github.com/cloudpipe/cloudpickle
         """
         ## TODO: create a writer for pickled objects.
-        Log.debug('\nSerializing pipeline...')
+        Log.debug("\nSerializing pipeline...")
         file = String.assert_not_empty_and_strip(file)
-        with io.open(file, 'wb') as out:
+        with io.open(file, "wb") as out:
             cloudpickle.dump(self, out)
-        Log.debug('...done serializing pipeline.')
+        Log.debug("...done serializing pipeline.")
 
     @classmethod
     def deserialize(cls, file) -> DataProcessingPipeline:
         ## TODO: create a reader for pickled objects.
-        Log.debug('Reading pipeline file from pickle...')
-        with io.open(file, 'rb') as inp:
+        Log.debug("Reading pipeline file from pickle...")
+        with io.open(file, "rb") as inp:
             pipeline: DataProcessingPipeline = cloudpickle.load(inp)
         if not isinstance(pipeline, DataProcessingPipeline):
-            raise TypeError(f'Deserialized pipeline is must be an instance of {DataProcessingPipeline.__class__}.',
-                            f'Found object of type {type_str(pipeline)}')
-        Log.debug('...done reading pipeline file from pickle.')
+            raise TypeError(
+                f"Deserialized pipeline is must be an instance of {DataProcessingPipeline.__class__}.",
+                f"Found object of type {type_str(pipeline)}",
+            )
+        Log.debug("...done reading pipeline file from pickle.")
         return pipeline
 
 
@@ -1083,23 +1091,31 @@ class PipelineUtil:
                 # If no, then sort lexicographically
 
                 if cls.__do_column_names_have_numeric_values(filtered_mltype_cols_list):
-                    filtered_cols_ordered += [col for col in sorted(filtered_mltype_cols_list,
-                                                                    key=lambda x: int(
-                                                                        "".join([i for i in x if i.isdigit()])))
-                                              if col not in filtered_cols_ordered]
+                    filtered_cols_ordered += [
+                        col
+                        for col in sorted(
+                            filtered_mltype_cols_list,
+                            key=lambda x: int("".join([i for i in x if i.isdigit()])),
+                        )
+                        if col not in filtered_cols_ordered
+                    ]
                 else:
-                    filtered_cols_ordered += [col for col in sorted(filtered_mltype_cols_list)
-                                              if col not in filtered_cols_ordered]
+                    filtered_cols_ordered += [
+                        col for col in sorted(filtered_mltype_cols_list) if col not in filtered_cols_ordered
+                    ]
                 filtered_cols = filtered_cols.union(filtered_mltype_cols)
             elif isinstance(input_pattern, str):
                 filtered_str_pattern_cols = set(
                     filter_string_list(list(schema.keys()), input_pattern, ignorecase=True)
                 )
                 filtered_cols = filtered_cols.union(filtered_str_pattern_cols)
-                filtered_cols_ordered += [col for col in sorted(list(filtered_str_pattern_cols))
-                                          if col not in filtered_cols_ordered]
+                filtered_cols_ordered += [
+                    col for col in sorted(list(filtered_str_pattern_cols)) if col not in filtered_cols_ordered
+                ]
             else:
-                raise AttributeError(f'input_pattern must be a str denoting regex or an MLType, found {input_pattern}')
+                raise AttributeError(
+                    f"input_pattern must be a str denoting regex or an MLType, found {input_pattern}"
+                )
         filtered_schema: Dict = keep_keys(schema, list(filtered_cols))
         filtered_schema_ordered = OrderedDict()
         for col in filtered_cols_ordered:
@@ -1109,4 +1125,6 @@ class PipelineUtil:
 
     @classmethod
     def __do_column_names_have_numeric_values(cls, filtered_cols_list: List[str]) -> bool:
-        return all([True if any(char.isdigit() for char in col_name) else False for col_name in filtered_cols_list])
+        return all(
+            [True if any(char.isdigit() for char in col_name) else False for col_name in filtered_cols_list]
+        )

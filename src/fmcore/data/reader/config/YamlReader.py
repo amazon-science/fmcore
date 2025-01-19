@@ -1,6 +1,9 @@
-import io, yaml
-from fmcore.data.reader.config.ConfigReader import StructuredBlob, ConfigReader
+import io
+
+import yaml
+
 from fmcore.constants import FileFormat
+from fmcore.data.reader.config.ConfigReader import ConfigReader, StructuredBlob
 
 
 class YamlReader(ConfigReader):

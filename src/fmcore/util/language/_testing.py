@@ -1,11 +1,11 @@
-from typing import *
 from itertools import product
+from typing import *
+
 from ._import import optional_dependency
 from ._structs import flatten2d
 
-with optional_dependency('parameterized'):
+with optional_dependency("parameterized"):
     from parameterized import parameterized
-
 
     def parameterized_name_func(test, _, param):
         ## Ref: https://kracekumar.com/post/618264170735009792/parameterize-python-tests/

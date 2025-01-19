@@ -1,6 +1,7 @@
 import json
-from fmcore.data.reader.config.ConfigReader import StructuredBlob, ConfigReader
+
 from fmcore.constants import FileFormat
+from fmcore.data.reader.config.ConfigReader import ConfigReader, StructuredBlob
 
 
 class JsonReader(ConfigReader):

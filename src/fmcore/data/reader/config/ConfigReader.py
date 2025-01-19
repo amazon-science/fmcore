@@ -1,12 +1,15 @@
+import io
+from abc import ABC, abstractmethod
 from typing import *
-from abc import abstractmethod, ABC
-import io, requests
+
+import requests
 from requests import Response
+
 from fmcore.constants import FileContents, MLType, MLTypeSchema
-from fmcore.util.language import is_list_like, as_list, optional_dependency
-from fmcore.util import AutoEnum, auto, String, FileSystemUtil, StructuredBlob, safe_validate_arguments
 from fmcore.data.reader.Reader import Reader
+from fmcore.util import FileSystemUtil, String, StructuredBlob, safe_validate_arguments
 from fmcore.util.aws import S3Util
+from fmcore.util.language import is_list_like, optional_dependency
 
 StructuredBlob = Union[List, Dict, List[Dict]]
 
@@ -21,11 +24,11 @@ class ConfigReader(Reader, ABC):
 
     @safe_validate_arguments
     def _read_stream(
-            self,
-            stream: io.TextIOBase,
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            **kwargs,
+        self,
+        stream: io.TextIOBase,
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        **kwargs,
     ) -> StructuredBlob:
         error_to_raise: Optional[Exception] = None
         for _ in range(self.retry):
@@ -41,11 +44,11 @@ class ConfigReader(Reader, ABC):
 
     @safe_validate_arguments
     def _read_url(
-            self,
-            url: Union[str, List[str]],
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            **kwargs,
+        self,
+        url: Union[str, List[str]],
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        **kwargs,
     ) -> StructuredBlob:
         error_to_raise: Optional[Exception] = None
         for _ in range(self.retry):
@@ -55,9 +58,10 @@ class ConfigReader(Reader, ABC):
                         raise IOError(f'More than one config file found:\n"{url}"')
                     url: str = url[0]
                 text: Optional[str] = None
-                with optional_dependency('smart_open'):
+                with optional_dependency("smart_open"):
                     import smart_open
-                    with smart_open.open(url, mode='r') as inp:
+
+                    with smart_open.open(url, mode="r") as inp:
                         text: str = inp.read()
                 if text is None:
                     response: Response = requests.get(url)
@@ -73,11 +77,11 @@ class ConfigReader(Reader, ABC):
 
     @safe_validate_arguments
     def _read_local(
-            self,
-            local_path: Union[str, List[str]],
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            **kwargs,
+        self,
+        local_path: Union[str, List[str]],
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        **kwargs,
     ) -> StructuredBlob:
         error_to_raise: Optional[Exception] = None
         for _ in range(self.retry):
@@ -97,12 +101,12 @@ class ConfigReader(Reader, ABC):
 
     @safe_validate_arguments
     def _read_s3(
-            self,
-            s3_path: Union[str, List[str]],
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            files_to_ignore: List[str] = String.FILES_TO_IGNORE,
-            **kwargs,
+        self,
+        s3_path: Union[str, List[str]],
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        files_to_ignore: List[str] = String.FILES_TO_IGNORE,
+        **kwargs,
     ) -> StructuredBlob:
         error_to_raise: Optional[Exception] = None
         for _ in range(self.retry):
@@ -121,10 +125,10 @@ class ConfigReader(Reader, ABC):
         raise error_to_raise
 
     def _process_config_str(
-            self,
-            string: str,
-            file_contents: Optional[FileContents] = None,
-            **kwargs,
+        self,
+        string: str,
+        file_contents: Optional[FileContents] = None,
+        **kwargs,
     ) -> StructuredBlob:
         structured_blob: StructuredBlob = self._from_str(string, **kwargs)
         if file_contents is FileContents.SCHEMA:

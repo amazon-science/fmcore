@@ -43,9 +43,7 @@ def actor_process_main(cls_bytes, init_args, init_kwargs, command_queue, result_
 
 
 class ActorProxy:
-    def __init__(
-        self, cls, init_args, init_kwargs, mp_context: Literal["fork", "spawn"]
-    ):
+    def __init__(self, cls, init_args, init_kwargs, mp_context: Literal["fork", "spawn"]):
         assert mp_context in {"fork", "spawn"}
         ctx = mp.get_context(mp_context)
 
@@ -135,9 +133,7 @@ class ActorProxy:
             with self._futures_lock:
                 for fut in self._futures.values():
                     if not fut.done():
-                        fut.set_exception(
-                            RuntimeError("Actor stopped before completion.")
-                        )
+                        fut.set_exception(RuntimeError("Actor stopped before completion."))
                 self._futures.clear()
         self._task_status[Status.RUNNING] = 0
 
@@ -259,9 +255,7 @@ class Actor:
         return cls
 
 
-def actor(
-    cls, mp_context: Literal["fork", "spawn"] = _DEFAULT_ACTOR_PROCESS_CREATION_METHOD
-):
+def actor(cls, mp_context: Literal["fork", "spawn"] = _DEFAULT_ACTOR_PROCESS_CREATION_METHOD):
     """
     Class decorator that transforms a regular class into an actor-enabled class.
     The decorated class gains a .remote(*args, **kwargs) class method that
@@ -316,14 +310,10 @@ class ActorPoolExecutor(Executor):
     ):
         if max_workers is None:
             max_workers = mp.cpu_count() - 1
-        self._actors: List[ActorProxy] = [
-            TaskActor.remote() for _ in range(max_workers)
-        ]
+        self._actors: List[ActorProxy] = [TaskActor.remote() for _ in range(max_workers)]
         self._actor_index = 0
         self._max_workers = max_workers
-        self._load_balancing_strategy: LoadBalancingStrategy = LoadBalancingStrategy(
-            load_balancing_strategy
-        )
+        self._load_balancing_strategy: LoadBalancingStrategy = LoadBalancingStrategy(load_balancing_strategy)
         self._shutdown_lock = threading.Lock()
         self._futures = []
         self._shutdown = False
@@ -350,9 +340,7 @@ class ActorPoolExecutor(Executor):
                 key=lambda x: x[1],
             )[0]
         else:
-            raise NotImplementedError(
-                f"Unsupported load_balancing_strategy: {self._load_balancing_strategy}"
-            )
+            raise NotImplementedError(f"Unsupported load_balancing_strategy: {self._load_balancing_strategy}")
         future = actor.run_callable.remote(func_bytes, args, kwargs)
         self._remove_completed_futures()
         self._futures.append(future)
@@ -410,9 +398,7 @@ def run_parallel(
         return executor.submit(fn, *args, **kwargs)  ## return a future
     except BrokenProcessPool as e:
         if executor is _GLOBAL_PROCESS_POOL_EXECUTOR:
-            executor = ActorPoolExecutor(
-                max_workers=_GLOBAL_PROCESS_POOL_EXECUTOR_MAX_WORKERS
-            )
+            executor = ActorPoolExecutor(max_workers=_GLOBAL_PROCESS_POOL_EXECUTOR_MAX_WORKERS)
             del _GLOBAL_PROCESS_POOL_EXECUTOR
             _GLOBAL_PROCESS_POOL_EXECUTOR = executor
             return executor.submit(fn, *args, **kwargs)  ## return a future

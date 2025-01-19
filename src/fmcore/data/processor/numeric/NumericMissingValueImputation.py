@@ -1,10 +1,11 @@
 from typing import *
-import pandas as pd
+
 from pandas.core.frame import Series as PandasSeries
+from pydantic import root_validator
+
+from fmcore.constants import MLType
 from fmcore.data.processor import SingleColumnProcessor
 from fmcore.util import AutoEnum, auto, is_null
-from fmcore.constants import MLType
-from pydantic import root_validator
 
 
 class NumericImputationStrategy(AutoEnum):
@@ -29,6 +30,7 @@ class NumericMissingValueImputation(SingleColumnProcessor):
         - MAX: The Maximum value of the series
         - CONSTANT: This allows the user to pass in a fill value where that fill value will be imputed
     """
+
     input_mltypes = [MLType.INT, MLType.FLOAT]
     output_mltype = MLType.FLOAT
     IMPUTE_FN_MAP: ClassVar[Dict[NumericImputationStrategy, Callable]] = {
@@ -47,12 +49,16 @@ class NumericMissingValueImputation(SingleColumnProcessor):
 
     @root_validator(pre=False)
     def set_imputed_value(cls, params: Dict):
-        if params['params'].strategy is NumericImputationStrategy.CONSTANT:
-            if params['params'].fill_value is None:
-                raise ValueError(f'Cannot have empty `fill_value` when `strategy` is {NumericImputationStrategy.CONSTANT}')
-            params['imputed_value'] = params['params'].fill_value
-        elif params['params'].fill_value is not None:
-            raise ValueError(f'`fill_value` can only be passed when strategy={NumericImputationStrategy.CONSTANT}')
+        if params["params"].strategy is NumericImputationStrategy.CONSTANT:
+            if params["params"].fill_value is None:
+                raise ValueError(
+                    f"Cannot have empty `fill_value` when `strategy` is {NumericImputationStrategy.CONSTANT}"
+                )
+            params["imputed_value"] = params["params"].fill_value
+        elif params["params"].fill_value is not None:
+            raise ValueError(
+                f"`fill_value` can only be passed when strategy={NumericImputationStrategy.CONSTANT}"
+            )
         return params
 
     def _fit_series(self, data: PandasSeries):

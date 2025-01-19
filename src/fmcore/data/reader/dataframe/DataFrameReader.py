@@ -1,12 +1,30 @@
 import io
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 from typing import *
 
-from fmcore.constants import Storage, FileContents, DataLayout, Parallelize, MLTypeSchema
+from fmcore.constants import DataLayout, FileContents, MLTypeSchema, Parallelize, Storage
 from fmcore.data.reader.Reader import Reader
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType, ScalableDataFrameOrRaw, DaskDataFrame
-from fmcore.util import Future, Log, accumulate, dispatch, retry as retry_fn, \
-    is_list_like, only_item, get_default, String, Schema, safe_validate_arguments, ProgressBar, Alias
+from fmcore.data.sdf.ScalableDataFrame import (
+    DaskDataFrame,
+    ScalableDataFrame,
+    ScalableDataFrameOrRaw,
+    ScalableDataFrameRawType,
+)
+from fmcore.util import (
+    Alias,
+    Future,
+    Log,
+    ProgressBar,
+    Schema,
+    String,
+    accumulate,
+    dispatch,
+    get_default,
+    is_list_like,
+    only_item,
+    safe_validate_arguments,
+)
+from fmcore.util import retry as retry_fn
 from fmcore.util.language._import import _check_is_dask_installed
 
 
@@ -18,11 +36,12 @@ class DataFrameReader(Reader, ABC):
     - allow_missing_columns: whether to write even if columns from data_schema are missing in the DataFrame.
     - parallelize: how to parallelize when writing multiple files.
     """
+
     file_contents = [
         FileContents.DATAFRAME,
         FileContents.ALGORITHM_TRAIN_DATASET,
         FileContents.ALGORITHM_INFERENCE_DATASET,
-        FileContents.ALGORITHM_PREDICTIONS_DATASET
+        FileContents.ALGORITHM_PREDICTIONS_DATASET,
     ]
     streams = [io.TextIOBase]
 
@@ -41,16 +60,16 @@ class DataFrameReader(Reader, ABC):
 
     @safe_validate_arguments
     def _read_stream(
-            self,
-            stream: io.IOBase,
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            raw: bool = False,
-            read_as: Optional[DataLayout] = None,
-            **kwargs,
+        self,
+        stream: io.IOBase,
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        raw: bool = False,
+        read_as: Optional[DataLayout] = None,
+        **kwargs,
     ) -> ScalableDataFrameOrRaw:
         if read_as not in {None, DataLayout.PANDAS}:
-            raise IOError(f'Cannot read from stream as {read_as}')
+            raise IOError(f"Cannot read from stream as {read_as}")
         raw_sdf: ScalableDataFrameRawType = self._read_raw_sdf_with_retries(
             source=stream,
             storage=Storage.STREAM,
@@ -62,16 +81,16 @@ class DataFrameReader(Reader, ABC):
 
     @safe_validate_arguments
     def _read_url(
-            self,
-            url: str,
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            raw: bool = False,
-            read_as: Optional[DataLayout] = None,
-            **kwargs,
+        self,
+        url: str,
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        raw: bool = False,
+        read_as: Optional[DataLayout] = None,
+        **kwargs,
     ) -> ScalableDataFrameOrRaw:
         if read_as not in {None, DataLayout.PANDAS}:
-            raise IOError(f'Cannot read from stream as {read_as}')
+            raise IOError(f"Cannot read from stream as {read_as}")
         raw_sdf: ScalableDataFrameRawType = self._read_raw_sdf_with_retries(
             source=url,
             storage=Storage.URL,
@@ -83,13 +102,13 @@ class DataFrameReader(Reader, ABC):
 
     @safe_validate_arguments
     def _read_local(
-            self,
-            local_path: Union[str, List[str]],
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            raw: bool = False,
-            read_as: Optional[DataLayout] = None,
-            **kwargs
+        self,
+        local_path: Union[str, List[str]],
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        raw: bool = False,
+        read_as: Optional[DataLayout] = None,
+        **kwargs,
     ) -> ScalableDataFrameOrRaw:
         if not is_list_like(local_path):
             ## Path is a file:
@@ -113,13 +132,13 @@ class DataFrameReader(Reader, ABC):
 
     @safe_validate_arguments
     def _read_s3(
-            self,
-            s3_path: Union[str, List[str]],
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            raw: bool = False,
-            read_as: Optional[DataLayout] = None,
-            **kwargs
+        self,
+        s3_path: Union[str, List[str]],
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        raw: bool = False,
+        read_as: Optional[DataLayout] = None,
+        **kwargs,
     ) -> ScalableDataFrameOrRaw:
         if not is_list_like(s3_path):
             ## Path is a file:
@@ -142,13 +161,13 @@ class DataFrameReader(Reader, ABC):
         return self._postprocess(raw_sdf, data_schema=data_schema, raw=raw, read_as=read_as, **kwargs)
 
     def _postprocess(
-            self,
-            data: ScalableDataFrameOrRaw,
-            raw: bool,
-            read_as: Optional[DataLayout],
-            data_schema: Optional[MLTypeSchema] = None,
-            persist: bool = False,
-            **kwargs,
+        self,
+        data: ScalableDataFrameOrRaw,
+        raw: bool,
+        read_as: Optional[DataLayout],
+        data_schema: Optional[MLTypeSchema] = None,
+        persist: bool = False,
+        **kwargs,
     ) -> ScalableDataFrameOrRaw:
         data: ScalableDataFrame = ScalableDataFrame.of(data, layout=read_as, **kwargs)
         if persist:
@@ -166,12 +185,12 @@ class DataFrameReader(Reader, ABC):
         return data
 
     def _read_raw_sdf_single(
-            self,
-            source: Union[io.IOBase, str],
-            storage: Storage,
-            data_schema: Optional[MLTypeSchema],
-            read_as: Optional[DataLayout],
-            **kwargs
+        self,
+        source: Union[io.IOBase, str],
+        storage: Storage,
+        data_schema: Optional[MLTypeSchema],
+        read_as: Optional[DataLayout],
+        **kwargs,
     ) -> ScalableDataFrameRawType:
         if read_as is DataLayout.DASK:
             ## `source` here could be a filepath (local or remote), or a stream.
@@ -185,20 +204,16 @@ class DataFrameReader(Reader, ABC):
         else:
             ## `source` here could be a filepath (local or remote), or a stream.
             return self._read_raw_sdf_with_retries(
-                source=source,
-                storage=storage,
-                data_schema=data_schema,
-                read_as=read_as,
-                **kwargs
+                source=source, storage=storage, data_schema=data_schema, read_as=read_as, **kwargs
             )
 
     def _read_raw_sdf_multi(
-            self,
-            source: List[str],
-            storage: Storage,
-            data_schema: Optional[MLTypeSchema],
-            read_as: Optional[DataLayout],
-            **kwargs
+        self,
+        source: List[str],
+        storage: Storage,
+        data_schema: Optional[MLTypeSchema],
+        read_as: Optional[DataLayout],
+        **kwargs,
     ) -> ScalableDataFrameOrRaw:
         if read_as is DataLayout.DASK:
             ## `source` here is a list of filepaths (local or remote).
@@ -212,33 +227,29 @@ class DataFrameReader(Reader, ABC):
         else:
             ## `source` here is a list of filepaths (local or remote).
             return self._read_raw_sdf_multi_in_memory(
-                source=source,
-                storage=storage,
-                data_schema=data_schema,
-                read_as=read_as,
-                **kwargs
+                source=source, storage=storage, data_schema=data_schema, read_as=read_as, **kwargs
             )
 
     @safe_validate_arguments
     def _read_raw_sdf_multi_in_memory(
-            self,
-            source: List[str],
-            storage: Storage,
-            data_schema: Optional[MLTypeSchema],
-            read_as: Optional[DataLayout],
-            **kwargs,
+        self,
+        source: List[str],
+        storage: Storage,
+        data_schema: Optional[MLTypeSchema],
+        read_as: Optional[DataLayout],
+        **kwargs,
     ) -> ScalableDataFrame:
         progress_bar: Optional[Dict] = Alias.get_progress_bar(kwargs)
         read_progress_bar: ProgressBar = ProgressBar.of(
             progress_bar,
             total=len(source),
-            desc=f'Read 0 row(s)',
-            unit='file',
+            desc="Read 0 row(s)",
+            unit="file",
         )
 
         raw_sdf_chunks: Dict[str, Union[Future, ScalableDataFrameRawType]] = {}
         for file_path in source:
-            kwargs['parallelize'] = self.parallelize
+            kwargs["parallelize"] = self.parallelize
             raw_sdf_chunks[file_path] = dispatch(
                 self._read_raw_sdf_with_retries,
                 source=file_path,
@@ -257,37 +268,41 @@ class DataFrameReader(Reader, ABC):
                 if isinstance(raw_sdf_chunk, dict):
                     col_lens: Dict[Any, int] = {col: len(col_arr) for col, col_arr in raw_sdf_chunk.items()}
                     if len(set(col_lens.values())) > 1:
-                        raise ValueError(f'Columns are not of equal length; found following lengths: {col_lens}')
+                        raise ValueError(
+                            f"Columns are not of equal length; found following lengths: {col_lens}"
+                        )
                     raw_sdf_chunk_len: int = only_item(set(col_lens.values()))
                 else:
                     raw_sdf_chunk_len: int = len(raw_sdf_chunk)
                 raw_sdf_chunks_num_rows_read += raw_sdf_chunk_len
                 read_progress_bar.update(1)  ## Increment number of files
-                read_progress_bar.set_description(f'Read {raw_sdf_chunks_num_rows_read} row(s)')
+                read_progress_bar.set_description(f"Read {raw_sdf_chunks_num_rows_read} row(s)")
                 raw_sdf_chunks_list.append(raw_sdf_chunk)
             except Exception as e:
                 Log.error(
                     f'Error reading from file "{file_path}":\n'
-                    f'{String.format_exception_msg(e, short=False)}\n'
-                    f'Kwargs used: {kwargs}'
+                    f"{String.format_exception_msg(e, short=False)}\n"
+                    f"Kwargs used: {kwargs}"
                 )
                 failed_read_file_paths.append(file_path)
         if len(failed_read_file_paths) > 0:
-            read_progress_bar.failed(f'{len(failed_read_file_paths)} of {len(source)} failed to read')
-            raise IOError(f'Could not read DataFrame from the following paths:\n{sorted(list(failed_read_file_paths))}')
+            read_progress_bar.failed(f"{len(failed_read_file_paths)} of {len(source)} failed to read")
+            raise IOError(
+                f"Could not read DataFrame from the following paths:\n{sorted(list(failed_read_file_paths))}"
+            )
         else:
             read_progress_bar.success()
         return ScalableDataFrame.concat(raw_sdf_chunks_list, reset_index=True, layout=read_as)
 
     def _read_raw_sdf_with_retries(
-            self,
-            source: Union[str, io.IOBase],
-            storage: Storage,
-            data_schema: Optional[MLTypeSchema],
-            read_as: Optional[DataLayout],
-            retry: Optional[float] = None,
-            retry_wait: Optional[float] = None,
-            **kwargs
+        self,
+        source: Union[str, io.IOBase],
+        storage: Storage,
+        data_schema: Optional[MLTypeSchema],
+        read_as: Optional[DataLayout],
+        retry: Optional[float] = None,
+        retry_wait: Optional[float] = None,
+        **kwargs,
     ) -> ScalableDataFrameRawType:
         return retry_fn(
             self._read_raw_sdf,
@@ -302,23 +317,23 @@ class DataFrameReader(Reader, ABC):
 
     @abstractmethod
     def _read_raw_sdf(
-            self,
-            source: Union[str, io.IOBase],
-            storage: Storage,
-            data_schema: Optional[MLTypeSchema],
-            read_as: Optional[DataLayout],
-            **kwargs
+        self,
+        source: Union[str, io.IOBase],
+        storage: Storage,
+        data_schema: Optional[MLTypeSchema],
+        read_as: Optional[DataLayout],
+        **kwargs,
     ) -> ScalableDataFrameRawType:
         pass
 
     def _read_raw_dask_sdf_with_retries(
-            self,
-            source: Union[List[str], str, io.IOBase],
-            storage: Storage,
-            data_schema: Optional[MLTypeSchema],
-            retry: Optional[float] = None,
-            retry_wait: Optional[float] = None,
-            **kwargs
+        self,
+        source: Union[List[str], str, io.IOBase],
+        storage: Storage,
+        data_schema: Optional[MLTypeSchema],
+        retry: Optional[float] = None,
+        retry_wait: Optional[float] = None,
+        **kwargs,
     ) -> DaskDataFrame:
         _check_is_dask_installed()
         return retry_fn(
@@ -333,10 +348,10 @@ class DataFrameReader(Reader, ABC):
 
     @abstractmethod
     def _read_raw_dask_sdf(
-            self,
-            source: Union[List[str], str, io.IOBase],
-            storage: Storage,
-            data_schema: Optional[MLTypeSchema],
-            **kwargs
+        self,
+        source: Union[List[str], str, io.IOBase],
+        storage: Storage,
+        data_schema: Optional[MLTypeSchema],
+        **kwargs,
     ) -> DaskDataFrame:
         pass

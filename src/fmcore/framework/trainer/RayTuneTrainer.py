@@ -8,34 +8,56 @@ from typing import *
 
 import numpy as np
 import pandas as pd
-from pydantic import conint, confloat, root_validator, Extra
+from pydantic import Extra, confloat, conint, root_validator
 from pydantic.typing import Literal
 
 from fmcore.constants import DataLayout
 from fmcore.data import FileMetadata
 from fmcore.framework.algorithm import Algorithm
 from fmcore.framework.dl.torch import PyTorch
-from fmcore.framework.metric import Metric, TabularMetric, PercentageMetric, CountingMetric, Metrics, metric_stats_str
-from fmcore.framework.task_data import DataSplit, Datasets, Dataset
+from fmcore.framework.metric import (
+    CountingMetric,
+    Metric,
+    Metrics,
+    PercentageMetric,
+    TabularMetric,
+    metric_stats_str,
+)
+from fmcore.framework.task_data import Dataset, Datasets, DataSplit
 from fmcore.framework.tracker.Tracker import Tracker
-from fmcore.framework.trainer.Trainer import Trainer, KFold
-from fmcore.util import RayInitConfig
-from fmcore.util import set_param_from_alias, MappedParameters, append_to_keys, \
-    parameterized_flatten, FileSystemUtil, get_default, all_are_not_none, safe_validate_arguments, Log, \
-    pd_partial_column_order, Timer, String, retry, any_are_not_none, is_null, type_str
+from fmcore.framework.trainer.Trainer import KFold, Trainer
+from fmcore.util import (
+    FileSystemUtil,
+    Log,
+    MappedParameters,
+    RayInitConfig,
+    String,
+    Timer,
+    all_are_not_none,
+    any_are_not_none,
+    append_to_keys,
+    get_default,
+    is_null,
+    parameterized_flatten,
+    pd_partial_column_order,
+    retry,
+    safe_validate_arguments,
+    set_param_from_alias,
+    type_str,
+)
 from fmcore.util.language._import import _IS_RAY_INSTALLED, _IS_TORCH_INSTALLED
 
 RayTuneTrainer = "RayTuneTrainer"
-_RAY_TRIAL_ID: str = 'trial_id'
-_RAY_EXPERIMENT_ID: str = 'experiment_id'
-_RAY_KFOLD_CURRENT_FOLD_NAME: str = 'current_fold_name'
-_RAY_EPOCH_NUM: str = 'epoch_num'
-_RAY_STEPS_COMPLETED: str = 'steps_completed'
-_RAY_EST_TIME_REMAINING: str = 'est_time_remaining'
-_RAY_TRAINING_ITERATION: str = 'training_iteration'
-_RAY_HYPERPARAMS_STR: str = 'hyperparams_str'
-_RAY_HYPERPARAMS: str = 'hyperparams'
-_RAY_METRIC_IS_DATAFRAME_PREFIX: str = 'RAY_METRIC_DATAFRAME::'
+_RAY_TRIAL_ID: str = "trial_id"
+_RAY_EXPERIMENT_ID: str = "experiment_id"
+_RAY_KFOLD_CURRENT_FOLD_NAME: str = "current_fold_name"
+_RAY_EPOCH_NUM: str = "epoch_num"
+_RAY_STEPS_COMPLETED: str = "steps_completed"
+_RAY_EST_TIME_REMAINING: str = "est_time_remaining"
+_RAY_TRAINING_ITERATION: str = "training_iteration"
+_RAY_HYPERPARAMS_STR: str = "hyperparams_str"
+_RAY_HYPERPARAMS: str = "hyperparams"
+_RAY_METRIC_IS_DATAFRAME_PREFIX: str = "RAY_METRIC_DATAFRAME::"
 
 
 class RayTuneTrainerError(Exception):
@@ -51,13 +73,13 @@ class RayTuneTrainerFinalModelsError(Exception):
 
 
 def _ray_metric_str(data_split: DataSplit, metric: Metric) -> str:
-    return f'{data_split.capitalize()}/{metric.display_name}'
+    return f"{data_split.capitalize()}/{metric.display_name}"
 
 
 def _ray_col_detect_data_split(col: str) -> Optional[DataSplit]:
     ## Returns None if it is not a metric column name, otherwise returns the data-split.
     for data_split in list(DataSplit):
-        if col.startswith(f'{data_split.capitalize()}/'):
+        if col.startswith(f"{data_split.capitalize()}/"):
             return data_split
     return None
 
@@ -69,7 +91,7 @@ def _ray_col_is_metric(col: str) -> bool:
 def _ray_put_metric_value(metric: Metric) -> Any:
     if isinstance(metric, TabularMetric):
         assert isinstance(metric.value, pd.DataFrame)
-        return _RAY_METRIC_IS_DATAFRAME_PREFIX + metric.value.to_json(orient='records')
+        return _RAY_METRIC_IS_DATAFRAME_PREFIX + metric.value.to_json(orient="records")
     value: Any = metric.value
     if isinstance(value, (int, float, str)) or np.issubdtype(type(value), np.number):
         return value
@@ -87,7 +109,7 @@ def _ray_get_metric_value(value: Optional[Any]) -> Optional[Any]:
     if isinstance(value, (int, float, str)) or np.issubdtype(type(value), np.number):
         return value
     if not isinstance(value, io.BytesIO):
-        raise ValueError(f'Expected metric value to be of type BytesIO, found type: {type_str(value)}')
+        raise ValueError(f"Expected metric value to be of type BytesIO, found type: {type_str(value)}")
     value.seek(0)
     return pickle.load(value)
 
@@ -100,16 +122,16 @@ def _ray_convert_metrics_dataframe(metrics_dataframe: pd.DataFrame) -> pd.DataFr
 
 
 def _ray_logger(text: str, verbosity: int, logging_fn: Callable, prefix: Optional[str] = None):
-    prefix: str = get_default(prefix, '')
-    text: str = f'{prefix}{text}'
+    prefix: str = get_default(prefix, "")
+    text: str = f"{prefix}{text}"
     if verbosity == 0:  ## Don't log anything.
         return
     logging_fn(text)
 
 
 def _ray_agg_final_model_metric_stats(
-        trialwise_final_model_metrics: Dict[str, Metrics],
-        data_split: DataSplit,
+    trialwise_final_model_metrics: Dict[str, Metrics],
+    data_split: DataSplit,
 ) -> Dict[str, Dict[str, Union[int, float]]]:
     student_metrics: Dict[str, Dict[str, Any]] = {}
     for trial_id, trial_metrics in trialwise_final_model_metrics.items():
@@ -117,34 +139,33 @@ def _ray_agg_final_model_metric_stats(
             assert isinstance(student_metric, Metric)
             student_metric_name: str = student_metric.display_name
             student_metrics.setdefault(student_metric_name, {})
-            student_metrics[student_metric_name].setdefault('values', [])
-            student_metrics[student_metric_name]['values'].append(student_metric.value)
-            student_metrics[student_metric_name].setdefault('metric_class', None)
-            if student_metrics[student_metric_name]['metric_class'] is None:
-                student_metrics[student_metric_name]['metric_class'] = type(student_metric)
+            student_metrics[student_metric_name].setdefault("values", [])
+            student_metrics[student_metric_name]["values"].append(student_metric.value)
+            student_metrics[student_metric_name].setdefault("metric_class", None)
+            if student_metrics[student_metric_name]["metric_class"] is None:
+                student_metrics[student_metric_name]["metric_class"] = type(student_metric)
             else:
-                assert student_metrics[student_metric_name]['metric_class'] == type(student_metric)
+                assert student_metrics[student_metric_name]["metric_class"] == type(student_metric)
     student_metrics_stats: Dict[str, Dict[str, Union[int, float]]] = {}
     for student_metric_name, student_metric_d in student_metrics.items():
-        if issubclass(student_metric_d['metric_class'], (PercentageMetric, CountingMetric)):
+        if issubclass(student_metric_d["metric_class"], (PercentageMetric, CountingMetric)):
             student_metrics_stats.setdefault(student_metric_name, {})
-            vals: pd.Series = pd.Series(student_metric_d['values'])
-            student_metrics_stats[student_metric_name]['mean'] = vals.mean()
-            student_metrics_stats[student_metric_name]['std'] = vals.std()
-            student_metrics_stats[student_metric_name]['mean+std'] = vals.mean() + vals.std()
-            student_metrics_stats[student_metric_name]['mean-std'] = vals.mean() - vals.std()
-            student_metrics_stats[student_metric_name]['min'] = vals.min()
-            student_metrics_stats[student_metric_name]['max'] = vals.max()
-            student_metrics_stats[student_metric_name]['median'] = vals.median()
-            student_metrics_stats[student_metric_name]['count'] = len(vals)
+            vals: pd.Series = pd.Series(student_metric_d["values"])
+            student_metrics_stats[student_metric_name]["mean"] = vals.mean()
+            student_metrics_stats[student_metric_name]["std"] = vals.std()
+            student_metrics_stats[student_metric_name]["mean+std"] = vals.mean() + vals.std()
+            student_metrics_stats[student_metric_name]["mean-std"] = vals.mean() - vals.std()
+            student_metrics_stats[student_metric_name]["min"] = vals.min()
+            student_metrics_stats[student_metric_name]["max"] = vals.max()
+            student_metrics_stats[student_metric_name]["median"] = vals.median()
+            student_metrics_stats[student_metric_name]["count"] = len(vals)
     return student_metrics_stats
 
 
 if _IS_RAY_INSTALLED:
     import ray
-    from ray import tune, air
-    from ray.tune.search import SEARCH_ALG_IMPORT, Searcher, Repeater
-
+    from ray import air, tune
+    from ray.tune.search import SEARCH_ALG_IMPORT, Repeater, Searcher
 
     ## Overview of what happens when you call tuner.fit():
     ## https://docs.ray.io/en/latest/tune/tutorials/tune-lifecycle.html#the-execution-of-a-trainable
@@ -219,72 +240,53 @@ if _IS_RAY_INSTALLED:
 
     class HyperparameterSearchSpace(MappedParameters):
         _mapping = append_to_keys(
-            prefix='tune.',
+            prefix="tune.",
             d={
                 ## Ref: https://docs.ray.io/en/latest/tune/api_docs/search_space.html
                 ## uniform(-5, -1) => Sample a float uniformly between -5.0 and -1.0
                 "uniform": tune.uniform,
-
                 ## quniform(3.2, 5.4, q=0.2) -> Sample a float uniformly between 3.2 and 5.4, rounding to multiples of 0.2
                 "quniform": tune.quniform,
-
                 ## loguniform(1e-4, 1e-2) -> Sample a float uniformly between 0.0001 and 0.01, while sampling in log space
                 "loguniform": tune.loguniform,
-
                 ## qloguniform(1e-4, 1e-1, q=5e-5, base=10) -> Sample a float uniformly between 0.0001 and 0.1, while
                 ## sampling in base-10 log space and rounding to multiples of 0.00005
                 "qloguniform": tune.qloguniform,
-
                 ## randn(10, 2) -> Sample a random float from a normal distribution with mean=10 and sd=2
                 "randn": tune.randn,
-
                 ## qrandn(10, 2, q=0.2) -> Sample a random float from a normal distribution with mean=10 and sd=2, rounding
                 ## to multiples of 0.2
                 "qrandn": tune.qrandn,
-
                 ## tune.randint(-9, 15) -> Sample an integer uniformly between -9 (inclusive) and 15 (exclusive)
                 "randint": tune.randint,
-
                 ## qrandint(-21, 12, q=3) -> Sample a random uniformly between -21 (inclusive) and 12 (inclusive (!))
                 ## rounding to multiples of 3 (includes 12).
                 ## If q=1, then randint is called instead with the upper bound exclusive
                 "qrandint": tune.qrandint,
-
                 ## lograndint(1, 10, base=10) -> Sample an integer uniformly between 1 (inclusive) and 10 (exclusive), while
                 ## sampling in base-10 log space
                 "lograndint": tune.lograndint,
-
                 ## qlograndint(1, 10, q=2, base=10) -> Sample an integer uniformly between 1 (inclusive)
                 ## and 10 (inclusive (!)), while sampling in base-10 log space and rounding to multiples of 2.
                 ## If q is 1, then lograndint is called instead with the upper bound exclusive.
                 "qlograndint": tune.qlograndint,
-
                 ## choice(["a", "b", "c"]) -> Sample an option uniformly from the specified choices.
                 "choice": tune.choice,
-
                 ## NOTE: `tune.grid_search` has the following weird behavior with num_samples:
                 ##      `tune.grid_search`: Every value will be sampled ``num_samples`` times (``num_samples`` is the
                 ##                          parameter you pass to ``tune.TuneConfig`` in ``Tuner``)
                 ##      For this reason, if `tune.grid_search` is passed, we check that num_samples=1
                 ##      and all other search spaces are also `tune.grid_search`.
                 "grid_search": tune.grid_search,
-
                 ## NOTE: we do not support `tune.sample_from` since it would require defining functions
-            }
+            },
         )
-
 
     class SearchAlgorithm(MappedParameters):
         _mapping = {
-            **{
-                k: importer()
-                for k, importer in SEARCH_ALG_IMPORT.items()
-            },
-            **{
-                'grid': SEARCH_ALG_IMPORT['variant_generator']()
-            }
+            **{k: importer() for k, importer in SEARCH_ALG_IMPORT.items()},
+            **{"grid": SEARCH_ALG_IMPORT["variant_generator"]()},
         }
-
 
     class MaximumStepsStopper(tune.stopper.Stopper):
         """Stop trials after reaching a maximum number of steps.
@@ -305,7 +307,6 @@ if _IS_RAY_INSTALLED:
         def stop_all(self):
             return False
 
-
     class AlgorithmTrainable(tune.Trainable):
         """
         Ray Trainable for a single instance of Algorithm.
@@ -324,15 +325,15 @@ if _IS_RAY_INSTALLED:
         """
 
         def setup(
-                self,
-                config: Dict,
-                ray_tune_trainer: Dict,
-                AlgorithmClass: str,
-                datasets: Dict,
-                metrics: Optional[Dict],
-                k_fold: Dict,
-                save_model: Optional[Dict],
-                **kwargs
+            self,
+            config: Dict,
+            ray_tune_trainer: Dict,
+            AlgorithmClass: str,
+            datasets: Dict,
+            metrics: Optional[Dict],
+            k_fold: Dict,
+            save_model: Optional[Dict],
+            **kwargs,
         ):
             self.timer: Timer = Timer(silent=True)
             self.k_fold: KFold = KFold(**k_fold)
@@ -341,9 +342,11 @@ if _IS_RAY_INSTALLED:
             self.ray_tune_trainer: RayTuneTrainer = RayTuneTrainer(**ray_tune_trainer)
             self.trainable_logger: Callable = partial(
                 _ray_logger,
-                verbosity=1 if self.ray_tune_trainer.verbosity >= 2 else 0,  ## Only log when asking for detailed logging.
+                verbosity=1
+                if self.ray_tune_trainer.verbosity >= 2
+                else 0,  ## Only log when asking for detailed logging.
                 logging_fn=print,
-                prefix=f'(trial_id={self.trial_id}) ',
+                prefix=f"(trial_id={self.trial_id}) ",
             )
             ## Register custom user-defined classes on the Ray Actor which will be used to train the model.
             for custom_fn in self.ray_tune_trainer.custom_definitions:
@@ -355,14 +358,14 @@ if _IS_RAY_INSTALLED:
             except Exception as e:
                 raise ValueError(
                     f'Could not fetch Algorithm class using key "{str(AlgorithmClass)}" using Algorithm Registry having '
-                    f'following classes:\n{Algorithm.subclasses()}\nError encountered:\n{String.format_exception_msg(e)}'
+                    f"following classes:\n{Algorithm.subclasses()}\nError encountered:\n{String.format_exception_msg(e)}"
                 )
             try:
                 self.hyperparams: Algorithm.Hyperparameters = AlgorithmClass.Hyperparameters(**config)
             except Exception as e:
                 raise ValueError(
                     f'Could not create Hyperparameters instance for Algorithm "{str(self.AlgorithmClass)}" '
-                    f'using following config:\n{config}\nError encountered:\n{String.format_exception_msg(e)}'
+                    f"using following config:\n{config}\nError encountered:\n{String.format_exception_msg(e)}"
                 )
 
             self.epochs: Optional[int] = None
@@ -377,7 +380,7 @@ if _IS_RAY_INSTALLED:
                 ## Will start from 1 & metric_eval_frequency on first call to the `step` function:
                 self.step_range: Tuple[int, int] = (1 - self.ray_tune_trainer.metric_eval_frequency, 0)
             else:
-                raise ValueError(f'Either `epochs` or `steps` hyperparams must be non-None')
+                raise ValueError("Either `epochs` or `steps` hyperparams must be non-None")
             # datasets['datasets']: Dict[DataSplit, Dataset] = {
             #     DataSplit(data_split): Dataset.of(
             #         data=FileMetadata(**dataset['data']),
@@ -387,7 +390,9 @@ if _IS_RAY_INSTALLED:
             # }
             self.datasets: Datasets = Datasets(**datasets)
             self.metrics: Optional[Metrics] = None if metrics is None else Metrics(**metrics)
-            self.save_model: Optional[FileMetadata] = None if save_model is None else FileMetadata(**save_model)
+            self.save_model: Optional[FileMetadata] = (
+                None if save_model is None else FileMetadata(**save_model)
+            )
             self.last_saved_model_dir: Optional[FileMetadata] = None
             self.kwargs: Dict = kwargs
 
@@ -396,15 +401,17 @@ if _IS_RAY_INSTALLED:
                 batch_size=self.ray_tune_trainer.stats_batch_size,
                 data_split=DataSplit.TRAIN,
             )
-            train_dataset_length: Metric = train_stats.find(data_split=DataSplit.TRAIN, select='row_count')
+            train_dataset_length: Metric = train_stats.find(data_split=DataSplit.TRAIN, select="row_count")
             self.train_dataset_length: int = train_dataset_length.value
-            self.model: Algorithm = Algorithm.of(**{
-                'name': self.AlgorithmClass,
-                'task': self.ray_tune_trainer.task,
-                'hyperparams': self.hyperparams,
-                'stats': train_stats,
-                **self.kwargs,
-            })
+            self.model: Algorithm = Algorithm.of(
+                **{
+                    "name": self.AlgorithmClass,
+                    "task": self.ray_tune_trainer.task,
+                    "hyperparams": self.hyperparams,
+                    "stats": train_stats,
+                    **self.kwargs,
+                }
+            )
 
         def update_iter_count(self):
             if not self.timer.has_started:
@@ -414,13 +421,11 @@ if _IS_RAY_INSTALLED:
             elif self.steps is not None:
                 self.step_range: Tuple[int, int] = (
                     min(  ## E.g. 1
-                        self.step_range[0] + self.ray_tune_trainer.metric_eval_frequency,
-                        self.steps
+                        self.step_range[0] + self.ray_tune_trainer.metric_eval_frequency, self.steps
                     ),
                     min(  ## E.g. 10 when metric_eval_frequency=10
-                        self.step_range[1] + self.ray_tune_trainer.metric_eval_frequency,
-                        self.steps
-                    )
+                        self.step_range[1] + self.ray_tune_trainer.metric_eval_frequency, self.steps
+                    ),
                 )
 
         def cur_iter_str(self) -> str:
@@ -436,7 +441,7 @@ if _IS_RAY_INSTALLED:
                     steps=self.steps,
                     steps_increment=self.ray_tune_trainer.metric_eval_frequency,
                 )
-            raise ValueError(f'Either `epochs` or `steps` should be non-None')
+            raise ValueError("Either `epochs` or `steps` should be non-None")
 
         def step(self):
             ## Here, one "step" is an epoch over the dataset, after which we might return various metrics.
@@ -446,9 +451,14 @@ if _IS_RAY_INSTALLED:
             iter_timer: Timer = Timer(silent=True)
             iter_timer.start()
 
-            train_dataset, train_metrics, \
-            validation_dataset, validation_metrics, \
-            test_dataset, test_metrics = self.ray_tune_trainer._extract_datasets_and_metrics(
+            (
+                train_dataset,
+                train_metrics,
+                validation_dataset,
+                validation_metrics,
+                test_dataset,
+                test_metrics,
+            ) = self.ray_tune_trainer._extract_datasets_and_metrics(
                 datasets=self.datasets,
                 metrics=self.metrics,
             )
@@ -458,34 +468,36 @@ if _IS_RAY_INSTALLED:
                 validation_dataset: Dataset = train_dataset
                 ## For the train split of k-fold, use the k_fold seed for sharding, and the regular seed for shuffling
                 ## within a shard. We use reverse-sharding to pick pieces NOT in the validation split:
-                train_kfold_kwargs['shard'] = self.shard
-                train_kfold_kwargs['reverse_sharding'] = True
+                train_kfold_kwargs["shard"] = self.shard
+                train_kfold_kwargs["reverse_sharding"] = True
                 ## Always shuffle shards. This ensures we get consistent train-val splits for both
                 ## training and metric-calculation:
-                train_kfold_kwargs['shard_shuffle'] = True
-                train_kfold_kwargs['shard_seed'] = self.k_fold.seed  ## Always set.
-                train_kfold_kwargs['seed'] = self.ray_tune_trainer.seed
+                train_kfold_kwargs["shard_shuffle"] = True
+                train_kfold_kwargs["shard_seed"] = self.k_fold.seed  ## Always set.
+                train_kfold_kwargs["seed"] = self.ray_tune_trainer.seed
                 ## For the validation split of k-fold, use the k_fold seed for sharding, and the regular seed for shuffling
                 ## within a shard:
-                validation_kfold_kwargs['shard'] = self.shard
-                validation_kfold_kwargs['reverse_sharding'] = False
+                validation_kfold_kwargs["shard"] = self.shard
+                validation_kfold_kwargs["reverse_sharding"] = False
                 ## Always shuffle shards. This ensures we get consistent train-val splits for both
                 ## training and metric-calculation:
-                validation_kfold_kwargs['shard_shuffle'] = True
-                validation_kfold_kwargs['shard_seed'] = self.k_fold.seed  ## Always set.
-                validation_kfold_kwargs['seed'] = self.ray_tune_trainer.seed
+                validation_kfold_kwargs["shard_shuffle"] = True
+                validation_kfold_kwargs["shard_seed"] = self.k_fold.seed  ## Always set.
+                validation_kfold_kwargs["seed"] = self.ray_tune_trainer.seed
                 # self.trainable_logger(
                 #     f'Epoch: {self.epoch_num}, '
                 #     f'\ntrain_kfold_kwargs: {train_kfold_kwargs}'
                 #     f'\nvalidation_kfold_kwargs: {validation_kfold_kwargs}'
                 # )
             cur_iter_str: str = self.cur_iter_str()
-            self.trainable_logger(f'>> Running {cur_iter_str}...')
+            self.trainable_logger(f">> Running {cur_iter_str}...")
 
             ## Run training phase:
             training_timer: Timer = Timer(silent=True)
             training_timer.start()
-            step_num: Optional[int] = self.step_range[0] if self.steps is not None else None  ## Starting step num
+            step_num: Optional[int] = (
+                self.step_range[0] if self.steps is not None else None
+            )  ## Starting step num
             self.ray_tune_trainer._train_loop(
                 model=self.model,
                 train_dataset=train_dataset,
@@ -502,12 +514,14 @@ if _IS_RAY_INSTALLED:
                 ),
             )
             training_timer.stop()
-            self.trainable_logger(f'...training phase of {cur_iter_str} took {training_timer.time_taken_str}.')
+            self.trainable_logger(
+                f"...training phase of {cur_iter_str} took {training_timer.time_taken_str}."
+            )
 
             ## Run metric-evaluation phase:
             metric_eval_timer: Timer = Timer(silent=True)
             metric_eval_timer.start()
-            self.trainable_logger('Train metrics:')
+            self.trainable_logger("Train metrics:")
             train_metrics_evaluated: Optional[List[Metric]] = self.ray_tune_trainer._evaluate_metrics(
                 model=self.model,
                 dataset=train_dataset,
@@ -519,7 +533,7 @@ if _IS_RAY_INSTALLED:
                     **train_kfold_kwargs,
                 ),
             )
-            self.trainable_logger('Validation metrics:')
+            self.trainable_logger("Validation metrics:")
             validation_metrics_evaluated: Optional[List[Metric]] = self.ray_tune_trainer._evaluate_metrics(
                 model=self.model,
                 dataset=validation_dataset,
@@ -532,13 +546,16 @@ if _IS_RAY_INSTALLED:
                 ),
             )
             test_metrics_evaluated: Optional[List[Metric]] = None
-            if self.ray_tune_trainer.is_final_iter(
+            if (
+                self.ray_tune_trainer.is_final_iter(
                     epoch_num=self.epoch_num,
                     epochs=self.epochs,
                     step_num=step_num,
                     steps=self.steps,
                     steps_increment=self.ray_tune_trainer.metric_eval_frequency,
-            ) or self.ray_tune_trainer.evaluate_test_metrics == 'each_iter':
+                )
+                or self.ray_tune_trainer.evaluate_test_metrics == "each_iter"
+            ):
                 test_metrics_evaluated: Optional[List[Metric]] = self.ray_tune_trainer._evaluate_metrics(
                     model=self.model,
                     dataset=test_dataset,
@@ -549,8 +566,12 @@ if _IS_RAY_INSTALLED:
                     **self.kwargs,
                 )
             metric_eval_timer.stop()
-            if any_are_not_none(train_metrics_evaluated, validation_metrics_evaluated, test_metrics_evaluated):
-                self.trainable_logger(f'...evaluation phase of {cur_iter_str} took {metric_eval_timer.time_taken_str}.')
+            if any_are_not_none(
+                train_metrics_evaluated, validation_metrics_evaluated, test_metrics_evaluated
+            ):
+                self.trainable_logger(
+                    f"...evaluation phase of {cur_iter_str} took {metric_eval_timer.time_taken_str}."
+                )
 
             ## Increment epochs or steps:
             if self.epochs is not None:
@@ -564,11 +585,11 @@ if _IS_RAY_INSTALLED:
                 steps_speed: float = steps_completed / self.timer.time_taken_sec
                 est_time_remaining: float = steps_remaining / steps_speed
             else:
-                raise ValueError(f'Either `epochs` or `steps` should be non-None')
+                raise ValueError("Either `epochs` or `steps` should be non-None")
 
             iter_timer.stop()
-            self.trainable_logger(f'...{cur_iter_str} took {iter_timer.time_taken_str}.')
-            self.trainable_logger('')
+            self.trainable_logger(f"...{cur_iter_str} took {iter_timer.time_taken_str}.")
+            self.trainable_logger("")
             return {
                 **{
                     _ray_metric_str(
@@ -594,7 +615,9 @@ if _IS_RAY_INSTALLED:
                 **{
                     _RAY_EPOCH_NUM: self.epoch_num,
                     _RAY_STEPS_COMPLETED: None if self.steps is None else self.step_range[1],
-                    _RAY_EST_TIME_REMAINING: String.readable_seconds(est_time_remaining, short=True, decimals=1),
+                    _RAY_EST_TIME_REMAINING: String.readable_seconds(
+                        est_time_remaining, short=True, decimals=1
+                    ),
                 },
             }
 
@@ -627,7 +650,7 @@ if _IS_RAY_INSTALLED:
                 name=self.AlgorithmClass,
                 hyperparams=self.hyperparams,
                 model_dir=FileMetadata.of(FileSystemUtil.get_dir(checkpoint_path)),
-                **self.kwargs
+                **self.kwargs,
             )
 
         def cleanup(self):
@@ -642,7 +665,7 @@ if _IS_RAY_INSTALLED:
                     )
                     if not self.last_saved_model_dir.copy_to_dir(save_model_destination_dir):
                         raise OSError(
-                            f'Error copying final trained model for trial_id={trial_id} '
+                            f"Error copying final trained model for trial_id={trial_id} "
                             f'to "{save_model_destination_dir.path}".'
                         )
                     self.trainable_logger(
@@ -652,9 +675,8 @@ if _IS_RAY_INSTALLED:
                     print(String.format_exception_msg(e))
             self.model.cleanup()
 
-
     class RayTuneTrainer(Trainer):
-        aliases = ['ray', 'ray_tune']
+        aliases = ["ray", "ray_tune"]
 
         class Config(Trainer.Config):
             extra = Extra.allow
@@ -670,103 +692,138 @@ if _IS_RAY_INSTALLED:
         max_parallel_models: conint(ge=0) = 0  ## 0 = no limits to concurrency.
         timeout_seconds: Optional[conint(ge=1)] = None
         objective_metric: Optional[Union[Metric, Dict, str]] = None
-        objective_type: Optional[Literal['min', 'minimize', 'max', 'maximize']] = None
+        objective_type: Optional[Literal["min", "minimize", "max", "maximize"]] = None
         objective_dataset: Optional[DataSplit] = None
         max_dataset_rows_in_memory: int = int(1e6)
         progress_update_frequency: conint(ge=1) = 60
-        resources_per_model: Dict[
-            Literal['cpu', 'gpu'],
-            Union[confloat(ge=0.0, lt=1.0), conint(ge=0)]
-        ] = {'cpu': 1, 'gpu': 0}
+        resources_per_model: Dict[Literal["cpu", "gpu"], Union[confloat(ge=0.0, lt=1.0), conint(ge=0)]] = {
+            "cpu": 1,
+            "gpu": 0,
+        }
         retrain_final_model: bool = True
         model_failure_retries: int = 0
-        final_model_failure_behavior: Literal['warn', 'error'] = 'warn'
+        final_model_failure_behavior: Literal["warn", "error"] = "warn"
         tune_failure_retries: int = 0
         tune_failure_retry_wait: int = 60  ## Seconds
 
         @root_validator(pre=True)
         def ray_trainer_params(cls, params: Dict) -> Dict:
             ## Aliases for search_alg:
-            set_param_from_alias(params, param='search_algorithm', alias=['search_alg'])
-            set_param_from_alias(params, param='num_models', alias=[
-                'max_models', 'max_samples', 'num_samples',
-                'tune_num_models', 'tune_max_models', 'tune_num_samples', 'tune_max_samples',
-            ])
-            set_param_from_alias(params, param='num_final_models', alias=[
-                'num_final_model',
-                'max_final_models', 'max_final_model',
-            ])
-            set_param_from_alias(params, param='timeout_seconds', alias=['timeout', 'time_budget_s'])
-            set_param_from_alias(params, param='objective_metric', alias=['hpo_metric'])
-            set_param_from_alias(params, param='objective_dataset', alias=['hpo_dataset'])
-            set_param_from_alias(params, param='objective_type', alias=['mode'])
-            set_param_from_alias(params, param='max_parallel_models', alias=[
-                ## Creates every combination as an alias, e.g. num_parallel_trials, max_parallel_jobs, etc.
-                f'{x}_{y}_{z}' if x != '' else f'{y}_{z}'
-                for x, y, z in
-                parameterized_flatten(
-                    ['', 'num', 'max'],
-                    ['concurrent', 'parallel'],
-                    ['jobs', 'trials', 'models', 'workers']
-                )
-            ])
-            set_param_from_alias(params, param='resources_per_model', alias=[
-                'model_resources', 'resources',
-            ])
-            set_param_from_alias(params, param='retrain_final_model', alias=[
-                'retrain_final_models',
-                'retrain_final_model_after_tuning',
-                'retrain_after_tuning',
-                'train_final_model_after_tuning', 'train_final_models_after_tuning',
-                'train_final_model', 'train_final_models',
-                'train_after_tuning',
-            ])
-            set_param_from_alias(params, param='progress_update_frequency', alias=[
-                'progress_update_freq', 'max_report_frequency', 'progress_update_seconds', 'progress_update_sec',
-            ])
+            set_param_from_alias(params, param="search_algorithm", alias=["search_alg"])
+            set_param_from_alias(
+                params,
+                param="num_models",
+                alias=[
+                    "max_models",
+                    "max_samples",
+                    "num_samples",
+                    "tune_num_models",
+                    "tune_max_models",
+                    "tune_num_samples",
+                    "tune_max_samples",
+                ],
+            )
+            set_param_from_alias(
+                params,
+                param="num_final_models",
+                alias=[
+                    "num_final_model",
+                    "max_final_models",
+                    "max_final_model",
+                ],
+            )
+            set_param_from_alias(params, param="timeout_seconds", alias=["timeout", "time_budget_s"])
+            set_param_from_alias(params, param="objective_metric", alias=["hpo_metric"])
+            set_param_from_alias(params, param="objective_dataset", alias=["hpo_dataset"])
+            set_param_from_alias(params, param="objective_type", alias=["mode"])
+            set_param_from_alias(
+                params,
+                param="max_parallel_models",
+                alias=[
+                    ## Creates every combination as an alias, e.g. num_parallel_trials, max_parallel_jobs, etc.
+                    f"{x}_{y}_{z}" if x != "" else f"{y}_{z}"
+                    for x, y, z in parameterized_flatten(
+                        ["", "num", "max"],
+                        ["concurrent", "parallel"],
+                        ["jobs", "trials", "models", "workers"],
+                    )
+                ],
+            )
+            set_param_from_alias(
+                params,
+                param="resources_per_model",
+                alias=[
+                    "model_resources",
+                    "resources",
+                ],
+            )
+            set_param_from_alias(
+                params,
+                param="retrain_final_model",
+                alias=[
+                    "retrain_final_models",
+                    "retrain_final_model_after_tuning",
+                    "retrain_after_tuning",
+                    "train_final_model_after_tuning",
+                    "train_final_models_after_tuning",
+                    "train_final_model",
+                    "train_final_models",
+                    "train_after_tuning",
+                ],
+            )
+            set_param_from_alias(
+                params,
+                param="progress_update_frequency",
+                alias=[
+                    "progress_update_freq",
+                    "max_report_frequency",
+                    "progress_update_seconds",
+                    "progress_update_sec",
+                ],
+            )
             ## Remove extra param names:
             params: Dict = cls._clear_extra_params(params)
 
-            if params.get('resources_per_model') is not None:
-                for resource_name, resource_requirement in params['resources_per_model'].items():
+            if params.get("resources_per_model") is not None:
+                for resource_name, resource_requirement in params["resources_per_model"].items():
                     if resource_requirement > 1.0 and round(resource_requirement) != resource_requirement:
                         raise ValueError(
-                            f'When specifying `resources_per_model`, fractional resource-requirements are only allowed '
-                            f'when specifying a value <1.0; found fractional resource-requirement '
+                            f"When specifying `resources_per_model`, fractional resource-requirements are only allowed "
+                            f"when specifying a value <1.0; found fractional resource-requirement "
                             f'"{resource_name}"={resource_requirement}. To fix this error, set an integer value for '
                             f'"{resource_name}" in `resources_per_model`.'
                         )
 
             ## Process K-fold:
-            k_fold = params.get('k_fold', None)
+            k_fold = params.get("k_fold", None)
             if k_fold is None:
-                params['k_fold'] = KFold.NO_TUNING_K_FOLD
+                params["k_fold"] = KFold.NO_TUNING_K_FOLD
             elif isinstance(k_fold, int):
-                params['k_fold'] = KFold(num_folds=k_fold)
+                params["k_fold"] = KFold(num_folds=k_fold)
             elif isinstance(k_fold, dict):
-                params['k_fold'] = KFold(**k_fold)
+                params["k_fold"] = KFold(**k_fold)
 
             ## Convert values:
-            if params.get('search_algorithm') is not None and params.get('search_space', {}) != {}:
-                params['search_algorithm'] = SearchAlgorithm.of(params['search_algorithm'])
-                params['objective_metric'] = Metric.of(params['objective_metric'])
-                params['objective_dataset'] = DataSplit.from_str(params['objective_dataset'])
-                if params['k_fold'].num_folds > 1:
-                    if params['objective_dataset'] is not DataSplit.VALIDATION:
+            if params.get("search_algorithm") is not None and params.get("search_space", {}) != {}:
+                params["search_algorithm"] = SearchAlgorithm.of(params["search_algorithm"])
+                params["objective_metric"] = Metric.of(params["objective_metric"])
+                params["objective_dataset"] = DataSplit.from_str(params["objective_dataset"])
+                if params["k_fold"].num_folds > 1:
+                    if params["objective_dataset"] is not DataSplit.VALIDATION:
                         warnings.warn(
-                            f'Overriding `objective_dataset` to {DataSplit.VALIDATION} '
-                            f'for K-Fold cross-validation'
+                            f"Overriding `objective_dataset` to {DataSplit.VALIDATION} "
+                            f"for K-Fold cross-validation"
                         )
-                    params['objective_dataset'] = DataSplit.VALIDATION
-                params['objective_type'] = {  ## Map to Ray values
-                    'min': 'min',
-                    'minimize': 'min',
-                    'max': 'max',
-                    'maximize': 'max',
-                }[String.str_normalize(params['objective_type'])]
-                params['search_space']: Dict[str, HyperparameterSearchSpace] = {
+                    params["objective_dataset"] = DataSplit.VALIDATION
+                params["objective_type"] = {  ## Map to Ray values
+                    "min": "min",
+                    "minimize": "min",
+                    "max": "max",
+                    "maximize": "max",
+                }[String.str_normalize(params["objective_type"])]
+                params["search_space"]: Dict[str, HyperparameterSearchSpace] = {
                     hp_name: HyperparameterSearchSpace.of(hp_search_space)
-                    for hp_name, hp_search_space in params['search_space'].items()
+                    for hp_name, hp_search_space in params["search_space"].items()
                 }
 
             return params
@@ -779,10 +836,12 @@ if _IS_RAY_INSTALLED:
                     address=self.run_config.ray_init.address,
                     _temp_dir=str(self.run_config.ray_init.temp_dir),
                     runtime_env=self.run_config.ray_init.runtime_env,
-                    **self.run_config.ray_init.dict(exclude={'address', 'temp_dir', 'include_dashboard', 'runtime_env'}),
+                    **self.run_config.ray_init.dict(
+                        exclude={"address", "temp_dir", "include_dashboard", "runtime_env"}
+                    ),
                 )
             if not ray.is_initialized():
-                raise SystemError(f'Could not initialize ray.')
+                raise SystemError("Could not initialize ray.")
 
         @property
         def ray_search_space(self) -> Dict[str, Any]:
@@ -808,15 +867,15 @@ if _IS_RAY_INSTALLED:
 
         @safe_validate_arguments
         def _run_training(
-                self,
-                datasets: Datasets,
-                *,
-                tracker: Tracker,
-                progress_bar: Optional[Dict],
-                metrics: Optional[Metrics] = None,
-                load_model: Optional[FileMetadata] = None,
-                save_model: Optional[FileMetadata] = None,
-                **kwargs
+            self,
+            datasets: Datasets,
+            *,
+            tracker: Tracker,
+            progress_bar: Optional[Dict],
+            metrics: Optional[Metrics] = None,
+            load_model: Optional[FileMetadata] = None,
+            save_model: Optional[FileMetadata] = None,
+            **kwargs,
         ) -> Tuple[Optional[tune.ResultGrid], Optional[tune.ResultGrid]]:
             final_model_results: Optional[tune.ResultGrid] = None
             tune_results: Optional[tune.ResultGrid] = None
@@ -826,16 +885,16 @@ if _IS_RAY_INSTALLED:
                 timer.start()
 
                 cluster_resources: Dict = ray.cluster_resources()
-                RAY_NUM_CPUS: int = int(cluster_resources['CPU'])
-                RAY_NUM_GPUS: int = int(cluster_resources.get('GPU', 0))
+                RAY_NUM_CPUS: int = int(cluster_resources["CPU"])
+                RAY_NUM_GPUS: int = int(cluster_resources.get("GPU", 0))
 
                 for data_split, dataset in datasets.datasets.items():
                     if dataset.in_memory() and not dataset.data.is_lazy():
                         dataset_num_rows: int = len(dataset.data)
                         if dataset_num_rows > self.max_dataset_rows_in_memory:
                             raise ValueError(
-                                f'Cannot train on in-memory datasets larger than {self.max_dataset_rows_in_memory} rows; '
-                                f'please put the data in disk or S3 and process it lazily (e.g. using {DataLayout.DASK}).'
+                                f"Cannot train on in-memory datasets larger than {self.max_dataset_rows_in_memory} rows; "
+                                f"please put the data in disk or S3 and process it lazily (e.g. using {DataLayout.DASK})."
                             )
                 main_logger: Callable = partial(
                     _ray_logger,
@@ -846,10 +905,10 @@ if _IS_RAY_INSTALLED:
                 progress_bar: Optional[Dict] = self._ray_tune_trainer_progress_bar(progress_bar)
                 if self.is_n_models_without_tuning():
                     warnings.warn(
-                        f'No tuning parameters set, hence parameters `search_algorithm`, `search_space`, and `k_fold` '
-                        f'will be ignored, and only {self.num_models} models will be trained without hyperparameter tuning.'
-                        f'\nAdditionally, num_final_models={self.num_final_models} will be ignored, '
-                        f'num_models={self.num_models} models will be trained instead.'
+                        f"No tuning parameters set, hence parameters `search_algorithm`, `search_space`, and `k_fold` "
+                        f"will be ignored, and only {self.num_models} models will be trained without hyperparameter tuning."
+                        f"\nAdditionally, num_final_models={self.num_final_models} will be ignored, "
+                        f"num_models={self.num_models} models will be trained instead."
                     )
                     tuner: tune.Tuner = self._create_tuner_n_models_without_tuning(
                         datasets=datasets,
@@ -857,9 +916,11 @@ if _IS_RAY_INSTALLED:
                         hyperparams=self._create_hyperparams(),
                         save_model=save_model,
                         num_samples=self.num_models,
-                        **kwargs
+                        **kwargs,
                     )
-                    main_logger(self._train_start_msg(completed=False, tracker=tracker, save_model=save_model))
+                    main_logger(
+                        self._train_start_msg(completed=False, tracker=tracker, save_model=save_model)
+                    )
                     ## We use Tuner.fit() rather than tune.run() as the latter will be deprecated soon.
                     ## Ref: https://discuss.ray.io/t/tune-run-vs-tuner-fit/7041/4
                     results: tune.ResultGrid = retry(
@@ -889,13 +950,13 @@ if _IS_RAY_INSTALLED:
                             final_model_failure_behavior=self.final_model_failure_behavior,
                         )
                     except Exception as e:
-                        main_logger(f'Error while logging metrics:\n{String.format_exception_msg(e)}')
+                        main_logger(f"Error while logging metrics:\n{String.format_exception_msg(e)}")
                         pass
                     timer.stop()
                     main_logger(self._train_end_msg(timer=timer, tracker=tracker))
                 else:
                     ## Run tuning to get the best hyperparameters:
-                    if self.evaluate_test_metrics == 'each_iter' or self.retrain_final_model is False:
+                    if self.evaluate_test_metrics == "each_iter" or self.retrain_final_model is False:
                         ## When not re-training final model, or we want to evaluate each iter,
                         ## pass the test dataset to the tuning jobs:
                         tuning_datasets: Datasets = datasets
@@ -903,9 +964,7 @@ if _IS_RAY_INSTALLED:
                         ## Don't pass the test dataset to the tuning jobs:
                         tuning_datasets: Datasets = datasets.drop(DataSplit.TEST)
                     tuner: tune.Tuner = self._create_tuner_for_tuning(
-                        datasets=tuning_datasets,
-                        metrics=metrics,
-                        **kwargs
+                        datasets=tuning_datasets, metrics=metrics, **kwargs
                     )
                     main_logger(self._train_start_msg(completed=False, tracker=tracker, save_model=None))
                     tune_results: tune.ResultGrid = retry(
@@ -930,16 +989,18 @@ if _IS_RAY_INSTALLED:
                             hyperparams=best_hyperparams,
                             save_model=save_model,
                             num_samples=self.num_final_models,
-                            **kwargs
+                            **kwargs,
                         )
                         final_model_results: tune.ResultGrid = retry(tuner.fit, retries=2)
                         assert len(list(final_model_results)) == self.num_final_models
                         retrain_timer.stop()
-                        main_logger(self.tune_retrain_message(
-                            final_model_results,
-                            retrain_timer=retrain_timer,
-                            save_model=save_model,
-                        ))
+                        main_logger(
+                            self.tune_retrain_message(
+                                final_model_results,
+                                retrain_timer=retrain_timer,
+                                save_model=save_model,
+                            )
+                        )
                         try:
                             self.log_final_metrics(
                                 final_model_results=final_model_results,
@@ -958,25 +1019,34 @@ if _IS_RAY_INSTALLED:
                                 final_model_failure_behavior=self.final_model_failure_behavior,
                             )
                         except Exception as e:
-                            main_logger(f'Error while logging metrics:\n{String.format_exception_msg(e)}')
+                            main_logger(f"Error while logging metrics:\n{String.format_exception_msg(e)}")
                             pass
                     timer.stop()
                     main_logger(self._train_end_msg(timer=timer, tracker=tracker))
             except Exception as e:
-                error_msg: str = f'Ray tuning job failed with the following error:' \
-                                 f'\n{String.format_exception_msg(e, short=False)}'
+                error_msg: str = (
+                    f"Ray tuning job failed with the following error:"
+                    f"\n{String.format_exception_msg(e, short=False)}"
+                )
                 if final_model_results is not None:
-                    error_msg += f'\nWe were able to capture the {tune.ResultGrid} for the final model; ' \
-                                 f'it is the first returned result from {self.class_name}.train(...) function.'
+                    error_msg += (
+                        f"\nWe were able to capture the {tune.ResultGrid} for the final model; "
+                        f"it is the first returned result from {self.class_name}.train(...) function."
+                    )
                 if tune_results is not None:
-                    error_msg += f'\nWe were able to capture the {tune.ResultGrid} for the Tuning job; ' \
-                                 f'it is the second returned result from {self.class_name}.train(...) function.'
-                if isinstance(e, RayTuneTrainerFinalModelsError) and self.final_model_failure_behavior == 'error':
+                    error_msg += (
+                        f"\nWe were able to capture the {tune.ResultGrid} for the Tuning job; "
+                        f"it is the second returned result from {self.class_name}.train(...) function."
+                    )
+                if (
+                    isinstance(e, RayTuneTrainerFinalModelsError)
+                    and self.final_model_failure_behavior == "error"
+                ):
                     run_training_error = RayTuneTrainerError(error_msg)
                 else:
                     Log.error(error_msg)
             finally:
-                if 'tuner' in locals():
+                if "tuner" in locals():
                     del tuner
                 # del datasets
                 if run_training_error is not None:
@@ -992,52 +1062,56 @@ if _IS_RAY_INSTALLED:
             return None
 
         def tune_results_message(
-                self,
-                tune_results: tune.ResultGrid,
-                *,
-                save_model: Optional[FileMetadata] = None,
+            self,
+            tune_results: tune.ResultGrid,
+            *,
+            save_model: Optional[FileMetadata] = None,
         ) -> str:
             best_hyperparams, best_objective_metric_value = self.get_best_hyperparams(tune_results)
 
             ## Log messages before retraining final model:
             if self.k_fold.num_folds > 1:
-                msg: str = f'{self.k_fold.num_folds}-fold cross-validation was used to '
+                msg: str = f"{self.k_fold.num_folds}-fold cross-validation was used to "
             else:
-                msg: str = f'{self.objective_dataset.capitalize()} dataset was used to '
-            msg: str = f'\n{msg}{self.objective_type}imize ' \
-                       f'objective metric "{self.objective_metric.display_name}" ' \
-                       f'to {best_objective_metric_value:.6e}' \
-                       f'\nBest {best_hyperparams}'
+                msg: str = f"{self.objective_dataset.capitalize()} dataset was used to "
+            msg: str = (
+                f"\n{msg}{self.objective_type}imize "
+                f'objective metric "{self.objective_metric.display_name}" '
+                f"to {best_objective_metric_value:.6e}"
+                f"\nBest {best_hyperparams}"
+            )
             if tune_results.num_errors > 0:
-                msg += f'\n{tune_results.num_errors} model failures were encountered during tuning:'
-                msg += '\n'.join([f'\t{err.args}' for err in tune_results.errors]) + '\n'
-            msg += f'\nRetraining {self.num_final_models} final models using above hyperparams.\n'
+                msg += f"\n{tune_results.num_errors} model failures were encountered during tuning:"
+                msg += "\n".join([f"\t{err.args}" for err in tune_results.errors]) + "\n"
+            msg += f"\nRetraining {self.num_final_models} final models using above hyperparams.\n"
             if save_model is not None:
                 msg += f'Final models will be saved to sub-directories within the directory: "{save_model.path}"\n'
             return msg
 
         def tune_retrain_message(
-                self,
-                final_model_results: tune.ResultGrid,
-                *,
-                retrain_timer: Timer,
-                save_model: Optional[FileMetadata] = None,
+            self,
+            final_model_results: tune.ResultGrid,
+            *,
+            retrain_timer: Timer,
+            save_model: Optional[FileMetadata] = None,
         ) -> str:
-            msg: str = f'Using above hyperparameters, {len(list(final_model_results))} final model(s) ' \
-                       f'were retrained on complete {DataSplit.TRAIN.capitalize()} dataset ' \
-                       f'in {retrain_timer.time_taken_str}.\n'
+            msg: str = (
+                f"Using above hyperparameters, {len(list(final_model_results))} final model(s) "
+                f"were retrained on complete {DataSplit.TRAIN.capitalize()} dataset "
+                f"in {retrain_timer.time_taken_str}.\n"
+            )
             if save_model is not None:
                 msg += f'\nFinal model(s) were saved to sub-directories within the directory: "{save_model.path}"\n'
             return msg
 
         def _create_tuner_n_models_without_tuning(
-                self,
-                datasets: Datasets,
-                metrics: Optional[Metrics],
-                hyperparams: Algorithm.Hyperparameters,
-                save_model: Optional[FileMetadata],
-                num_samples: int,
-                **kwargs,
+            self,
+            datasets: Datasets,
+            metrics: Optional[Metrics],
+            hyperparams: Algorithm.Hyperparameters,
+            save_model: Optional[FileMetadata],
+            num_samples: int,
+            **kwargs,
         ) -> tune.Tuner:
             tuner: tune.Tuner = tune.Tuner(
                 trainable=self._create_trainable(
@@ -1072,10 +1146,10 @@ if _IS_RAY_INSTALLED:
             return tuner
 
         def _create_tuner_for_tuning(
-                self,
-                datasets: Datasets,
-                metrics: Optional[Metrics],
-                **kwargs,
+            self,
+            datasets: Datasets,
+            metrics: Optional[Metrics],
+            **kwargs,
         ) -> tune.Tuner:
             tuner: tune.Tuner = tune.Tuner(
                 trainable=self._create_trainable(
@@ -1101,19 +1175,19 @@ if _IS_RAY_INSTALLED:
             return tuner
 
         def _create_trainable(
-                self,
-                AlgorithmClass: Type[Algorithm],
-                datasets: Datasets,
-                metrics: Optional[Metrics],
-                resources: Dict[Literal['cpu', 'gpu'], confloat(ge=0)],  ## E.g. {"cpu": 3, "gpu": 1}
-                save_model: Optional[FileMetadata],
-                is_n_models_without_tuning: bool,
-                **kwargs
+            self,
+            AlgorithmClass: Type[Algorithm],
+            datasets: Datasets,
+            metrics: Optional[Metrics],
+            resources: Dict[Literal["cpu", "gpu"], confloat(ge=0)],  ## E.g. {"cpu": 3, "gpu": 1}
+            save_model: Optional[FileMetadata],
+            is_n_models_without_tuning: bool,
+            **kwargs,
         ) -> Type[tune.Trainable]:
             trainable: Type[tune.Trainable] = AlgorithmTrainable
             if _IS_TORCH_INSTALLED and issubclass(AlgorithmClass, PyTorch):
-                if resources.get('gpu', 0.0) > 0:
-                    kwargs.setdefault('device', 'cuda')
+                if resources.get("gpu", 0.0) > 0:
+                    kwargs.setdefault("device", "cuda")
             if is_n_models_without_tuning:
                 k_fold: KFold = KFold.NO_TUNING_K_FOLD
             else:
@@ -1121,34 +1195,34 @@ if _IS_RAY_INSTALLED:
                 if k_fold.num_folds > 1:
                     if DataSplit.VALIDATION in datasets.datasets:
                         raise ValueError(
-                            f'Cannot pass a {DataSplit.VALIDATION.capitalize()} dataset when using '
-                            f'k_fold={self.k_fold.num_folds}; please only pass the {DataSplit.TRAIN.capitalize()} '
-                            f'dataset, we will automatically split and perform K-Fold cross-validation.'
+                            f"Cannot pass a {DataSplit.VALIDATION.capitalize()} dataset when using "
+                            f"k_fold={self.k_fold.num_folds}; please only pass the {DataSplit.TRAIN.capitalize()} "
+                            f"dataset, we will automatically split and perform K-Fold cross-validation."
                         )
                     if self.shuffle is True:
                         ## Priority: global K-Fold seed > random seed.
                         k_fold_seed: int = get_default(k_fold.seed, random.randint(0, int(1e9)))
                         if k_fold.seed is None:
                             warnings.warn(
-                                f'When tuning K-Fold with shuffling, to get consistent results, please pass either a '
-                                f'global `seed` to {self.class_name}, or a local `seed` to the `k_fold` dict. This seed is '
-                                f'needed to create consistent dataset-splits across processes. As no seed is passed, we set '
-                                f'the local K-Fold seed as {k_fold_seed}'
+                                f"When tuning K-Fold with shuffling, to get consistent results, please pass either a "
+                                f"global `seed` to {self.class_name}, or a local `seed` to the `k_fold` dict. This seed is "
+                                f"needed to create consistent dataset-splits across processes. As no seed is passed, we set "
+                                f"the local K-Fold seed as {k_fold_seed}"
                             )
                         k_fold: KFold = k_fold.update_params(seed=k_fold_seed)
 
             trainable: Type[tune.Trainable] = tune.with_parameters(
                 trainable,
                 ray_tune_trainer=dict(
-                    **self.dict(exclude={'tracker'}),
-                    tracker=dict(tracker='noop'),  ## Don't track these runs.
+                    **self.dict(exclude={"tracker"}),
+                    tracker=dict(tracker="noop"),  ## Don't track these runs.
                 ),
                 AlgorithmClass=AlgorithmClass.class_name,
                 datasets=datasets.dict(),
                 metrics=None if metrics is None else metrics.dict(),
                 k_fold=k_fold.dict(),
                 save_model=None if save_model is None else save_model.dict(),
-                **kwargs
+                **kwargs,
             )
             ## Ref: https://docs.ray.io/en/latest/tune/tutorials/tune-resources.html
             trainable: Type[tune.Trainable] = tune.with_resources(
@@ -1158,35 +1232,39 @@ if _IS_RAY_INSTALLED:
             return trainable
 
         def _create_hyperparams_search_space_for_tuning(self) -> Dict[str, Any]:
-            if 'epochs' in self.ray_search_space:
+            if "epochs" in self.ray_search_space:
                 raise ValueError(
-                    f'Hyperparameter `epochs` does not need to be tuned; instead, we will train all models for `epochs`, '
-                    f'iterations over the {DataSplit.TRAIN} dataset, then select the best hyperparameter-set based on '
-                    f'the objective metric score across all epochs. Thus, `epochs` must be set to a fixed value and '
-                    f'not a range.'
+                    f"Hyperparameter `epochs` does not need to be tuned; instead, we will train all models for `epochs`, "
+                    f"iterations over the {DataSplit.TRAIN} dataset, then select the best hyperparameter-set based on "
+                    f"the objective metric score across all epochs. Thus, `epochs` must be set to a fixed value and "
+                    f"not a range."
                 )
             grid_search_hp_names: Set[str] = set()
             for hp_name, hp_search_space in self.search_space.items():
                 if hp_search_space.mapped_callable() == tune.grid_search:
                     grid_search_hp_names.add(hp_name)
-            if self.search_algorithm.name == 'grid' and len(grid_search_hp_names) == 0 and len(self.search_space) > 0:
+            if (
+                self.search_algorithm.name == "grid"
+                and len(grid_search_hp_names) == 0
+                and len(self.search_space) > 0
+            ):
                 raise ValueError(
-                    f'When passing `search_algorithm="grid"` (to run a Grid Search), the search-space for all '
-                    f'hyperparams must be a "grid_search" search-space (such as a fixed list); '
-                    f'however, none of the hyperparams is a valid "grid_search" search-space.'
+                    'When passing `search_algorithm="grid"` (to run a Grid Search), the search-space for all '
+                    'hyperparams must be a "grid_search" search-space (such as a fixed list); '
+                    'however, none of the hyperparams is a valid "grid_search" search-space.'
                 )
 
             if len(grid_search_hp_names) > 0:
-                if self.search_algorithm.name != 'grid':
+                if self.search_algorithm.name != "grid":
                     raise ValueError(
-                        f'''When passing even one hyperparam's search-space as "grid_search", you must pass '''
-                        f'''`search_algorithm="grid"` to run a Grid Search.'''
+                        """When passing even one hyperparam's search-space as "grid_search", you must pass """
+                        """`search_algorithm="grid"` to run a Grid Search."""
                     )
                 if len(grid_search_hp_names) != len(self.search_space):
                     raise ValueError(
-                        f'''When running a Grid Search, the search-space for all hyperparams should be "grid_search"; '''
-                        f'''the search-space of the following hyperparams is not "grid_search": '''
-                        f'''{set(self.search_space.keys()) - grid_search_hp_names}.'''
+                        f"""When running a Grid Search, the search-space for all hyperparams should be "grid_search"; """
+                        f"""the search-space of the following hyperparams is not "grid_search": """
+                        f"""{set(self.search_space.keys()) - grid_search_hp_names}."""
                     )
                 ## NOTE: `tune.grid_search` has the following weird behavior with num_samples:
                 ##      `tune.grid_search`: Every value will be sampled ``num_samples`` times (``num_samples`` is the
@@ -1195,10 +1273,10 @@ if _IS_RAY_INSTALLED:
                 ##      and all other search spaces are also `tune.grid_search`.
                 if self.num_models != 1 and self.allow_repeated_grid_search_sampling is False:
                     raise ValueError(
-                        f'When running a Grid Search, you must pass the number of models as 1. This will explore each '
-                        f'combination in the grid exactly once. '
-                        f'To explore each combination multiple times, pass allow_repeated_grid_search_sampling=True and '
-                        f'set num_models > 1 in the {Trainer.class_name}.'
+                        f"When running a Grid Search, you must pass the number of models as 1. This will explore each "
+                        f"combination in the grid exactly once. "
+                        f"To explore each combination multiple times, pass allow_repeated_grid_search_sampling=True and "
+                        f"set num_models > 1 in the {Trainer.class_name}."
                     )
 
             hyperparams_search_space: Dict[str, Any] = {
@@ -1207,10 +1285,14 @@ if _IS_RAY_INSTALLED:
             }
             if self.search_algorithm.mapped_callable() == tune.search.BasicVariantGenerator:
                 ## Temporary fix until Repeater supports BasicVariantGenerator: github.com/ray-project/ray/issues/33677
-                hyperparams_search_space[tune.search.repeater.TRIAL_INDEX] = tune.grid_search(range(self.k_fold.num_folds))
+                hyperparams_search_space[tune.search.repeater.TRIAL_INDEX] = tune.grid_search(
+                    range(self.k_fold.num_folds)
+                )
             return hyperparams_search_space
 
-        def _create_tune_config_for_tuning(self, datasets: Datasets, metrics: Optional[Metrics]) -> tune.TuneConfig:
+        def _create_tune_config_for_tuning(
+            self, datasets: Datasets, metrics: Optional[Metrics]
+        ) -> tune.TuneConfig:
             assert self.is_n_models_without_tuning() is False
             num_models: int = self.num_models
             if self.search_algorithm.mapped_callable() == tune.search.BasicVariantGenerator:
@@ -1230,19 +1312,19 @@ if _IS_RAY_INSTALLED:
                 if self.k_fold.num_folds > 1:
                     if self.objective_dataset is not DataSplit.VALIDATION:
                         raise ValueError(
-                            f'When using K-Fold cross-validation, '
-                            f'`objective_dataset` must be {DataSplit.VALIDATION} '
+                            f"When using K-Fold cross-validation, "
+                            f"`objective_dataset` must be {DataSplit.VALIDATION} "
                         )
                 elif self.objective_dataset not in datasets.datasets and self.objective_dataset:
                     raise ValueError(
-                        f'Attempting to tune on {self.objective_dataset.capitalize()} dataset, '
-                        f'but no such dataset was found. Current datasets: {list(datasets.datasets.keys())}'
+                        f"Attempting to tune on {self.objective_dataset.capitalize()} dataset, "
+                        f"but no such dataset was found. Current datasets: {list(datasets.datasets.keys())}"
                     )
                 if metrics is None or self.objective_dataset not in metrics.metrics:
-                    error_msg: str = f'Attempting to tune on {self.objective_dataset.capitalize()} dataset, '
-                    f'but no metrics were configured for this dataset.'
+                    error_msg: str = f"Attempting to tune on {self.objective_dataset.capitalize()} dataset, "
+                    "but no metrics were configured for this dataset."
                     if metrics is not None:
-                        error_msg += f' Current metrics: {metrics}'
+                        error_msg += f" Current metrics: {metrics}"
                     raise ValueError(error_msg)
 
             ## Ref: https://docs.ray.io/en/latest/tune/api/doc/ray.tune.TuneConfig.html
@@ -1261,29 +1343,29 @@ if _IS_RAY_INSTALLED:
             )
 
         def _create_run_config(
-                self,
-                *,
-                epochs: Optional[int],
-                steps: Optional[int],
-                save_model: Optional[FileMetadata],
-                is_n_models_without_tuning: bool,
-                metrics: Optional[Metrics],
+            self,
+            *,
+            epochs: Optional[int],
+            steps: Optional[int],
+            save_model: Optional[FileMetadata],
+            is_n_models_without_tuning: bool,
+            metrics: Optional[Metrics],
         ) -> air.RunConfig:
             if epochs is not None:
                 metric_columns: Dict[str, str] = {
-                    'time_total_s': 'total time (s)',
-                    _RAY_EPOCH_NUM: 'epoch',
-                    'time_this_iter_s': 'current epoch time (s)',
-                    _RAY_EST_TIME_REMAINING: 'est. time remaining',
+                    "time_total_s": "total time (s)",
+                    _RAY_EPOCH_NUM: "epoch",
+                    "time_this_iter_s": "current epoch time (s)",
+                    _RAY_EST_TIME_REMAINING: "est. time remaining",
                 }
             elif steps is not None:
                 metric_columns: Dict[str, str] = {
-                    'time_total_s': 'total time (s)',
-                    _RAY_STEPS_COMPLETED: 'steps',
-                    _RAY_EST_TIME_REMAINING: 'est. time remaining',
+                    "time_total_s": "total time (s)",
+                    _RAY_STEPS_COMPLETED: "steps",
+                    _RAY_EST_TIME_REMAINING: "est. time remaining",
                 }
             else:
-                raise ValueError(f'Either `epochs` or `steps` must be non-None.')
+                raise ValueError("Either `epochs` or `steps` must be non-None.")
             if metrics is not None:
                 for data_split, dataset_metrics in metrics.metrics.items():
                     for dataset_metric in dataset_metrics:
@@ -1302,7 +1384,7 @@ if _IS_RAY_INSTALLED:
                     ## TODO: support additional stopping criterion
                 )
             else:
-                raise ValueError(f'Must pass either `epochs` or `steps` in hyperparams.')
+                raise ValueError("Must pass either `epochs` or `steps` in hyperparams.")
             run_config: Dict = dict(
                 ## Ref: https://docs.ray.io/en/latest/tune/api_docs/stoppers.html?highlight=ray.tune.stopper.Stopper
                 stop=stopper,
@@ -1330,7 +1412,7 @@ if _IS_RAY_INSTALLED:
                     max_progress_rows=500,  ## For large tuning jobs.
                     max_column_length=200,  ## For long hyperparams.
                     max_report_frequency=self.progress_update_frequency,  ## Update every N seconds.
-                )
+                ),
             )
             if save_model is not None:
                 if is_n_models_without_tuning:
@@ -1378,18 +1460,25 @@ if _IS_RAY_INSTALLED:
 
         def get_detailed_metrics(self, results: tune.ResultGrid) -> pd.DataFrame:
             trial_hyperparams: Dict[str, Dict] = {
-                result.metrics[_RAY_TRIAL_ID]: result.config
-                for result in results
+                result.metrics[_RAY_TRIAL_ID]: result.config for result in results
             }
             column_order: List = [
-                _RAY_EXPERIMENT_ID, _RAY_TRIAL_ID, _RAY_HYPERPARAMS, _RAY_KFOLD_CURRENT_FOLD_NAME, _RAY_TRAINING_ITERATION,
+                _RAY_EXPERIMENT_ID,
+                _RAY_TRIAL_ID,
+                _RAY_HYPERPARAMS,
+                _RAY_KFOLD_CURRENT_FOLD_NAME,
+                _RAY_TRAINING_ITERATION,
             ]
-            column_sort: List = [_RAY_HYPERPARAMS_STR, _RAY_TRIAL_ID, _RAY_KFOLD_CURRENT_FOLD_NAME, _RAY_TRAINING_ITERATION]
+            column_sort: List = [
+                _RAY_HYPERPARAMS_STR,
+                _RAY_TRIAL_ID,
+                _RAY_KFOLD_CURRENT_FOLD_NAME,
+                _RAY_TRAINING_ITERATION,
+            ]
 
-            detailed_metrics: pd.DataFrame = pd.concat([
-                _ray_convert_metrics_dataframe(result.metrics_dataframe)
-                for result in results
-            ]).reset_index(drop=True)
+            detailed_metrics: pd.DataFrame = pd.concat(
+                [_ray_convert_metrics_dataframe(result.metrics_dataframe) for result in results]
+            ).reset_index(drop=True)
             detailed_metrics[_RAY_HYPERPARAMS]: pd.Series = detailed_metrics[_RAY_TRIAL_ID].map(
                 lambda trial_id: {
                     hp_name: hp_val
@@ -1397,38 +1486,52 @@ if _IS_RAY_INSTALLED:
                     if hp_name != tune.search.repeater.TRIAL_INDEX
                 }
             )
-            detailed_metrics[_RAY_HYPERPARAMS_STR] = detailed_metrics[_RAY_HYPERPARAMS].apply(String.stringify)
-            current_fold_name_from_trial_id: Callable = lambda trial_id: \
-                None if tune.search.repeater.TRIAL_INDEX not in trial_hyperparams[trial_id] \
-                    else self.k_fold.fold_names()[trial_hyperparams[trial_id][tune.search.repeater.TRIAL_INDEX]]
+            detailed_metrics[_RAY_HYPERPARAMS_STR] = detailed_metrics[_RAY_HYPERPARAMS].apply(
+                String.stringify
+            )
+            current_fold_name_from_trial_id: Callable = (
+                lambda trial_id: None
+                if tune.search.repeater.TRIAL_INDEX not in trial_hyperparams[trial_id]
+                else self.k_fold.fold_names()[trial_hyperparams[trial_id][tune.search.repeater.TRIAL_INDEX]]
+            )
             detailed_metrics[_RAY_KFOLD_CURRENT_FOLD_NAME] = detailed_metrics[_RAY_TRIAL_ID].map(
-                current_fold_name_from_trial_id)
-            if detailed_metrics[_RAY_KFOLD_CURRENT_FOLD_NAME].isna().all() \
-                    or detailed_metrics[_RAY_KFOLD_CURRENT_FOLD_NAME].nunique() == 1:
+                current_fold_name_from_trial_id
+            )
+            if (
+                detailed_metrics[_RAY_KFOLD_CURRENT_FOLD_NAME].isna().all()
+                or detailed_metrics[_RAY_KFOLD_CURRENT_FOLD_NAME].nunique() == 1
+            ):
                 ## In this case we are either not tuning models, or not doing K-fold.
                 detailed_metrics: pd.DataFrame = detailed_metrics.drop([_RAY_KFOLD_CURRENT_FOLD_NAME], axis=1)
                 column_order.pop(column_order.index(_RAY_KFOLD_CURRENT_FOLD_NAME))
                 column_sort.pop(column_sort.index(_RAY_KFOLD_CURRENT_FOLD_NAME))
             if _RAY_EXPERIMENT_ID not in detailed_metrics.columns:
                 column_order.pop(column_order.index(_RAY_EXPERIMENT_ID))
-            detailed_metrics: pd.DataFrame = pd_partial_column_order(
-                detailed_metrics,
-                columns=column_order
-            ).sort_values(column_sort, ascending=True).reset_index(drop=True)
+            detailed_metrics: pd.DataFrame = (
+                pd_partial_column_order(detailed_metrics, columns=column_order)
+                .sort_values(column_sort, ascending=True)
+                .reset_index(drop=True)
+            )
             return detailed_metrics
 
-        def get_best_hyperparams(self, tune_results: tune.ResultGrid) -> Tuple[Algorithm.Hyperparameters, float]:
+        def get_best_hyperparams(
+            self, tune_results: tune.ResultGrid
+        ) -> Tuple[Algorithm.Hyperparameters, float]:
             tune_metrics: pd.DataFrame = self.get_detailed_metrics(tune_results)
-            if _RAY_EPOCH_NUM in tune_metrics.columns \
-                    and tune_metrics[_RAY_EPOCH_NUM].isna().value_counts().get(False, 0) > 0:
+            if (
+                _RAY_EPOCH_NUM in tune_metrics.columns
+                and tune_metrics[_RAY_EPOCH_NUM].isna().value_counts().get(False, 0) > 0
+            ):
                 iter_col: str = _RAY_EPOCH_NUM
-                iter_key: str = 'epochs'
-            elif _RAY_STEPS_COMPLETED in tune_metrics.columns and \
-                    tune_metrics[_RAY_STEPS_COMPLETED].isna().value_counts().get(False, 0) > 0:
+                iter_key: str = "epochs"
+            elif (
+                _RAY_STEPS_COMPLETED in tune_metrics.columns
+                and tune_metrics[_RAY_STEPS_COMPLETED].isna().value_counts().get(False, 0) > 0
+            ):
                 iter_col: str = _RAY_STEPS_COMPLETED
-                iter_key: str = 'steps'
+                iter_key: str = "steps"
             else:
-                raise ValueError(f'Either `epochs` or `steps` must be present in the hyperparams dataframe.')
+                raise ValueError("Either `epochs` or `steps` must be present in the hyperparams dataframe.")
             best_hyperparams_metrics: List[Dict] = []
             for hyperparams_str, hp_df in tune_metrics.groupby(_RAY_HYPERPARAMS_STR):
                 if _RAY_KFOLD_CURRENT_FOLD_NAME in hp_df.columns:
@@ -1436,8 +1539,10 @@ if _IS_RAY_INSTALLED:
                     detected_epochs: int = hp_df[iter_col].nunique()
                     ## Allows for the case where the same set of hyperparams might be repeated multiple times,
                     ## so we get multiple folds:
-                    if len(hp_df) % (detected_num_folds * detected_epochs) != 0 or \
-                            hp_df[_RAY_KFOLD_CURRENT_FOLD_NAME].nunique() != self.k_fold.num_folds:
+                    if (
+                        len(hp_df) % (detected_num_folds * detected_epochs) != 0
+                        or hp_df[_RAY_KFOLD_CURRENT_FOLD_NAME].nunique() != self.k_fold.num_folds
+                    ):
                         ## Skip this set of hyperparams, it has a failed fold/epoch, thus we cannot measure for it.
                         continue
                 hyperparams: Dict = hp_df[_RAY_HYPERPARAMS].iloc[0]
@@ -1449,36 +1554,51 @@ if _IS_RAY_INSTALLED:
                         ## Allows for the case where the same set of hyperparams might be repeated multiple times,
                         ## so we get multiple folds for a training iteration:
                         hp_epoch_objective_metric_per_fold: List[float] = []
-                        for current_fold_name, hp_epoch_fold_df in hp_iter_num_df.groupby(_RAY_KFOLD_CURRENT_FOLD_NAME):
+                        for current_fold_name, hp_epoch_fold_df in hp_iter_num_df.groupby(
+                            _RAY_KFOLD_CURRENT_FOLD_NAME
+                        ):
                             ## If we don't have repeated hyperparams, this should have only 1 row:
                             hp_epoch_objective_metric_per_fold.append(
-                                hp_epoch_fold_df[self.objective_metric_display_name].mean())
-                        hp_epoch_objective_metric_per_fold: pd.Series = pd.Series(hp_epoch_objective_metric_per_fold)
+                                hp_epoch_fold_df[self.objective_metric_display_name].mean()
+                            )
+                        hp_epoch_objective_metric_per_fold: pd.Series = pd.Series(
+                            hp_epoch_objective_metric_per_fold
+                        )
                         iterwise_mean_objective_metrics[iter_num] = hp_epoch_objective_metric_per_fold.mean()
                     else:
                         iterwise_mean_objective_metrics[iter_num] = hp_iter_num_df[
-                            self.objective_metric_display_name].mean()
+                            self.objective_metric_display_name
+                        ].mean()
                 iterwise_mean_objective_metrics: pd.Series = pd.Series(
-                    iterwise_mean_objective_metrics,
-                    name=self.objective_metric_display_name
+                    iterwise_mean_objective_metrics, name=self.objective_metric_display_name
                 )
                 iterwise_mean_objective_metrics.index.name = iter_key
                 iterwise_mean_objective_metrics: pd.DataFrame = iterwise_mean_objective_metrics.reset_index()
-                best_epoch_metric: Dict[str, Union[float, int]] = iterwise_mean_objective_metrics.sort_values(
-                    self.objective_metric_display_name,
-                    ascending=True if self.objective_type == 'min' else False
-                ).iloc[0].to_dict()
+                best_epoch_metric: Dict[str, Union[float, int]] = (
+                    iterwise_mean_objective_metrics.sort_values(
+                        self.objective_metric_display_name,
+                        ascending=True if self.objective_type == "min" else False,
+                    )
+                    .iloc[0]
+                    .to_dict()
+                )
                 best_epoch: int = int(best_epoch_metric[iter_key])
                 best_metric_val: float = best_epoch_metric[self.objective_metric_display_name]
-                best_hyperparams_metrics.append({
-                    _RAY_HYPERPARAMS: {**hyperparams, iter_key: best_epoch},
-                    self.objective_metric_display_name: best_metric_val,
-                })
+                best_hyperparams_metrics.append(
+                    {
+                        _RAY_HYPERPARAMS: {**hyperparams, iter_key: best_epoch},
+                        self.objective_metric_display_name: best_metric_val,
+                    }
+                )
             best_hyperparams_metrics: pd.DataFrame = pd.DataFrame(best_hyperparams_metrics)
-            best_hyperparams_metrics: Dict = best_hyperparams_metrics.sort_values(
-                self.objective_metric_display_name,
-                ascending=True if self.objective_type == 'min' else False
-            ).iloc[0].to_dict()
+            best_hyperparams_metrics: Dict = (
+                best_hyperparams_metrics.sort_values(
+                    self.objective_metric_display_name,
+                    ascending=True if self.objective_type == "min" else False,
+                )
+                .iloc[0]
+                .to_dict()
+            )
             best_objective_metric_value: float = best_hyperparams_metrics[self.objective_metric_display_name]
             best_hyperparams: Algorithm.Hyperparameters = self._create_hyperparams(
                 best_hyperparams_metrics[_RAY_HYPERPARAMS]
@@ -1488,10 +1608,10 @@ if _IS_RAY_INSTALLED:
 
         @classmethod
         def get_trialwise_final_model_metrics(
-                cls,
-                final_model_results: tune.ResultGrid,
-                *,
-                metrics: Metrics,
+            cls,
+            final_model_results: tune.ResultGrid,
+            *,
+            metrics: Metrics,
         ) -> Dict[str, Metrics]:
             ## Gets trial-wise metrics.
             final_model_metrics: Dict[str, Union[Metrics, Dict[DataSplit, List[Metric]]]] = dict()
@@ -1517,17 +1637,16 @@ if _IS_RAY_INSTALLED:
 
         @classmethod
         def get_final_metrics_stats(
-                cls,
-                final_model_results: tune.ResultGrid,
-                *,
-                metrics: Metrics,
-                data_split: DataSplit,
+            cls,
+            final_model_results: tune.ResultGrid,
+            *,
+            metrics: Metrics,
+            data_split: DataSplit,
         ) -> Optional[Dict[str, Dict[str, Union[int, float]]]]:
             dataset_metrics: Optional[List[Metric]] = metrics[data_split]
-            metric_vals_are_numeric = lambda metric_vals: np.all([
-                isinstance(v, (int, float)) and not is_null(v)
-                for v in metric_vals
-            ])
+            metric_vals_are_numeric = lambda metric_vals: np.all(
+                [isinstance(v, (int, float)) and not is_null(v) for v in metric_vals]
+            )
             if dataset_metrics is None or len(dataset_metrics) == 0:
                 return None
             final_dataset_metrics: Dict[str, Union[List, Dict]] = {}
@@ -1535,23 +1654,27 @@ if _IS_RAY_INSTALLED:
                 final_dataset_metrics[dataset_metric.display_name] = []
                 for final_model_result in final_model_results:
                     ## "result.metrics" gets the metric value at the final epoch/step:
-                    final_dataset_metrics[dataset_metric.display_name].append(final_model_result.metrics.get(
-                        _ray_metric_str(data_split=data_split, metric=dataset_metric)
-                    ))
+                    final_dataset_metrics[dataset_metric.display_name].append(
+                        final_model_result.metrics.get(
+                            _ray_metric_str(data_split=data_split, metric=dataset_metric)
+                        )
+                    )
                 if not metric_vals_are_numeric(final_dataset_metrics[dataset_metric.display_name]):
                     final_dataset_metrics.pop(dataset_metric.display_name)
                     continue
                 final_dataset_metrics[dataset_metric.display_name]: Dict[str, Union[int, float, Dict]] = {
-                    'mean': np.mean(final_dataset_metrics[dataset_metric.display_name]),
-                    'median': np.median(final_dataset_metrics[dataset_metric.display_name]),
-                    'std': np.std(final_dataset_metrics[dataset_metric.display_name], ddof=1),  ## Unbiased
-                    'min': np.min(final_dataset_metrics[dataset_metric.display_name]),
-                    'max': np.max(final_dataset_metrics[dataset_metric.display_name]),
-                    'num_samples': len(final_dataset_metrics[dataset_metric.display_name]),
-                    'metric_dict': dataset_metric.dict(),
+                    "mean": np.mean(final_dataset_metrics[dataset_metric.display_name]),
+                    "median": np.median(final_dataset_metrics[dataset_metric.display_name]),
+                    "std": np.std(final_dataset_metrics[dataset_metric.display_name], ddof=1),  ## Unbiased
+                    "min": np.min(final_dataset_metrics[dataset_metric.display_name]),
+                    "max": np.max(final_dataset_metrics[dataset_metric.display_name]),
+                    "num_samples": len(final_dataset_metrics[dataset_metric.display_name]),
+                    "metric_dict": dataset_metric.dict(),
                 }
-                if final_dataset_metrics[dataset_metric.display_name]['num_samples'] == 0:
-                    final_dataset_metrics.pop(dataset_metric.display_name)  ## Remove it from the set of metrics
+                if final_dataset_metrics[dataset_metric.display_name]["num_samples"] == 0:
+                    final_dataset_metrics.pop(
+                        dataset_metric.display_name
+                    )  ## Remove it from the set of metrics
             final_dataset_metrics: Dict[str, Dict[str, Union[int, float]]] = {
                 metric_display_name: metric_stats
                 for metric_display_name, metric_stats in sorted(
@@ -1565,34 +1688,35 @@ if _IS_RAY_INSTALLED:
 
         @classmethod
         def log_final_metrics(
-                cls,
-                final_model_results: tune.ResultGrid,
-                *,
-                metrics: Metrics,
-                data_split: DataSplit,
-                logger: Callable,
-                is_n_models_without_tuning: bool,
-                final_model_failure_behavior: Literal['warn', 'error'],
+            cls,
+            final_model_results: tune.ResultGrid,
+            *,
+            metrics: Metrics,
+            data_split: DataSplit,
+            logger: Callable,
+            is_n_models_without_tuning: bool,
+            final_model_failure_behavior: Literal["warn", "error"],
         ):
             if final_model_results.num_errors > 0:
-                msg = f'\n{final_model_results.num_errors} model failures were encountered during training final models:'
-                msg += '\n'.join([f'\t{err.args}' for err in final_model_results.errors]) + '\n'
-                if final_model_failure_behavior == 'error':
+                msg = f"\n{final_model_results.num_errors} model failures were encountered during training final models:"
+                msg += "\n".join([f"\t{err.args}" for err in final_model_results.errors]) + "\n"
+                if final_model_failure_behavior == "error":
                     raise RayTuneTrainerFinalModelsError(msg)
-                elif final_model_failure_behavior == 'warn':
+                elif final_model_failure_behavior == "warn":
                     Log.error(msg)
-            final_dataset_metrics: Optional[Dict[str, Dict[str, Union[int, float, Dict]]]] = \
+            final_dataset_metrics: Optional[Dict[str, Dict[str, Union[int, float, Dict]]]] = (
                 cls.get_final_metrics_stats(
                     final_model_results=final_model_results,
                     metrics=metrics,
                     data_split=data_split,
                 )
+            )
             if final_dataset_metrics is not None:
-                logger(f'▁' * 80)
-                logger(f'Aggregated {data_split.capitalize()} metrics for final model(s):')
+                logger("▁" * 80)
+                logger(f"Aggregated {data_split.capitalize()} metrics for final model(s):")
                 for metric_display_name, metric_stats in final_dataset_metrics.items():
-                    logger(f'    {metric_stats_str(metric_display_name, metric_stats)}')
-            logger(f'\nTrial-wise {data_split.capitalize()} metrics for final model(s):')
+                    logger(f"    {metric_stats_str(metric_display_name, metric_stats)}")
+            logger(f"\nTrial-wise {data_split.capitalize()} metrics for final model(s):")
             trialwise_final_model_metrics: Dict[str, Metrics] = cls.get_trialwise_final_model_metrics(
                 final_model_results,
                 metrics=metrics,
@@ -1600,57 +1724,67 @@ if _IS_RAY_INSTALLED:
             for trial_i, (trial_id, trial_metrics) in enumerate(trialwise_final_model_metrics.items()):
                 trial_dataset_metrics: Optional[List[Metric]] = trial_metrics[data_split]
                 if trial_dataset_metrics is not None and len(trial_dataset_metrics) > 0:
-                    logger(f'\n(trial_id={trial_id}) {data_split.capitalize()} metrics:')
+                    logger(f"\n(trial_id={trial_id}) {data_split.capitalize()} metrics:")
                     for trial_dataset_metric in trial_dataset_metrics:
                         logger(trial_dataset_metric)
-            logger('')
+            logger("")
 
-        def _train_start_msg(self, completed: bool, tracker: Tracker, save_model: Optional[FileMetadata], **kwargs) -> str:
+        def _train_start_msg(
+            self, completed: bool, tracker: Tracker, save_model: Optional[FileMetadata], **kwargs
+        ) -> str:
             if self.is_n_models_without_tuning():
                 if not completed:
-                    out: str = f'\nTraining {"single" if self.num_models == 1 else self.num_models} ' \
-                               f'{self.task_display_name} model{"" if self.num_models == 1 else "(s)"} using Ray.' \
-                               f'\nAlgorithm: {self.algorithm_display_name}'
+                    out: str = (
+                        f"\nTraining {'single' if self.num_models == 1 else self.num_models} "
+                        f"{self.task_display_name} model{'' if self.num_models == 1 else '(s)'} using Ray."
+                        f"\nAlgorithm: {self.algorithm_display_name}"
+                    )
                 else:
-                    out: str = f'\nDone training {"single" if self.num_models == 1 else self.num_models} ' \
-                               f'{self.task_display_name} model{"" if self.num_models == 1 else "(s)"} using Ray.'
+                    out: str = (
+                        f"\nDone training {'single' if self.num_models == 1 else self.num_models} "
+                        f"{self.task_display_name} model{'' if self.num_models == 1 else '(s)'} using Ray."
+                    )
             else:
                 if not completed:
-                    start_str: str = 'Tuning'
-                    out: str = f'\n{start_str} {self.task_display_name} model using Ray Tune.' \
-                               f'\nAlgorithm: {self.algorithm_display_name}' \
-                               f'\nSearch algorithm: {self.search_algorithm.to_call_str()}' \
-                               f'\nSearch space: {String.pretty(self._create_hyperparams_search_space_for_tuning())}'
+                    start_str: str = "Tuning"
+                    out: str = (
+                        f"\n{start_str} {self.task_display_name} model using Ray Tune."
+                        f"\nAlgorithm: {self.algorithm_display_name}"
+                        f"\nSearch algorithm: {self.search_algorithm.to_call_str()}"
+                        f"\nSearch space: {String.pretty(self._create_hyperparams_search_space_for_tuning())}"
+                    )
                 else:
-                    start_str: str = 'Done tuning'
-                    out: str = f'\n{start_str} {self.task_display_name} model using Ray Tune.'
-            save_model_msg: str = ''
+                    start_str: str = "Done tuning"
+                    out: str = f"\n{start_str} {self.task_display_name} model using Ray Tune."
+            save_model_msg: str = ""
             if save_model is not None:
                 if not completed:
                     save_model_msg: str = f'\nFinal models will be saved to: "{save_model.path}"'
                 else:
                     save_model_msg: str = f'\nFinal models were saved to: "{save_model.path}"'
-            if tracker.tracker_name == 'noop':
+            if tracker.tracker_name == "noop":
                 if not completed:
-                    tracker_msg: str = '\nLogs will not be tracked.'
+                    tracker_msg: str = "\nLogs will not be tracked."
                 else:
-                    tracker_msg: str = '\nLogs were not tracked.'
+                    tracker_msg: str = "\nLogs were not tracked."
             else:
                 if not completed:
-                    tracker_msg: str = f'\n{tracker.class_name}@{tracker.id} will save logs to: "{tracker.log_dir}"'
+                    tracker_msg: str = (
+                        f'\n{tracker.class_name}@{tracker.id} will save logs to: "{tracker.log_dir}"'
+                    )
                 else:
-                    tracker_msg: str = f'\n{tracker.class_name}@{tracker.id} saved logs to: "{tracker.log_dir}"'
+                    tracker_msg: str = (
+                        f'\n{tracker.class_name}@{tracker.id} saved logs to: "{tracker.log_dir}"'
+                    )
 
-            return f'{out}{save_model_msg}{tracker_msg}'
+            return f"{out}{save_model_msg}{tracker_msg}"
 
         def _train_end_msg(self, *, timer: Timer, tracker: Tracker, **kwargs) -> str:
-            if tracker.tracker_name == 'noop':
-                tracker_msg: str = 'Logs have not been tracked.'
+            if tracker.tracker_name == "noop":
+                tracker_msg: str = "Logs have not been tracked."
             else:
                 tracker_msg: str = f'{tracker.class_name}@{tracker.id} has saved logs to "{tracker.log_dir}"'
             if self.is_n_models_without_tuning():
-                return f'...training completed in {timer.time_taken_str}.\n' \
-                       f'{tracker_msg}'
+                return f"...training completed in {timer.time_taken_str}.\n{tracker_msg}"
             else:
-                return f'...tuning job completed in {timer.time_taken_str}.\n' \
-                       f'{tracker_msg}'
+                return f"...tuning job completed in {timer.time_taken_str}.\n{tracker_msg}"

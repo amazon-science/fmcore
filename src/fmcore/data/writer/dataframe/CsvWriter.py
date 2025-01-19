@@ -2,9 +2,9 @@ import io
 from typing import *
 
 from pandas.core.frame import DataFrame as PandasDataFrame
-from pydantic import validator, constr
+from pydantic import constr, validator
 
-from fmcore.constants import FileFormat, Storage, DataLayout
+from fmcore.constants import DataLayout, FileFormat, Storage
 from fmcore.data.sdf.DaskScalableDataFrame import DaskScalableDataFrame
 from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame
 from fmcore.data.writer.dataframe.DataFrameWriter import DataFrameWriter
@@ -12,9 +12,9 @@ from fmcore.util import String
 
 
 class CsvWriter(DataFrameWriter):
-    aliases = ['CsvDataFrameWriter']  ## Backward compatibility
+    aliases = ["CsvDataFrameWriter"]  ## Backward compatibility
     file_formats = [FileFormat.CSV]
-    dask_multiple_write_file_suffix = '.part'  ## github.com/dask/dask/issues/9044
+    dask_multiple_write_file_suffix = ".part"  ## github.com/dask/dask/issues/9044
 
     class Params(DataFrameWriter.Params):
         sep: constr(min_length=1, max_length=3) = String.COMMA
@@ -22,7 +22,7 @@ class CsvWriter(DataFrameWriter):
         quoting: Optional[str] = None
         index: Optional[int] = None
 
-        @validator('quoting')
+        @validator("quoting")
         def validate_quoting(cls, quoting):
             if quoting is None:
                 return None
@@ -31,11 +31,11 @@ class CsvWriter(DataFrameWriter):
             return cls.QUOTING_MAP[quoting]
 
     def _write_sdf(
-            self,
-            destination: Union[io.IOBase, str],
-            sdf: ScalableDataFrame,
-            storage: Storage,
-            **kwargs,
+        self,
+        destination: Union[io.IOBase, str],
+        sdf: ScalableDataFrame,
+        storage: Storage,
+        **kwargs,
     ) -> NoReturn:
         return sdf.to_csv(
             destination,
@@ -43,23 +43,19 @@ class CsvWriter(DataFrameWriter):
         )
 
     def _write_dask_sdf(
-            self,
-            destination: Union[io.IOBase, str],
-            sdf: DaskScalableDataFrame,
-            storage: Storage,
-            is_dir: bool,
-            name_function: Optional[Callable[[int], str]] = None,
-            **kwargs,
+        self,
+        destination: Union[io.IOBase, str],
+        sdf: DaskScalableDataFrame,
+        storage: Storage,
+        is_dir: bool,
+        name_function: Optional[Callable[[int], str]] = None,
+        **kwargs,
     ) -> NoReturn:
         from dask.dataframe.io.csv import to_csv as Dask_to_csv
+
         if storage is Storage.STREAM:
             ## Convert dask dataframe to Pandas and write to stream:
-            self._write_sdf(
-                destination,
-                sdf=sdf.as_layout(DataLayout.PANDAS),
-                storage=storage,
-                **kwargs
-            )
+            self._write_sdf(destination, sdf=sdf.as_layout(DataLayout.PANDAS), storage=storage, **kwargs)
         elif not is_dir:
             ## We want to write a single file:
             sdf.to_csv(
@@ -70,7 +66,7 @@ class CsvWriter(DataFrameWriter):
             )
         else:
             ## We are writing multiple files to a directory (either in local or remote).
-            assert name_function is not None, f'We require a `name_function` when writing to a directory.'
+            assert name_function is not None, "We require a `name_function` when writing to a directory."
             sdf.to_csv(
                 destination,
                 name_function=name_function,  ## This writes output files as .csv.part: github.com/dask/dask/issues/9044
@@ -80,7 +76,7 @@ class CsvWriter(DataFrameWriter):
 
 
 class TsvWriter(CsvWriter):
-    aliases = ['TsvDataFrameWriter']  ## Backward compatibility
+    aliases = ["TsvDataFrameWriter"]  ## Backward compatibility
     file_formats = [FileFormat.TSV]
 
     class Params(CsvWriter.Params):

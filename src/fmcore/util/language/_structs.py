@@ -7,7 +7,8 @@ from typing import *
 
 import numpy as np
 import pandas as pd
-from pandas.core.frame import Series as PandasSeries, DataFrame as PandasDataFrame
+from pandas.core.frame import DataFrame as PandasDataFrame
+from pandas.core.frame import Series as PandasSeries
 from pydantic.typing import Literal
 
 from ._alias import set_param_from_alias
@@ -23,32 +24,32 @@ SeriesOrArray1DOrDataFrameOrArray2D = Union[SeriesOrArray1D, DataFrameOrArray2D]
 
 
 def not_impl(
-        param_name: str,
-        param_val: Any,
-        supported: Optional[Union[List, Set, Tuple, Any]] = None,
+    param_name: str,
+    param_val: Any,
+    supported: Optional[Union[List, Set, Tuple, Any]] = None,
 ) -> Exception:
     if not isinstance(param_name, str):
-        raise ValueError(f'First value `param_name` must be a string.')
+        raise ValueError("First value `param_name` must be a string.")
     param_val_str: str = str(param_val)
     if len(param_val_str) > 100:
-        param_val_str: str = '\n' + param_val_str
+        param_val_str: str = "\n" + param_val_str
     if supported is not None:
         supported: List = as_list(supported)
         return NotImplementedError(
-            f'Unsupported value for param `{param_name}`. Valid values are: {supported}; '
-            f'found {type(param_val)} having value: {param_val_str}'
+            f"Unsupported value for param `{param_name}`. Valid values are: {supported}; "
+            f"found {type(param_val)} having value: {param_val_str}"
         )
 
     return NotImplementedError(
-        f'Unsupported value for param `{param_name}`; '
-        f'found {type(param_val)} having value: {param_val_str}'
+        f"Unsupported value for param `{param_name}`; found {type(param_val)} having value: {param_val_str}"
     )
 
 
 ## ======================== List utils ======================== ##
 def is_list_like(l: Any) -> bool:
-    with optional_dependency('dask'):
+    with optional_dependency("dask"):
         from dask.dataframe.core import Series as DaskSeries
+
         if isinstance(l, (list, tuple, ValuesView, ItemsView, PandasSeries, DaskSeries)):
             return True
     if isinstance(l, (list, tuple, ValuesView, ItemsView, PandasSeries)):
@@ -70,7 +71,7 @@ def assert_not_empty_list(l: List):
     assert is_not_empty_list(l)
 
 
-def assert_not_empty_list_like(l: ListOrTuple, error_message=''):
+def assert_not_empty_list_like(l: ListOrTuple, error_message=""):
     assert is_not_empty_list_like(l), error_message
 
 
@@ -133,10 +134,10 @@ def filter_string_list(l: List[str], pattern: str, ignorecase: bool = False) -> 
     :param ignorecase: whether to ignore case while matching the pattern to the strings.
     :return: filtered list of strings which match the pattern.
     """
-    if not pattern.startswith('^'):
-        pattern = '^' + pattern
-    if not pattern.endswith('$'):
-        pattern = pattern + '$'
+    if not pattern.startswith("^"):
+        pattern = "^" + pattern
+    if not pattern.endswith("$"):
+        pattern = pattern + "$"
     flags = 0
     if ignorecase:
         flags = flags | re.IGNORECASE
@@ -144,8 +145,8 @@ def filter_string_list(l: List[str], pattern: str, ignorecase: bool = False) -> 
 
 
 def keep_values(
-        a: Union[List, Tuple, Set, Dict],
-        values: Any,
+    a: Union[List, Tuple, Set, Dict],
+    values: Any,
 ) -> Union[List, Tuple, Set, Dict]:
     values: Set = as_set(values)
     if isinstance(a, list):
@@ -156,12 +157,12 @@ def keep_values(
         return set(x for x in a if x in values)
     elif isinstance(a, dict):
         return {k: v for k, v in a.items() if v in values}
-    raise NotImplementedError(f'Unsupported data structure: {type(a)}')
+    raise NotImplementedError(f"Unsupported data structure: {type(a)}")
 
 
 def remove_values(
-        a: Union[List, Tuple, Set, Dict],
-        values: Any,
+    a: Union[List, Tuple, Set, Dict],
+    values: Any,
 ) -> Union[List, Tuple, Set, Dict]:
     values: Set = as_set(values)
     if isinstance(a, list):
@@ -172,11 +173,11 @@ def remove_values(
         return set(x for x in a if x not in values)
     elif isinstance(a, dict):
         return {k: v for k, v in a.items() if v not in values}
-    raise NotImplementedError(f'Unsupported data structure: {type(a)}')
+    raise NotImplementedError(f"Unsupported data structure: {type(a)}")
 
 
 def remove_nulls(
-        a: Union[List, Tuple, Set, Dict],
+    a: Union[List, Tuple, Set, Dict],
 ) -> Union[List, Tuple, Set, Dict]:
     if isinstance(a, list):
         return list(x for x in a if is_not_null(x))
@@ -186,12 +187,12 @@ def remove_nulls(
         return set(x for x in a if is_not_null(x))
     elif isinstance(a, dict):
         return {k: v for k, v in a.items() if is_not_null(v)}
-    raise NotImplementedError(f'Unsupported data structure: {type(a)}')
+    raise NotImplementedError(f"Unsupported data structure: {type(a)}")
 
 
 def elvis(d: Optional[Union[Dict, Any]], *args) -> Optional[Any]:
     if len(args) == 0:
-        raise ValueError('Must pass non-empty list of keys to match when using elvis operator')
+        raise ValueError("Must pass non-empty list of keys to match when using elvis operator")
     val: Union[Dict, Any] = get_default(d, {})
     for k in args:
         val: Union[Dict, Any] = get_default(val, {})
@@ -237,20 +238,22 @@ def as_set(s) -> Set:
 
 
 ## ======================== Dict utils ======================== ##
-def append_to_keys(d: Dict, prefix: Union[List[str], str] = '', suffix: Union[List[str], str] = '') -> Dict:
+def append_to_keys(d: Dict, prefix: Union[List[str], str] = "", suffix: Union[List[str], str] = "") -> Dict:
     if not is_dict_like(d):
-        raise ValueError(f'Expected a dict-like object, found: {type(d)}')
+        raise ValueError(f"Expected a dict-like object, found: {type(d)}")
     keys = set(d.keys())
     for k in keys:
-        new_keys = {f'{p}{k}' for p in as_list(prefix)} \
-                   | {f'{k}{s}' for s in as_list(suffix)} \
-                   | {f'{p}{k}{s}' for p in as_list(prefix) for s in as_list(suffix)}
+        new_keys = (
+            {f"{p}{k}" for p in as_list(prefix)}
+            | {f"{k}{s}" for s in as_list(suffix)}
+            | {f"{p}{k}{s}" for p in as_list(prefix) for s in as_list(suffix)}
+        )
         for k_new in new_keys:
             d[k_new] = d[k]
     return d
 
 
-def transform_keys_case(d: Dict, case: Literal['lower', 'upper'] = 'lower'):
+def transform_keys_case(d: Dict, case: Literal["lower", "upper"] = "lower"):
     """
     Converts string dict keys to either uppercase or lowercase. Leaves non-string keys untouched.
     :param d: dict to transform
@@ -258,21 +261,21 @@ def transform_keys_case(d: Dict, case: Literal['lower', 'upper'] = 'lower'):
     :return: dict with case-transformed keys
     """
     if not is_dict_like(d):
-        raise ValueError(f'Expected a dict-like object, found: {type(d)}')
-    assert case in {'lower', 'upper'}
+        raise ValueError(f"Expected a dict-like object, found: {type(d)}")
+    assert case in {"lower", "upper"}
     out = {}
     for k, v in d.items():
         if isinstance(k, str):
-            if case == 'lower':
+            if case == "lower":
                 out[k.lower()] = v
-            elif case == 'upper':
+            elif case == "upper":
                 out[k.upper()] = v
         else:
             out[k] = v
     return out
 
 
-def transform_values_case(d: Dict, case: Literal['lower', 'upper'] = 'lower'):
+def transform_values_case(d: Dict, case: Literal["lower", "upper"] = "lower"):
     """
     Converts string dict values to either uppercase or lowercase. Leaves non-string values untouched.
     :param d: dict to transform
@@ -280,14 +283,14 @@ def transform_values_case(d: Dict, case: Literal['lower', 'upper'] = 'lower'):
     :return: dict with case-transformed values
     """
     if not is_dict_like(d):
-        raise ValueError(f'Expected a dict-like object, found: {type(d)}')
-    assert case in {'lower', 'upper'}
+        raise ValueError(f"Expected a dict-like object, found: {type(d)}")
+    assert case in {"lower", "upper"}
     out = {}
     for k, v in d.items():
         if isinstance(v, str):
-            if case == 'lower':
+            if case == "lower":
                 out[k] = v.lower()
-            elif case == 'upper':
+            elif case == "upper":
                 out[k] = v.upper()
         else:
             out[k] = v
@@ -317,16 +320,16 @@ def dict_set_default(d: Dict, default_params: Dict) -> Dict:
 
 
 def sorted_dict(
-        d: Dict,
-        *,
-        by: Literal['key', 'value'] = 'key',
-        reverse: bool = False,
-        order: Optional[List] = None,
+    d: Dict,
+    *,
+    by: Literal["key", "value"] = "key",
+    reverse: bool = False,
+    order: Optional[List] = None,
 ) -> List[Tuple]:
-    assert by in {'key', 'value'}
+    assert by in {"key", "value"}
     if order is not None:
         order: List = as_list(order)
-        assert by == 'key'
+        assert by == "key"
         out_d: Dict = {}
         for k in order:
             ## In order
@@ -336,35 +339,35 @@ def sorted_dict(
             out_d[k] = d[k]
         return list(out_d.items())
     else:
-        if by == 'key':
+        if by == "key":
             return sorted(d.items(), key=lambda x: str(x[0]), reverse=reverse)
-        elif by == 'value':
+        elif by == "value":
             return sorted(d.items(), key=lambda x: str(x[1]), reverse=reverse)
         else:
-            raise not_impl('by', by)
+            raise not_impl("by", by)
 
 
 def dict_key_with_best_value(
-        d: Dict,
-        *,
-        how: Literal['max', 'min'],
+    d: Dict,
+    *,
+    how: Literal["max", "min"],
 ) -> Any:
-    assert how in {'max', 'min'}
+    assert how in {"max", "min"}
     sorted_items: List[Tuple] = sorted_dict(
         d,
-        by='value',
+        by="value",
         reverse={
-            'min': False,
-            'max': True,
-        }[how]
+            "min": False,
+            "max": True,
+        }[how],
     )
     return sorted_items[0][0]
 
 
 def filter_keys(
-        d: Dict,
-        keys: Union[List, Tuple, Set, str],
-        how: Literal['include', 'exclude'] = 'include',
+    d: Dict,
+    keys: Union[List, Tuple, Set, str],
+    how: Literal["include", "exclude"] = "include",
 ) -> Dict:
     """
     Filter values in a dict based on a list of keys.
@@ -374,28 +377,28 @@ def filter_keys(
     :return: dict with filtered list of keys
     """
     if not is_dict_like(d):
-        raise ValueError(f'Expected a dict-like object, found: {type(d)}')
+        raise ValueError(f"Expected a dict-like object, found: {type(d)}")
     keys: Set = as_set(keys)
-    if how == 'include':
+    if how == "include":
         return keep_keys(d, keys)
-    elif how == 'exclude':
+    elif how == "exclude":
         return remove_keys(d, keys)
     else:
         raise NotImplementedError(f'Invalid value for parameter `how`: "{how}"')
 
 
 def filter_values(
-        struct: Union[List, Tuple, Set, Dict, str],
-        fn: Callable,
-        *,
-        raise_error: bool = True,
+    struct: Union[List, Tuple, Set, Dict, str],
+    fn: Callable,
+    *,
+    raise_error: bool = True,
 ) -> Optional[Any]:
     if (is_list_like(struct) or is_set_like(struct)) and len(struct) > 0:
         return type(struct)([x for x in struct if fn(x)])
     elif is_dict_like(struct):
         return dict({k: v for k, v in struct.items() if fn(v)})
     if raise_error:
-        raise ValueError(f'Unsupported structure: {type(struct)}')
+        raise ValueError(f"Unsupported structure: {type(struct)}")
     return None
 
 
@@ -418,9 +421,9 @@ class UniqueDict(dict):
 
 
 def convert_and_filter_keys_on_enum(
-        d: Dict,
-        AutoEnumClass: AutoEnum.__class__,
-        how: Literal['include', 'exclude'] = 'include',
+    d: Dict,
+    AutoEnumClass: AutoEnum.__class__,
+    how: Literal["include", "exclude"] = "include",
 ) -> Dict:
     """
     Filter values in a dict based on those matching an enum.
@@ -430,7 +433,7 @@ def convert_and_filter_keys_on_enum(
     :return: dict with filtered list of keys
     """
     if not is_dict_like(d):
-        raise ValueError(f'Expected a dict-like object, found: {type(d)}')
+        raise ValueError(f"Expected a dict-like object, found: {type(d)}")
     if AutoEnumClass is None:
         return {}
     assert isinstance(AutoEnumClass, AutoEnum.__class__)
@@ -439,10 +442,10 @@ def convert_and_filter_keys_on_enum(
 
 
 def filter_keys_on_pattern(
-        d: Dict,
-        key_pattern: str,
-        ignorecase: bool = False,
-        how: Literal['include', 'exclude'] = 'include',
+    d: Dict,
+    key_pattern: str,
+    ignorecase: bool = False,
+    how: Literal["include", "exclude"] = "include",
 ):
     """
     Filter string keys in a dict based on a regex pattern.
@@ -501,17 +504,17 @@ def eval_dict_values(params: Dict):
     for parameter, value in params.items():
         try:
             updated_dict[parameter] = literal_eval(value)
-        except:
+        except Exception:
             updated_dict[parameter] = value
     return updated_dict
 
 
 def invert_dict(d: Dict) -> Dict:
     if not isinstance(d, dict):
-        raise ValueError(f'{d} should be of type dict')
+        raise ValueError(f"{d} should be of type dict")
     d_inv: Dict = {v: k for k, v in d.items()}
     if len(d_inv) != len(d):
-        raise ValueError(f'Dict is not invertible as values are not unique.')
+        raise ValueError("Dict is not invertible as values are not unique.")
     return d_inv
 
 
@@ -523,8 +526,8 @@ def iter_dict(d, depth: int = 1, *, _cur_depth: int = 0):
     :param depth: The current depth of recursion (used for tracking depth of keys).
     :return: Yields tuples where the first elements are keys at different depths, and the last element is the value.
     """
-    assert isinstance(d, dict), f'Input must be a dictionary, found: {type(d)}'
-    assert isinstance(depth, int) and depth >= 1, f'depth must be an integer (1 or more)'
+    assert isinstance(d, dict), f"Input must be a dictionary, found: {type(d)}"
+    assert isinstance(depth, int) and depth >= 1, "depth must be an integer (1 or more)"
 
     for k, v in d.items():
         if isinstance(v, dict) and _cur_depth < depth - 1:
@@ -538,8 +541,8 @@ def iter_dict(d, depth: int = 1, *, _cur_depth: int = 0):
 
 ## ======================== Utils for multiple collections ======================== ##
 def only_item(
-        d: Union[Dict, List, Tuple, Set, np.ndarray, PandasSeries],
-        raise_error: bool = True,
+    d: Union[Dict, List, Tuple, Set, np.ndarray, PandasSeries],
+    raise_error: bool = True,
 ) -> Union[Dict, List, Tuple, Set, np.ndarray, PandasSeries, Any]:
     if not (is_list_or_set_like(d) or is_dict_like(d)):
         return d
@@ -548,7 +551,7 @@ def only_item(
             return next(iter(d.items()))
         return next(iter(d))
     if raise_error:
-        raise ValueError(f'Expected input {type(d)} to have only one item; found {len(d)} elements.')
+        raise ValueError(f"Expected input {type(d)} to have only one item; found {len(d)} elements.")
     return d
 
 
@@ -558,7 +561,7 @@ def only_key(d: Dict, raise_error: bool = True) -> Union[Any]:
     if len(d) == 1:
         return next(iter(d.keys()))
     if raise_error:
-        raise ValueError(f'Expected input {type(d)} to have only one item; found {len(d)} elements.')
+        raise ValueError(f"Expected input {type(d)} to have only one item; found {len(d)} elements.")
     return d
 
 
@@ -568,7 +571,7 @@ def only_value(d: Dict, raise_error: bool = True) -> Union[Any]:
     if len(d) == 1:
         return next(iter(d.values()))
     if raise_error:
-        raise ValueError(f'Expected input {type(d)} to have only one item; found {len(d)} elements.')
+        raise ValueError(f"Expected input {type(d)} to have only one item; found {len(d)} elements.")
     return d
 
 
@@ -591,18 +594,15 @@ def convert_1d_or_2d_array_to_dataframe(data: SeriesOrArray1DOrDataFrameOrArray2
 
 def convert_1d_array_to_series(data: SeriesOrArray1D):
     if len(data) == 0:
-        raise ValueError(f'Cannot convert empty data structure to series')
+        raise ValueError("Cannot convert empty data structure to series")
     if isinstance(data, PandasSeries):
         return data
     if not is_list_like(data):
-        raise ValueError(f'Cannot convert non list-like data structure to series')
+        raise ValueError("Cannot convert non list-like data structure to series")
     return pd.Series(data)
 
 
-def flatten1d(
-        l: Union[List, Tuple, Set, Any],
-        output_type: Type = list
-) -> Union[List, Set, Tuple]:
+def flatten1d(l: Union[List, Tuple, Set, Any], output_type: Type = list) -> Union[List, Set, Tuple]:
     assert output_type in {list, set, tuple}
     if not is_list_or_set_like(l):
         return l
@@ -613,24 +613,21 @@ def flatten1d(
 
 
 def flatten2d(
-        l: Union[List, Tuple, Set, Any],
-        outer_type: Type = list,
-        inner_type: Type = tuple,
+    l: Union[List, Tuple, Set, Any],
+    outer_type: Type = list,
+    inner_type: Type = tuple,
 ) -> Union[List, Tuple, Set, Any]:
     assert outer_type in {list, set, tuple}
     assert inner_type in {list, set, tuple}
     if not is_list_or_set_like(l):
         return l
-    out: List[Union[List, Set, Tuple]] = [
-        flatten1d(x, output_type=inner_type)
-        for x in l
-    ]
+    out: List[Union[List, Set, Tuple]] = [flatten1d(x, output_type=inner_type) for x in l]
     return outer_type(out)
 
 
 def partial_sort(
-        struct: Union[List[Any], Tuple[Any]],
-        order: Union[List[Any], Tuple[Any], Any],
+    struct: Union[List[Any], Tuple[Any]],
+    order: Union[List[Any], Tuple[Any], Any],
 ) -> Union[List[Any], Tuple[Any]]:
     """
     Partially sorts a list or tuple.
@@ -670,16 +667,13 @@ def is_sorted(l: Union[List[Any], Tuple[Any, ...]], *, reverse: bool = False) ->
         return True
     if reverse:
         l: List[Any] = list(l)[::-1]
-    for x, x_next in zip(l[0:length - 1], l[1:length]):
+    for x, x_next in zip(l[0 : length - 1], l[1:length]):
         if x > x_next:
             return False
     return True
 
 
-def get_unique(
-        data: SeriesOrArray1DOrDataFrameOrArray2D,
-        exclude_nans: bool = True
-) -> Set[Any]:
+def get_unique(data: SeriesOrArray1DOrDataFrameOrArray2D, exclude_nans: bool = True) -> Set[Any]:
     if data is None:
         return set()
     if isinstance(data, PandasSeries) or isinstance(data, PandasDataFrame):
@@ -688,7 +682,9 @@ def get_unique(
         data: np.ndarray = convert_1d_or_2d_array_to_dataframe(data).values
     if not isinstance(data, np.ndarray):
         data: np.ndarray = np.array(data)
-    flattened_data = data.ravel('K')  ## 1-D array of all data (w/ nans). Ref: https://stackoverflow.com/a/26977495
+    flattened_data = data.ravel(
+        "K"
+    )  ## 1-D array of all data (w/ nans). Ref: https://stackoverflow.com/a/26977495
     if len(flattened_data) == 0:
         return set()
     if exclude_nans:
@@ -698,10 +694,10 @@ def get_unique(
 
 
 def any_item(
-        struct: Union[List, Tuple, Set, Dict, ValuesView, str],
-        *,
-        seed: Optional[int] = None,
-        raise_error: bool = True,
+    struct: Union[List, Tuple, Set, Dict, ValuesView, str],
+    *,
+    seed: Optional[int] = None,
+    raise_error: bool = True,
 ) -> Optional[Any]:
     py_random: random.Random = random.Random(seed)
     if (is_list_like(struct) or is_set_like(struct)) and len(struct) > 0:
@@ -713,7 +709,7 @@ def any_item(
     elif isinstance(struct, str):
         return py_random.choice(struct)
     if raise_error:
-        raise ValueError(f'Unsupported structure: {type(struct)}')
+        raise ValueError(f"Unsupported structure: {type(struct)}")
     return None
 
 
@@ -723,8 +719,8 @@ def any_key(d: Dict, *, seed: Optional[int] = None, raise_error: bool = True) ->
         return py_random.choice(sorted(list(d.keys())))
     if raise_error:
         raise ValueError(
-            f'Expected input to be a non-empty dict; '
-            f'found {type(d) if not is_dict_like(d) else "empty dict"}.'
+            f"Expected input to be a non-empty dict; "
+            f"found {type(d) if not is_dict_like(d) else 'empty dict'}."
         )
     return None
 
@@ -735,9 +731,9 @@ def any_value(d: Dict, *, seed: Optional[int] = None, raise_error: bool = True) 
 
 
 def first_item(
-        struct: Union[List, Tuple, Set, Dict, str],
-        *,
-        raise_error: bool = True,
+    struct: Union[List, Tuple, Set, Dict, str],
+    *,
+    raise_error: bool = True,
 ) -> Optional[Any]:
     if is_dict_like(struct):
         k: Any = first_key(struct, raise_error=raise_error)
@@ -746,7 +742,7 @@ def first_item(
     elif is_list_like(struct) or is_set_like(struct) or isinstance(struct, str):
         return list(struct)[0]
     if raise_error:
-        raise ValueError(f'Unsupported structure: {type(struct)}')
+        raise ValueError(f"Unsupported structure: {type(struct)}")
     return None
 
 
@@ -755,8 +751,8 @@ def first_key(d: Dict, *, raise_error: bool = True) -> Optional[Any]:
         return list(d.keys())[0]
     if raise_error:
         raise ValueError(
-            f'Expected input to be a non-empty dict; '
-            f'found {type(d) if not is_dict_like(d) else "empty dict"}.'
+            f"Expected input to be a non-empty dict; "
+            f"found {type(d) if not is_dict_like(d) else 'empty dict'}."
         )
     return None
 
@@ -787,24 +783,32 @@ def pd_display(**kwargs):
         from IPython.display import display
     except ImportError:
         display = print
-    set_param_from_alias(params=kwargs, param='max_rows', alias=['num_rows', 'nrows', 'rows'], default=None)
-    set_param_from_alias(params=kwargs, param='max_cols', alias=['num_cols', 'ncols', 'cols'], default=None)
-    set_param_from_alias(params=kwargs, param='max_colwidth', alias=[
-        'max_col_width',
-        'max_columnwidth', 'max_column_width',
-        'columnwidth', 'column_width',
-        'colwidth', 'col_width',
-    ], default=None)
-    set_param_from_alias(params=kwargs, param='vertical_align', alias=['valign'], default='top')
-    set_param_from_alias(params=kwargs, param='text_align', alias=['textalign'], default='left')
-    set_param_from_alias(params=kwargs, param='ignore_css', alias=['css'], default=False)
+    set_param_from_alias(params=kwargs, param="max_rows", alias=["num_rows", "nrows", "rows"], default=None)
+    set_param_from_alias(params=kwargs, param="max_cols", alias=["num_cols", "ncols", "cols"], default=None)
+    set_param_from_alias(
+        params=kwargs,
+        param="max_colwidth",
+        alias=[
+            "max_col_width",
+            "max_columnwidth",
+            "max_column_width",
+            "columnwidth",
+            "column_width",
+            "colwidth",
+            "col_width",
+        ],
+        default=None,
+    )
+    set_param_from_alias(params=kwargs, param="vertical_align", alias=["valign"], default="top")
+    set_param_from_alias(params=kwargs, param="text_align", alias=["textalign"], default="left")
+    set_param_from_alias(params=kwargs, param="ignore_css", alias=["css"], default=False)
 
-    max_rows: Optional[int] = kwargs.get('max_rows')
-    max_cols: Optional[int] = kwargs.get('max_cols')
-    max_colwidth: Optional[int] = kwargs.get('max_colwidth')
-    vertical_align: str = kwargs['vertical_align']
-    text_align: str = kwargs['text_align']
-    ignore_css: bool = kwargs['ignore_css']
+    max_rows: Optional[int] = kwargs.get("max_rows")
+    max_cols: Optional[int] = kwargs.get("max_cols")
+    max_colwidth: Optional[int] = kwargs.get("max_colwidth")
+    vertical_align: str = kwargs["vertical_align"]
+    text_align: str = kwargs["text_align"]
+    ignore_css: bool = kwargs["ignore_css"]
 
     # print(kwargs)
 
@@ -812,33 +816,36 @@ def pd_display(**kwargs):
         css = [
             ## Align header to center
             {
-                'selector': 'th',
-                'props': [
-                    ('vertical-align', 'center'),
-                    ('text-align', 'center'),
-                    ('padding', '10px'),
-                ]
+                "selector": "th",
+                "props": [
+                    ("vertical-align", "center"),
+                    ("text-align", "center"),
+                    ("padding", "10px"),
+                ],
             },
             ## Align cell to top and left/center
             {
-                'selector': 'td',
-                'props': [
-                    ('vertical-align', vertical_align),
-                    ('text-align', text_align),
-                    ('padding', '10px'),
-                ]
+                "selector": "td",
+                "props": [
+                    ("vertical-align", vertical_align),
+                    ("text-align", text_align),
+                    ("padding", "10px"),
+                ],
             },
-
         ]
         if not ignore_css and isinstance(df, pd.DataFrame):
             df = df.style.set_table_styles(css)
         display(df)
 
     with pd.option_context(
-            'display.max_rows', max_rows,
-            'display.max_columns', max_cols,
-            'max_colwidth', max_colwidth,
-            'display.expand_frame_repr', False,
+        "display.max_rows",
+        max_rows,
+        "display.max_columns",
+        max_cols,
+        "max_colwidth",
+        max_colwidth,
+        "display.expand_frame_repr",
+        False,
     ):
         yield disp
 
@@ -880,7 +887,7 @@ def is_numpy_string_array(data: Any) -> bool:
 ## Ref (from Pytorch tests):
 ## github.com/pytorch/pytorch/blob/e180ca652f8a38c479a3eff1080efe69cbc11621/torch/testing/_internal/common_utils.py#L349
 NUMPY_TO_TORCH_DTYPE_MAP = {}
-with optional_dependency('torch'):
+with optional_dependency("torch"):
     import torch
 
     NUMPY_TO_TORCH_DTYPE_MAP = {
@@ -894,6 +901,6 @@ with optional_dependency('torch'):
         np.float32: torch.float32,
         np.float64: torch.float64,
         np.complex64: torch.complex64,
-        np.complex128: torch.complex128
+        np.complex128: torch.complex128,
     }
     TORCH_TO_NUMPY_DTYPE_MAP = {v: k for k, v in NUMPY_TO_TORCH_DTYPE_MAP.items()}

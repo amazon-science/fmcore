@@ -1,9 +1,10 @@
+from abc import ABC, abstractmethod
 from typing import *
-from abc import abstractmethod, ABC
-from fmcore.util import safe_validate_arguments
-from fmcore.data.sdf import ScalableDataFrame, ScalableSeries, ScalableSeriesOrRaw, ScalableOrRaw, is_scalable
+
+from fmcore.constants import DataLayout
 from fmcore.data.processor import DataProcessor
-from fmcore.constants import MLType, MLTypeSchema, DataLayout
+from fmcore.data.sdf import ScalableDataFrame, ScalableOrRaw, ScalableSeries, ScalableSeriesOrRaw, is_scalable
+from fmcore.util import safe_validate_arguments
 
 
 class Nto1ColumnProcessor(DataProcessor, ABC):
@@ -11,9 +12,9 @@ class Nto1ColumnProcessor(DataProcessor, ABC):
 
     @safe_validate_arguments
     def fit(
-            self,
-            data: ScalableOrRaw,
-            process_as: Optional[DataLayout] = None,
+        self,
+        data: ScalableOrRaw,
+        process_as: Optional[DataLayout] = None,
     ):
         data: ScalableDataFrame = ScalableDataFrame.of(data, layout=process_as)
         self._fit_df(data)
@@ -27,9 +28,9 @@ class Nto1ColumnProcessor(DataProcessor, ABC):
 
     @safe_validate_arguments
     def transform(
-            self,
-            data: ScalableOrRaw,
-            process_as: Optional[DataLayout] = None,
+        self,
+        data: ScalableOrRaw,
+        process_as: Optional[DataLayout] = None,
     ) -> ScalableSeriesOrRaw:
         output_data: ScalableSeries = self._transform_df(ScalableDataFrame.of(data, layout=process_as))
         if is_scalable(data):
@@ -43,9 +44,9 @@ class Nto1ColumnProcessor(DataProcessor, ABC):
 
     @safe_validate_arguments
     def fit_transform(
-            self,
-            data: ScalableOrRaw,
-            process_as: Optional[DataLayout] = None,
+        self,
+        data: ScalableOrRaw,
+        process_as: Optional[DataLayout] = None,
     ) -> ScalableSeries:
         self.fit(data, process_as=process_as)
         return self.transform(data, process_as=process_as)

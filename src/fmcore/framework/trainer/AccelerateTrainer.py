@@ -9,32 +9,40 @@ import numpy as np
 from fmcore.data import FileMetadata
 from fmcore.framework.algorithm import Algorithm
 from fmcore.framework.metric import Metric, Metrics
-from fmcore.framework.task_data import DataSplit, Datasets, Dataset
+from fmcore.framework.task_data import Dataset, Datasets, DataSplit
 from fmcore.framework.tracker import Tracker
 from fmcore.framework.trainer.Trainer import Trainer
-from fmcore.util import Log, optional_dependency, safe_validate_arguments, any_are_none, get_default, \
-    String, FileSystemUtil, Timer
+from fmcore.util import (
+    FileSystemUtil,
+    Log,
+    String,
+    Timer,
+    any_are_none,
+    get_default,
+    optional_dependency,
+    safe_validate_arguments,
+)
 
-with optional_dependency('accelerate', 'torch'):
-    from fmcore.framework.dl.torch import PyTorch, is_accelerator
-    from torch.utils.data import DataLoader as TorchDataLoader
+with optional_dependency("accelerate", "torch"):
     from accelerate import Accelerator, notebook_launcher
     from accelerate.utils import DistributedDataParallelKwargs
+    from torch.utils.data import DataLoader as TorchDataLoader
 
+    from fmcore.framework.dl.torch import PyTorch, is_accelerator
 
     class AccelerateTrainer(Trainer):
-        aliases = ['accelerate']
+        aliases = ["accelerate"]
 
         def initialize(self, **kwargs):
             pass
 
         accelerator: Dict = {  ## Params for accelerate.Accelerator
-            'split_batches': True,
-            'kwargs_handlers': [
+            "split_batches": True,
+            "kwargs_handlers": [
                 ## Have to pass this to avoid https://github.com/pytorch/pytorch/issues/43259
                 ## Ref: huggingface.co/docs/accelerate/v0.16.0/en/package_reference/kwargs#accelerate.DistributedDataParallelKwargs
                 DistributedDataParallelKwargs(find_unused_parameters=True)
-            ]
+            ],
         }
         worker_rank: int = 0
         num_workers: int = 1
@@ -42,46 +50,46 @@ with optional_dependency('accelerate', 'torch'):
 
         @safe_validate_arguments
         def _run_training(
-                self,
-                datasets: Datasets,
-                *,
-                tracker: Tracker,
-                progress_bar: Optional[Dict],
-                metrics: Optional[Metrics] = None,
-                load_model: Optional[FileMetadata] = None,
-                save_model: Optional[FileMetadata] = None,
-                model: Optional[Algorithm] = None,
-                **kwargs,
+            self,
+            datasets: Datasets,
+            *,
+            tracker: Tracker,
+            progress_bar: Optional[Dict],
+            metrics: Optional[Metrics] = None,
+            load_model: Optional[FileMetadata] = None,
+            save_model: Optional[FileMetadata] = None,
+            model: Optional[Algorithm] = None,
+            **kwargs,
         ):
             if self.k_fold.num_folds != 1:
-                warnings.warn(f'{self.class_name} does not support the `k_folds` parameter.')
+                warnings.warn(f"{self.class_name} does not support the `k_folds` parameter.")
             if model is not None:
                 raise ValueError(
-                    f'Cannot pass `model` to {self.class_name}; instead, pass `load_model` to continue training from '
-                    f'an existing model checkpoint.'
+                    f"Cannot pass `model` to {self.class_name}; instead, pass `load_model` to continue training from "
+                    f"an existing model checkpoint."
                 )
             if not issubclass(self.AlgorithmClass, PyTorch):
                 raise ValueError(
-                    f'Can only use {self.class_name} with subclasses of {PyTorch}; '
-                    f'passed `AlgorithmClass` has type: {type(self.AlgorithmClass)}'
+                    f"Can only use {self.class_name} with subclasses of {PyTorch}; "
+                    f"passed `AlgorithmClass` has type: {type(self.AlgorithmClass)}"
                 )
 
-            kwargs.pop('name', None)  ## We pass algorithm as that passed in trainer
-            kwargs.pop('algorithm', None)  ## We pass algorithm as that passed in trainer
-            kwargs.pop('task', None)  ## We pass task as that passed in trainer
-            device: Optional = kwargs.pop('device', None)  ## We pass device as accelerator
+            kwargs.pop("name", None)  ## We pass algorithm as that passed in trainer
+            kwargs.pop("algorithm", None)  ## We pass algorithm as that passed in trainer
+            kwargs.pop("task", None)  ## We pass task as that passed in trainer
+            device: Optional = kwargs.pop("device", None)  ## We pass device as accelerator
             if device is not None and self.verbosity > 0:
                 Log.warning(
                     f'Device "{device}" will be ignored as we use accelerate.Accelerator '
-                    f'to automatically place data and models.'
+                    f"to automatically place data and models."
                 )
             del device
 
             ## Set a random master port to allow running multiple accelerate jobs in parallel.
             ## Ref: https://discuss.pytorch.org/t/run-multiple-distributed-training-jobs-on-one-machine/123383/3
-            master_port: str = f'{np.random.randint(20_000, 30_000)}'
-            os.environ['MASTER_PORT']: str = master_port
-            Log.warning(f'Running accelerate using environment variable MASTER_PORT={master_port}')
+            master_port: str = f"{np.random.randint(20_000, 30_000)}"
+            os.environ["MASTER_PORT"]: str = master_port
+            Log.warning(f"Running accelerate using environment variable MASTER_PORT={master_port}")
 
             notebook_launcher(
                 self._accelerate_training_loop,
@@ -94,8 +102,8 @@ with optional_dependency('accelerate', 'torch'):
                     None if save_model is None else save_model.dict(),
                     master_port,
                     dict(
-                        experiment=f'{tracker.experiment}-accelerate',
-                        **tracker.dict(exclude={'experiment'}),
+                        experiment=f"{tracker.experiment}-accelerate",
+                        **tracker.dict(exclude={"experiment"}),
                     ),
                     progress_bar,
                     kwargs,
@@ -107,16 +115,16 @@ with optional_dependency('accelerate', 'torch'):
 
         @staticmethod
         def _accelerate_training_loop(
-                accelerate_trainer: Dict,
-                AlgorithmClass: Type[Algorithm],
-                datasets: Dict,
-                metrics: Optional[Dict],
-                load_model: Optional[Dict],
-                save_model: Optional[Dict],
-                master_port: str,
-                tracker: Dict,
-                progress_bar: Optional[Dict],
-                kwargs: Dict,
+            accelerate_trainer: Dict,
+            AlgorithmClass: Type[Algorithm],
+            datasets: Dict,
+            metrics: Optional[Dict],
+            load_model: Optional[Dict],
+            save_model: Optional[Dict],
+            master_port: str,
+            tracker: Dict,
+            progress_bar: Optional[Dict],
+            kwargs: Dict,
         ):
             ## In accelerate, anything run/called from inside this function is by default executed on all worker
             ## processes.
@@ -129,26 +137,27 @@ with optional_dependency('accelerate', 'torch'):
             ##  takes no args, and will run only on the process with process-index "i" on each machine,
             ##  i.e. 0<=i<num_workers_per_machine
             import pandas as pd
+
             ## Stops Pandas SettingWithCopyWarning in output. Ref: https://stackoverflow.com/a/20627316
             pd.options.mode.chained_assignment = None  # default='warn'
             timer: Timer = Timer(silent=True)
             timer.start()
 
-            accelerator: Accelerator = Accelerator(**accelerate_trainer['accelerator'])
-            accelerate_trainer['worker_rank']: int = accelerator.process_index
-            accelerate_trainer['num_workers']: int = accelerator.num_processes
+            accelerator: Accelerator = Accelerator(**accelerate_trainer["accelerator"])
+            accelerate_trainer["worker_rank"]: int = accelerator.process_index
+            accelerate_trainer["num_workers"]: int = accelerator.num_processes
             accelerate_trainer: AccelerateTrainer = AccelerateTrainer(**accelerate_trainer)
 
             ## Set a random master port to allow running multiple accelerate jobs in parallel.
             ## Ref: https://discuss.pytorch.org/t/run-multiple-distributed-training-jobs-on-one-machine/123383/3
-            os.environ['MASTER_PORT']: str = master_port
+            os.environ["MASTER_PORT"]: str = master_port
 
             ## Verbosity settings for AccelerateTrainer:
             ## verbosity=0: Don't log for each batch
             ## verbosity=1: Don't log for each batch
             ## verbosity=2: Log for each batch only from main process
             ## verbosity=3: Log for each batch from all processes
-            tracker['capture_terminal_logs'] = True
+            tracker["capture_terminal_logs"] = True
             if accelerate_trainer.verbosity == 0:
                 tracker: Tracker = Tracker.noop_tracker()  ## Don't track.
             else:  ## verbosity >= 1
@@ -156,9 +165,10 @@ with optional_dependency('accelerate', 'torch'):
                     tracker: Tracker = Tracker.of(tracker)
                 else:
                     if accelerate_trainer.verbosity >= 3:  ## Log for each batch from all processes.
-                        tracker['experiment']: str = \
-                            f"{tracker['experiment']}" \
+                        tracker["experiment"]: str = (
+                            f"{tracker['experiment']}"
                             f"-worker={accelerate_trainer.worker_rank + 1}/{accelerate_trainer.num_workers}"
+                        )
                     else:
                         tracker: Tracker = Tracker.noop_tracker()  ## Don't track.
                     tracker: Tracker = Tracker.of(tracker)
@@ -204,7 +214,7 @@ with optional_dependency('accelerate', 'torch'):
                 batch_size=accelerate_trainer.stats_batch_size,
                 data_split=DataSplit.TRAIN,
             )
-            train_dataset_length: Metric = train_stats.find(data_split=DataSplit.TRAIN, select='row_count')
+            train_dataset_length: Metric = train_stats.find(data_split=DataSplit.TRAIN, select="row_count")
             train_dataset_length: int = train_dataset_length.value
             pt_model: Algorithm = Algorithm.of(
                 name=AlgorithmClass,
@@ -215,12 +225,12 @@ with optional_dependency('accelerate', 'torch'):
                 init=True,  ## Ensure we call initialize(), which load the torch.nn.Module into `pt_model.model`
                 post_init=False,  ## When using accelerate, first init training components then manually transfer model.
                 device=accelerator,
-                **kwargs
+                **kwargs,
             )
             if not isinstance(pt_model, PyTorch):
                 raise ValueError(
-                    f'Can only use {accelerate_trainer.class_name} with subclasses of {PyTorch}; '
-                    f'found model with type: {type(pt_model)}'
+                    f"Can only use {accelerate_trainer.class_name} with subclasses of {PyTorch}; "
+                    f"found model with type: {type(pt_model)}"
                 )
             ## With accelerate, first init training components then manually transfer model, optimizer & scheduler:
             pt_model.init_training_components()
@@ -229,9 +239,14 @@ with optional_dependency('accelerate', 'torch'):
             )
             # logger(f'Prepared model, optimizer, lr_scheduler using accelerator: {accelerator}')
 
-            train_dataset, train_metrics, \
-            validation_dataset, validation_metrics, \
-            test_dataset, test_metrics = accelerate_trainer._extract_datasets_and_metrics(
+            (
+                train_dataset,
+                train_metrics,
+                validation_dataset,
+                validation_metrics,
+                test_dataset,
+                test_metrics,
+            ) = accelerate_trainer._extract_datasets_and_metrics(
                 datasets=datasets,
                 metrics=metrics,
             )
@@ -272,34 +287,34 @@ with optional_dependency('accelerate', 'torch'):
 
         @staticmethod
         def _accelerate_trainer_progress_bar(
-                progress_bar: Optional[Dict],
-                *,
-                accelerate_trainer: Any,
-                accelerator: Accelerator,
-                train_dataset_length: int,
-                **kwargs
+            progress_bar: Optional[Dict],
+            *,
+            accelerate_trainer: Any,
+            accelerator: Accelerator,
+            train_dataset_length: int,
+            **kwargs,
         ) -> Optional[Dict]:
             ## Show epoch's progress bar only when printing important information from the main process:
             if accelerate_trainer.verbosity == 1 and accelerator.is_main_process and progress_bar is not None:
                 if not isinstance(progress_bar, dict):
                     progress_bar: Dict = dict()
-                progress_bar.setdefault('total', train_dataset_length)
+                progress_bar.setdefault("total", train_dataset_length)
             else:
                 progress_bar: Optional[Dict] = None
             return progress_bar
 
         @staticmethod
         def _accelerate_logger(
-                text: str,
-                worker_rank: int,
-                num_workers: int,
-                verbosity: int,
-                tracker: Tracker,
-                accelerator: Accelerator,
+            text: str,
+            worker_rank: int,
+            num_workers: int,
+            verbosity: int,
+            tracker: Tracker,
+            accelerator: Accelerator,
         ):
             pid: int = os.getpid()
             now: str = String.now()
-            text: str = f'(pid={pid}, worker={worker_rank + 1}/{num_workers}, {now}): {text}'
+            text: str = f"(pid={pid}, worker={worker_rank + 1}/{num_workers}, {now}): {text}"
             if verbosity == 0:  ## Don't log anything.
                 return
             elif verbosity == 1:  ## Only log once globally, log using debug mode locally.
@@ -310,18 +325,18 @@ with optional_dependency('accelerate', 'torch'):
                 tracker.info(text)
 
         def _train_loop(
-                self,
-                model: PyTorch,
-                train_dataset: Dataset,
-                train_dataset_length: int,  ## Number of rows in training dataset.
-                batch_size: int,
-                **kwargs
+            self,
+            model: PyTorch,
+            train_dataset: Dataset,
+            train_dataset_length: int,  ## Number of rows in training dataset.
+            batch_size: int,
+            **kwargs,
         ):
             accelerator: Accelerator = model.device
             if not is_accelerator(accelerator):
                 raise ValueError(
-                    f'Expected model.device to be accelerator for model of type {type(model)}; '
-                    f'found: {type(accelerator)}'
+                    f"Expected model.device to be accelerator for model of type {type(model)}; "
+                    f"found: {type(accelerator)}"
                 )
             ## When we have "S" workers and batch-size "B", a dataset with "N" rows will only perfectly assign a
             ## batch of "B" to each worker if N%(S*B) == 0 (which is highly unlikely). When N%(S*B) != 0, we end up
@@ -332,11 +347,9 @@ with optional_dependency('accelerate', 'torch'):
             ## we shuffle the dataset before each epoch, skipping the last step should have negligible impact on the
             ## training procedure.
             ## NOTE: we should set drop_last=False during prediction since we don't want to lose any data there.
-            kwargs['drop_last'] = True
+            kwargs["drop_last"] = True
             train_dataset: TorchDataLoader = train_dataset.torch_dataloader(
-                batch_size=batch_size,
-                shard=(self.worker_rank, self.num_workers),
-                **kwargs
+                batch_size=batch_size, shard=(self.worker_rank, self.num_workers), **kwargs
             )
             train_dataset: TorchDataLoader = accelerator.prepare([train_dataset])[0]
             super(AccelerateTrainer, self)._train_loop(
@@ -350,11 +363,11 @@ with optional_dependency('accelerate', 'torch'):
             accelerator.wait_for_everyone()
 
         def _train_step_message(
-                self,
-                batches: int,
-                batch_size: int,
-                train_dataset_length: int,
-                **kwargs,
+            self,
+            batches: int,
+            batch_size: int,
+            train_dataset_length: int,
+            **kwargs,
         ) -> str:
             ## As we set drop_last=True during training, we will only do upto the last fully-completed set of W*B
             batches: int = math.floor(train_dataset_length / (self.num_workers * batch_size))
@@ -364,39 +377,39 @@ with optional_dependency('accelerate', 'torch'):
                 train_dataset_length=train_dataset_length,
                 **kwargs,
             )
-            return f'\n{out}'
+            return f"\n{out}"
 
         def _evaluate_metrics(
-                self,
-                model: PyTorch,
-                dataset: Optional[Dataset],
-                metrics: Optional[List[Metric]],
-                eval_batch_size: Optional[int] = None,
-                **kwargs
+            self,
+            model: PyTorch,
+            dataset: Optional[Dataset],
+            metrics: Optional[List[Metric]],
+            eval_batch_size: Optional[int] = None,
+            **kwargs,
         ) -> Optional[List[Metric]]:
             accelerator: Accelerator = model.device
             if not is_accelerator(accelerator):
                 raise ValueError(
-                    f'Expected model.device to be accelerator for model of type {type(model)}; '
-                    f'found: {type(accelerator)}'
+                    f"Expected model.device to be accelerator for model of type {type(model)}; "
+                    f"found: {type(accelerator)}"
                 )
             if any_are_none(dataset, metrics):
                 return None
-            kwargs.pop('batch_size', None)  ## Remove the training batch size.
+            kwargs.pop("batch_size", None)  ## Remove the training batch size.
             eval_batch_size: Optional[int] = get_default(
                 eval_batch_size,
                 self.eval_batch_size,
                 model.hyperparams.batch_size,
             )
             if self.distributed_evaluation is True:
-                kwargs['drop_last'] = False
+                kwargs["drop_last"] = False
                 dataset: TorchDataLoader = dataset.torch_dataloader(
-                    batch_size=eval_batch_size,
-                    shard=(self.worker_rank, self.num_workers),
-                    **kwargs
+                    batch_size=eval_batch_size, shard=(self.worker_rank, self.num_workers), **kwargs
                 )
                 dataset: TorchDataLoader = accelerator.prepare([dataset])[0]
-                raise NotImplementedError(f'We have not implemented distributed evaluation using sharded dataloaders')
+                raise NotImplementedError(
+                    "We have not implemented distributed evaluation using sharded dataloaders"
+                )
             else:
                 ## Calculate all metrics on all workers. Note: it is required to predict on ALL workers, because
                 ## torch distributed has a bug where evaluating on only one worker causes other workers to hang
@@ -415,25 +428,29 @@ with optional_dependency('accelerate', 'torch'):
                 return metrics
 
         def _train_start_msg(self, *, model: Algorithm, tracker: Tracker, **kwargs) -> str:
-            if tracker.tracker_name == 'noop':
-                tracker_msg: str = 'Logs will not be tracked.'
+            if tracker.tracker_name == "noop":
+                tracker_msg: str = "Logs will not be tracked."
             else:
                 tracker_msg: str = f'{tracker.class_name}@{tracker.id} will save logs to: "{tracker.log_dir}"'
             if model.hyperparams.epochs is not None:
-                return f'\nTraining following {model.task} model ' \
-                       f'for {model.hyperparams.epochs} epochs ' \
-                       f'using {self.num_workers} workers...\n' \
-                       f'{str(model)}\n{tracker_msg}'
+                return (
+                    f"\nTraining following {model.task} model "
+                    f"for {model.hyperparams.epochs} epochs "
+                    f"using {self.num_workers} workers...\n"
+                    f"{str(model)}\n{tracker_msg}"
+                )
             elif model.hyperparams.steps is not None:
-                return f'\nTraining following {model.task} model ' \
-                       f'for {model.hyperparams.steps} steps ' \
-                       f'using {self.num_workers} workers...\n' \
-                       f'{str(model)}\n{tracker_msg}'
-            raise ValueError(f'Either `epochs` or `steps` in hyperparams must be not-None.')
+                return (
+                    f"\nTraining following {model.task} model "
+                    f"for {model.hyperparams.steps} steps "
+                    f"using {self.num_workers} workers...\n"
+                    f"{str(model)}\n{tracker_msg}"
+                )
+            raise ValueError("Either `epochs` or `steps` in hyperparams must be not-None.")
 
         def _train_end_msg(self, *, model: Algorithm, timer: Timer, tracker: Tracker, **kwargs) -> str:
-            if tracker.tracker_name == 'noop':
-                tracker_msg: str = 'Logs have not been tracked.'
+            if tracker.tracker_name == "noop":
+                tracker_msg: str = "Logs have not been tracked."
             else:
                 tracker_msg: str = f'{tracker.class_name}@{tracker.id} has saved logs to "{tracker.log_dir}"'
-            return f'...training completed in {timer.time_taken_str}.\n{tracker_msg}'
+            return f"...training completed in {timer.time_taken_str}.\n{tracker_msg}"

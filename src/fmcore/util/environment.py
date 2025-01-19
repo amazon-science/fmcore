@@ -1,19 +1,19 @@
-from typing import *
 import os
-from fmcore.util.language import String
-from fmcore.util.language import Utility, get_default
+from typing import *
+
+from fmcore.util.language import String, Utility, get_default
 
 
 class EnvUtil(Utility):
     ## KEY
-    PROCESSING_JOB_NAME: ClassVar[str] = 'PROCESSING_JOB_NAME'
-    SNS_TOPIC: ClassVar[str] = 'SNS_TOPIC_ARN'
-    SNS_TOPIC_REGION: ClassVar[str] = 'SNS_TOPIC_REGION'
-    DDB_TABLE_REGION: ClassVar[str] = 'DDB_TABLE_REGION'
-    DDB_TABLE_NAME: ClassVar[str] = 'DDB_TABLE_NAME'
-    LOG_LEVEL: ClassVar[str] = 'LOG_LEVEL'
-    CHIME_WEBHOOK_URL: ClassVar[str] = 'CHIME_WEBHOOK_URL'
-    CUDA_VISIBLE_DEVICES: ClassVar[str] = 'CUDA_VISIBLE_DEVICES'
+    PROCESSING_JOB_NAME: ClassVar[str] = "PROCESSING_JOB_NAME"
+    SNS_TOPIC: ClassVar[str] = "SNS_TOPIC_ARN"
+    SNS_TOPIC_REGION: ClassVar[str] = "SNS_TOPIC_REGION"
+    DDB_TABLE_REGION: ClassVar[str] = "DDB_TABLE_REGION"
+    DDB_TABLE_NAME: ClassVar[str] = "DDB_TABLE_NAME"
+    LOG_LEVEL: ClassVar[str] = "LOG_LEVEL"
+    CHIME_WEBHOOK_URL: ClassVar[str] = "CHIME_WEBHOOK_URL"
+    CUDA_VISIBLE_DEVICES: ClassVar[str] = "CUDA_VISIBLE_DEVICES"
 
     @classmethod
     def var_exists(cls, env_var_key) -> bool:
@@ -38,13 +38,13 @@ class EnvUtil(Utility):
     def cuda_visible_devices(cls) -> List[int]:
         return [
             int(cuda_device_id)
-            for cuda_device_id in get_default(cls.get_var(cls.CUDA_VISIBLE_DEVICES), '').split(',')
+            for cuda_device_id in get_default(cls.get_var(cls.CUDA_VISIBLE_DEVICES), "").split(",")
         ]
 
     @classmethod
-    def num_gpus(cls, provider: str = 'cuda') -> int:
-        if provider == 'cuda':
-            if get_default(cls.get_var(cls.CUDA_VISIBLE_DEVICES), '') == '':
+    def num_gpus(cls, provider: str = "cuda") -> int:
+        if provider == "cuda":
+            if get_default(cls.get_var(cls.CUDA_VISIBLE_DEVICES), "") == "":
                 return 0
             return len(cls.cuda_visible_devices())
         raise NotImplementedError(f'Unsupported GPU provider: "{provider}"')

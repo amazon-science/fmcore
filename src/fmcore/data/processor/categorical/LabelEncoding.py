@@ -1,11 +1,15 @@
 from typing import *
+
 import numpy as np
-import pandas as pd
-from fmcore.data.processor import SingleColumnProcessor, TextOrLabelInputProcessor, EncodedLabelOutputProcessor
-from fmcore.constants import MLType
-from fmcore.util import AutoEnum, auto, is_null, type_str
-from fmcore.data.sdf import ScalableSeries, ScalableSeriesRawType
 from pydantic import root_validator
+
+from fmcore.data.processor import (
+    EncodedLabelOutputProcessor,
+    SingleColumnProcessor,
+    TextOrLabelInputProcessor,
+)
+from fmcore.data.sdf import ScalableSeries, ScalableSeriesRawType
+from fmcore.util import AutoEnum, auto, is_null, type_str
 
 
 class EncodingRange(AutoEnum):
@@ -22,8 +26,8 @@ ENCODING_RANGE_TO_UNKNOWN_LABELS_MAP = {
     EncodingRange.ZERO_TO_N_MINUS_ONE: -1,
 }
 
-BINARY_POSITIVE_LABELS: Set[str] = {'1', 'Y', 'YES', 'TRUE', 'T'}
-BINARY_NEGATIVE_LABELS: Set[str] = {'0', '-1', 'N', 'NO', 'FALSE', 'F'}
+BINARY_POSITIVE_LABELS: Set[str] = {"1", "Y", "YES", "TRUE", "T"}
+BINARY_NEGATIVE_LABELS: Set[str] = {"0", "-1", "N", "NO", "FALSE", "F"}
 
 LabelEncoding = "LabelEncoding"
 
@@ -42,7 +46,7 @@ class LabelEncoding(SingleColumnProcessor, TextOrLabelInputProcessor, EncodedLab
         transform step but not present in the data used to fit the transformer.
     """
 
-    aliases = ['LabelEncoder']
+    aliases = ["LabelEncoder"]
 
     class Params(SingleColumnProcessor.Params):
         encoding_range: EncodingRange = EncodingRange.ONE_TO_N
@@ -52,9 +56,10 @@ class LabelEncoding(SingleColumnProcessor, TextOrLabelInputProcessor, EncodedLab
 
         @root_validator(pre=False)
         def set_unknown_input_encoding_value(cls, params):
-            if params.get('unknown_input_encoding_value') is None:
-                params['unknown_input_encoding_value']: Any = \
-                    ENCODING_RANGE_TO_UNKNOWN_LABELS_MAP[params['encoding_range']]
+            if params.get("unknown_input_encoding_value") is None:
+                params["unknown_input_encoding_value"]: Any = ENCODING_RANGE_TO_UNKNOWN_LABELS_MAP[
+                    params["encoding_range"]
+                ]
             return params
 
     label_encoding_dict: Dict[Any, int] = None  ## Stores normalized labels if label_normalizer is not None
@@ -62,10 +67,10 @@ class LabelEncoding(SingleColumnProcessor, TextOrLabelInputProcessor, EncodedLab
 
     @classmethod
     def from_labelspace(
-            cls,
-            labelspace: Union[Set, List, Tuple],
-            label_encoding_range: EncodingRange,
-            label_normalizer: Callable[[Any], str],
+        cls,
+        labelspace: Union[Set, List, Tuple],
+        label_encoding_range: EncodingRange,
+        label_normalizer: Callable[[Any], str],
     ) -> LabelEncoding:
         """
         Static factory to create a LabelEncoding object from a list/set/tuple of labels.
@@ -85,7 +90,7 @@ class LabelEncoding(SingleColumnProcessor, TextOrLabelInputProcessor, EncodedLab
                     params=dict(
                         encoding_range=EncodingRange.BINARY_ZERO_ONE,
                         label_normalizer=label_normalizer,
-                    )
+                    ),
                 )
             elif lb1.upper() in BINARY_POSITIVE_LABELS and lb2.upper() in BINARY_NEGATIVE_LABELS:
                 return LabelEncoding(
@@ -94,7 +99,7 @@ class LabelEncoding(SingleColumnProcessor, TextOrLabelInputProcessor, EncodedLab
                     params=dict(
                         encoding_range=EncodingRange.BINARY_ZERO_ONE,
                         label_normalizer=label_normalizer,
-                    )
+                    ),
                 )
             label_encoding_range: EncodingRange = EncodingRange.BINARY_ZERO_ONE
         label_encoder: LabelEncoding = LabelEncoding(
@@ -120,11 +125,11 @@ class LabelEncoding(SingleColumnProcessor, TextOrLabelInputProcessor, EncodedLab
         labels, encoded_labels = np.unique(labels, return_inverse=True)
         num_labels, num_encodings = len(labels), len(encoded_labels)
         if num_labels == 0:
-            raise ValueError(f'Input data must contain at least one non-null entry.')
+            raise ValueError("Input data must contain at least one non-null entry.")
         if num_labels != num_encodings:
             raise ValueError(
-                f'Each label should have exactly one encoding. ' + \
-                f'Found: no. unique labels={num_labels}, no. encodings={num_encodings}'
+                "Each label should have exactly one encoding. "
+                + f"Found: no. unique labels={num_labels}, no. encodings={num_encodings}"
             )
         ## Adjust label encoding based on encoding range:
         if self.params.encoding_range is EncodingRange.ZERO_TO_N_MINUS_ONE:
@@ -134,18 +139,22 @@ class LabelEncoding(SingleColumnProcessor, TextOrLabelInputProcessor, EncodedLab
             self.label_encoding_dict: Dict[Any, int] = dict(zip(labels, encoded_labels + 1))
         elif self.params.encoding_range is EncodingRange.BINARY_ZERO_ONE:
             if num_labels > 2:
-                raise ValueError(f'{EncodingRange.BINARY_ZERO_ONE} encoding supports <=2 labels, found {num_labels}')
+                raise ValueError(
+                    f"{EncodingRange.BINARY_ZERO_ONE} encoding supports <=2 labels, found {num_labels}"
+                )
             self.label_encoding_dict: Dict[Any, int] = {labels[0]: 0}
             if num_labels == 2:
                 self.label_encoding_dict[labels[1]] = 1
         elif self.params.encoding_range is EncodingRange.BINARY_PLUS_MINUS_ONE:
             if num_labels > 2:
-                raise ValueError(f'{EncodingRange.BINARY_PLUS_MINUS_ONE} needs <=2 labels, found {num_labels}')
+                raise ValueError(
+                    f"{EncodingRange.BINARY_PLUS_MINUS_ONE} needs <=2 labels, found {num_labels}"
+                )
             self.label_encoding_dict: Dict[Any, int] = {labels[0]: -1}
             if num_labels == 2:
                 self.label_encoding_dict[labels[1]] = 1
         else:
-            raise NotImplementedError(f'Unsupported encoding range: {self.params.encoding_range}')
+            raise NotImplementedError(f"Unsupported encoding range: {self.params.encoding_range}")
         self.label_decoding_dict: Dict[int, Any] = {v: k for k, v in self.label_encoding_dict.items()}
 
     def _transform_series(self, data: ScalableSeries) -> ScalableSeries:
@@ -153,8 +162,10 @@ class LabelEncoding(SingleColumnProcessor, TextOrLabelInputProcessor, EncodedLab
             raise self.FitBeforeTransformError
         data: ScalableSeries = self._fill_missing_values(data)
         if self.params.label_normalizer is not None:
-            data: ScalableSeries = data.map(self.params.label_normalizer, na_action='ignore')
-        return data.map(self.label_encoding_dict, na_action='ignore').fillna(self.params.unknown_input_encoding_value)
+            data: ScalableSeries = data.map(self.params.label_normalizer, na_action="ignore")
+        return data.map(self.label_encoding_dict, na_action="ignore").fillna(
+            self.params.unknown_input_encoding_value
+        )
 
     def transform_single(self, data: Optional[Any]) -> int:
         if self.label_encoding_dict is None:
@@ -163,12 +174,12 @@ class LabelEncoding(SingleColumnProcessor, TextOrLabelInputProcessor, EncodedLab
         return int(self.label_encoding_dict.get(data, self.params.unknown_input_encoding_value))
 
     def inverse_transform_series(
-            self,
-            data: Union[ScalableSeries, ScalableSeriesRawType],
+        self,
+        data: Union[ScalableSeries, ScalableSeriesRawType],
     ) -> Union[ScalableSeries, ScalableSeriesRawType]:
         if self.label_decoding_dict is None:
             raise self.FitBeforeTransformError
-        output: ScalableSeries = ScalableSeries.of(data).map(self.label_decoding_dict, na_action='ignore')
+        output: ScalableSeries = ScalableSeries.of(data).map(self.label_decoding_dict, na_action="ignore")
         if not isinstance(data, ScalableSeries):
             output: ScalableSeriesRawType = output.raw()
         return output
@@ -177,7 +188,9 @@ class LabelEncoding(SingleColumnProcessor, TextOrLabelInputProcessor, EncodedLab
         if self.label_decoding_dict is None:
             raise self.FitBeforeTransformError
         if not isinstance(data, int):
-            raise ValueError(f'Expected input data to be an integer; found {type_str(data)} having value: {data}')
+            raise ValueError(
+                f"Expected input data to be an integer; found {type_str(data)} having value: {data}"
+            )
         return self.label_decoding_dict.get(data)
 
     def _fill_missing_value(self, data: Any):

@@ -1,10 +1,9 @@
 import base64
-import base64
 import gzip
 import json
 import math
 import warnings
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 from collections import deque
 from concurrent.futures._base import Future
 from typing import *
@@ -14,13 +13,37 @@ from pandas.core.frame import DataFrame as PandasDataFrame
 from pydantic import conint, constr, root_validator
 from pydantic.typing import Literal
 
-from fmcore.constants import DataLayout, SDF_DATA_LAYOUT_PRIORITY, LAZY_SDF_DATA_LAYOUTS, Parallelize, \
-    CompressionEngine
+from fmcore.constants import (
+    LAZY_SDF_DATA_LAYOUTS,
+    SDF_DATA_LAYOUT_PRIORITY,
+    CompressionEngine,
+    DataLayout,
+    Parallelize,
+)
 from fmcore.data.sdf.ScalableSeries import ScalableSeries, ScalableSeriesOrRaw
-from fmcore.util import as_list, resolve_sample_size, SampleSizeType, Registry, String, get_default, \
-    classproperty, accumulate, dispatch, MutableParameters, safe_validate_arguments, is_done, optional_dependency, \
-    multiple_are_not_none, all_are_not_none, is_list_of_dict_like, Parameters, dispatch_executor, Executor, Alias
-from fmcore.util.language._import import _IS_DASK_INSTALLED, _check_is_dask_installed, DaskDataFrame
+from fmcore.util import (
+    Alias,
+    Executor,
+    MutableParameters,
+    Parameters,
+    Registry,
+    SampleSizeType,
+    String,
+    accumulate,
+    all_are_not_none,
+    as_list,
+    classproperty,
+    dispatch,
+    dispatch_executor,
+    get_default,
+    is_done,
+    is_list_of_dict_like,
+    multiple_are_not_none,
+    optional_dependency,
+    resolve_sample_size,
+    safe_validate_arguments,
+)
+from fmcore.util.language._import import _IS_DASK_INSTALLED, DaskDataFrame, _check_is_dask_installed
 
 ScalableDataFrame = "ScalableDataFrame"
 CompressedScalableDataFrame = "CompressedScalableDataFrame"
@@ -29,13 +52,14 @@ if _IS_DASK_INSTALLED:
     ScalableDataFrameRawType = Union[Dict, List[Dict], np.recarray, PandasDataFrame, DaskDataFrame]
 ScalableDataFrameOrRaw = Union[ScalableDataFrame, ScalableDataFrameRawType]
 ScalableOrRaw = Union[ScalableSeriesOrRaw, ScalableDataFrameOrRaw]
-RAW_DATA_MEMBER = '_data'
+RAW_DATA_MEMBER = "_data"
 
 is_scalable: Callable = lambda data: isinstance(data, (ScalableSeries, ScalableDataFrame))
 
 
 class DataFrameShardingError(Exception):
     """A custom exception used to report errors in sharding."""
+
     pass
 
 
@@ -48,11 +72,12 @@ class ScalableDataFrame(Registry, ABC):
     """
     Class to interact with mutable "DataFrames" of various underlying data layouts.
     """
+
     layout: ClassVar[DataLayout]
     ## Callable typing: stackoverflow.com/a/39624147/4900327
     layout_validator: ClassVar[Callable[[Any, bool], bool]]
     ScalableSeriesClass: ClassVar[Type[ScalableSeries]]
-    chunk_prefix: ClassVar[str] = 'part'
+    chunk_prefix: ClassVar[str] = "part"
     display: ClassVar[ScalableDataFrameDisplay] = ScalableDataFrameDisplay()
 
     def __init__(self, data: Optional[ScalableDataFrameOrRaw] = None, name: Optional[str] = None, **kwargs):
@@ -88,10 +113,10 @@ class ScalableDataFrame(Registry, ABC):
 
     @classmethod
     def of(
-            cls,
-            data: ScalableOrRaw,
-            layout: Optional[DataLayout] = None,
-            **kwargs,
+        cls,
+        data: ScalableOrRaw,
+        layout: Optional[DataLayout] = None,
+        **kwargs,
     ) -> ScalableDataFrame:
         """
         Factory to create ScalableDataFrames.
@@ -100,27 +125,31 @@ class ScalableDataFrame(Registry, ABC):
         :return: ScalableDataFrame instance.
         """
         if data is None:
-            raise ValueError(f'Input data cannot be None.')
+            raise ValueError("Input data cannot be None.")
         if not is_scalable(data):
             ## Try to detect the layout, first as a ScalableSeries, then as a ScalableDataFrame.
             detected_layout: Optional[DataLayout] = ScalableSeries.detect_layout(data, raise_error=False)
             if detected_layout is not None:
                 data: ScalableSeries = ScalableSeries.get_subclass(detected_layout)(data=data)
             else:
-                detected_layout: Optional[DataLayout] = ScalableDataFrame.detect_layout(data, raise_error=False)
+                detected_layout: Optional[DataLayout] = ScalableDataFrame.detect_layout(
+                    data, raise_error=False
+                )
                 if detected_layout is None:
-                    raise NotImplementedError(f'Cannot infer layout of data with type: {type(data)}.')
+                    raise NotImplementedError(f"Cannot infer layout of data with type: {type(data)}.")
                 data: ScalableDataFrame = ScalableDataFrame.get_subclass(detected_layout)(data=data)
         if isinstance(data, ScalableSeries):
             data: ScalableDataFrame = data.to_frame()
         assert isinstance(data, ScalableDataFrame)
         if layout is None:
             return data
-        ScalableDataFrameClass: Optional[Type[ScalableDataFrame]] = cls.get_subclass(layout, raise_error=False)
+        ScalableDataFrameClass: Optional[Type[ScalableDataFrame]] = cls.get_subclass(
+            layout, raise_error=False
+        )
         if ScalableDataFrameClass is None:
             raise ValueError(
                 f'Cannot create {ScalableDataFrame} subclass having layout "{layout}"; '
-                f'available subclasses are: {ScalableDataFrame.subclasses()}'
+                f"available subclasses are: {ScalableDataFrame.subclasses()}"
             )
         ## When passed either raw data (in the correct format) or a ScalableDataFrame, the respective
         ## ScalableDataFrame subclass should be able to accept it.
@@ -128,7 +157,7 @@ class ScalableDataFrame(Registry, ABC):
 
     @property
     def hvplot(self) -> Any:
-        with optional_dependency('hvplot', error='raise'):
+        with optional_dependency("hvplot", error="raise"):
             return self.pandas().hvplot
 
     @classmethod
@@ -146,8 +175,8 @@ class ScalableDataFrame(Registry, ABC):
                 return possible_layout
         if raise_error:
             raise NotImplementedError(
-                f'Cannot infer layout of data having type: {type(data)}. '
-                f'Please pass `layout=...` using one of the following: {list(DataLayout)}'
+                f"Cannot infer layout of data having type: {type(data)}. "
+                f"Please pass `layout=...` using one of the following: {list(DataLayout)}"
             )
         else:
             return None
@@ -165,20 +194,22 @@ class ScalableDataFrame(Registry, ABC):
     def is_record(cls, data: Any, raise_error: bool = True) -> bool:
         if data is None:
             if raise_error:
-                raise ValueError(f'Input data cannot be None.')
+                raise ValueError("Input data cannot be None.")
             return False
         if not isinstance(data, dict):
             if raise_error:
-                raise ValueError(f'Expected input to be dict with scalar values; found input with type: {type(data)}')
+                raise ValueError(
+                    f"Expected input to be dict with scalar values; found input with type: {type(data)}"
+                )
             return False
         ## data is a dict
         for k, v in data.items():
             v_is_not_datum: bool = not ScalableSeries.is_datum(v)
             if v_is_not_datum:
                 if raise_error:
-                    err_msg: str = f'Expected keys and values of input dict to be scalars; found '
+                    err_msg: str = "Expected keys and values of input dict to be scalars; found "
                     if v_is_not_datum:
-                        err_msg += f'non-scalar value {v} (type {type(v)})'
+                        err_msg += f"non-scalar value {v} (type {type(v)})"
                     raise ValueError(err_msg)
                 return False
         return True
@@ -187,48 +218,50 @@ class ScalableDataFrame(Registry, ABC):
     def is_dict(cls, data: Any, raise_error: bool = True) -> bool:
         if data is None:
             if raise_error:
-                raise ValueError(f'Input data cannot be None.')
+                raise ValueError("Input data cannot be None.")
             else:
                 return False
         valid: bool = isinstance(data, dict)
         if not valid and raise_error:
-            raise ValueError(f'Expected input to be dict; found input with type: {type(data)}')
+            raise ValueError(f"Expected input to be dict; found input with type: {type(data)}")
         return valid
 
     @classmethod
     def is_list_of_dict(cls, data: Any, raise_error: bool = True) -> bool:
         if data is None:
             if raise_error:
-                raise ValueError(f'Input data cannot be None.')
+                raise ValueError("Input data cannot be None.")
             else:
                 return False
         valid: bool = is_list_of_dict_like(data)
         if not valid and raise_error:
-            raise ValueError(f'Expected input to be dict or list of dicts; found input with type: {type(data)}')
+            raise ValueError(
+                f"Expected input to be dict or list of dicts; found input with type: {type(data)}"
+            )
         return valid
 
     @classmethod
     def is_numpy_record_array(cls, data: Any, raise_error: bool = True) -> bool:
         if data is None:
             if raise_error:
-                raise ValueError(f'Input data cannot be None.')
+                raise ValueError("Input data cannot be None.")
             else:
                 return False
         valid: bool = isinstance(data, np.recarray)
         if not valid and raise_error:
-            raise ValueError(f'Expected input to be NumPy record array; found input with type: {type(data)}')
+            raise ValueError(f"Expected input to be NumPy record array; found input with type: {type(data)}")
         return valid
 
     @classmethod
     def is_pandas(cls, data: Any, raise_error: bool = True) -> bool:
         if data is None:
             if raise_error:
-                raise ValueError(f'Input data cannot be None.')
+                raise ValueError("Input data cannot be None.")
             else:
                 return False
         valid: bool = isinstance(data, PandasDataFrame)
         if not valid and raise_error:
-            raise ValueError(f'Expected input to be Pandas DataFrame; found input with type: {type(data)}')
+            raise ValueError(f"Expected input to be Pandas DataFrame; found input with type: {type(data)}")
         return valid
 
     @classmethod
@@ -237,22 +270,22 @@ class ScalableDataFrame(Registry, ABC):
             return False
         if data is None:
             if raise_error:
-                raise ValueError(f'Input data cannot be None.')
+                raise ValueError("Input data cannot be None.")
             else:
                 return False
         valid: bool = isinstance(data, DaskDataFrame)
         if not valid and raise_error:
-            raise ValueError(f'Expected input to be Dask DataFrame; found input with type: {type(data)}')
+            raise ValueError(f"Expected input to be Dask DataFrame; found input with type: {type(data)}")
         return valid
 
     @safe_validate_arguments
     def valid(
-            self,
-            validator: Callable[[Any, bool], bool],
-            sample_size: Union[SampleSizeType, Literal[False], Literal[0.0], Literal[0]] = True,
-            seed: Optional[int] = None,
-            return_failed: bool = False,
-            **kwargs,
+        self,
+        validator: Callable[[Any, bool], bool],
+        sample_size: Union[SampleSizeType, Literal[False], Literal[0.0], Literal[0]] = True,
+        seed: Optional[int] = None,
+        return_failed: bool = False,
+        **kwargs,
     ) -> Union[bool, Tuple]:
         """
         Runs a validator function element-wise on the data, and throws an exception if any element is invalid.
@@ -275,7 +308,7 @@ class ScalableDataFrame(Registry, ABC):
             length: int = len(self)
             n: int = resolve_sample_size(sample_size=sample_size, length=length)
             sample: ScalableDataFrame = self.sample(n=int(n), random_state=seed)
-        kwargs['na_action'] = None  ## Always pass the cell-value to the validator function.
+        kwargs["na_action"] = None  ## Always pass the cell-value to the validator function.
         valid: ScalableDataFrame = sample.applymap(validator, **kwargs)
         is_valid: bool = valid.mean().all().all()
         if return_failed:
@@ -285,37 +318,38 @@ class ScalableDataFrame(Registry, ABC):
 
     @safe_validate_arguments
     def compress(
-            self,
-            *,
-            layout: DataLayout = DataLayout.LIST_OF_DICT,
-            engine: Union[Tuple[CompressionEngine, ...], CompressionEngine] = (
-                    CompressionEngine.BROTLI, CompressionEngine.GZIP,
-            ),
-
-            compression_kwargs: Optional[Dict] = None,
-            base64_encoding: bool = False,
-            **kwargs,
+        self,
+        *,
+        layout: DataLayout = DataLayout.LIST_OF_DICT,
+        engine: Union[Tuple[CompressionEngine, ...], CompressionEngine] = (
+            CompressionEngine.BROTLI,
+            CompressionEngine.GZIP,
+        ),
+        compression_kwargs: Optional[Dict] = None,
+        base64_encoding: bool = False,
+        **kwargs,
     ) -> CompressedScalableDataFrame:
         engine: List[CompressionEngine] = as_list(engine)
         compression_kwargs: Dict = get_default(compression_kwargs, dict())
         allowed_compression_layouts: Set[DataLayout] = {DataLayout.DICT, DataLayout.LIST_OF_DICT}
         if layout not in allowed_compression_layouts:
             raise ValueError(
-                f'Cannot compress using layout: {layout}; can only use '
-                f'{String.join_human(allowed_compression_layouts)}'
+                f"Cannot compress using layout: {layout}; can only use "
+                f"{String.join_human(allowed_compression_layouts)}"
             )
         data_bytes: bytes = String.jsonify(
             self.to_layout(layout=layout, **kwargs).raw(),
             minify=True,
-        ).encode('utf-8')
+        ).encode("utf-8")
         for eng in engine:
             if eng is CompressionEngine.BROTLI:
-                compression_kwargs.setdefault('quality', 11)  ## Smallest compressed size
-                with optional_dependency('brotli', error='ignore'):
+                compression_kwargs.setdefault("quality", 11)  ## Smallest compressed size
+                with optional_dependency("brotli", error="ignore"):
                     import brotli
+
                     payload: bytes = brotli.compress(data_bytes, **compression_kwargs)
                     if base64_encoding:
-                        payload: str = base64.urlsafe_b64encode(payload).decode('utf-8')
+                        payload: str = base64.urlsafe_b64encode(payload).decode("utf-8")
                         # print(f'Type of data post b64 encoding: {type(payload)}')
 
                     return CompressedScalableDataFrame(
@@ -326,10 +360,10 @@ class ScalableDataFrame(Registry, ABC):
                     )
                 continue  ## If brotli is not found.
             elif eng is CompressionEngine.GZIP:
-                compression_kwargs.setdefault('compresslevel', 9)  ## Smallest compressed size
+                compression_kwargs.setdefault("compresslevel", 9)  ## Smallest compressed size
                 payload: bytes = gzip.compress(data_bytes, **compression_kwargs)
                 if base64_encoding:
-                    payload: str = base64.urlsafe_b64encode(payload).decode('utf-8')
+                    payload: str = base64.urlsafe_b64encode(payload).decode("utf-8")
                     # print(f'Type of data post b64 encoding: {type(payload)}')
                 return CompressedScalableDataFrame(
                     payload=payload,
@@ -339,13 +373,13 @@ class ScalableDataFrame(Registry, ABC):
                 )
             else:
                 raise NotImplementedError(f'Unsupported compression engine: "{eng}"')
-        raise NotImplementedError(f'Could not compress using any of these engines: {engine}')
+        raise NotImplementedError(f"Could not compress using any of these engines: {engine}")
 
     @safe_validate_arguments
     def split(
-            self,
-            prefix: constr(min_length=1) = chunk_prefix,
-            **kwargs,
+        self,
+        prefix: constr(min_length=1) = chunk_prefix,
+        **kwargs,
     ) -> Dict[str, Any]:
         chunks_list: List[ScalableDataFrameOrRaw] = list(self.stream(**kwargs))
         length: int = sum([len(chunk) for chunk in chunks_list])
@@ -354,8 +388,10 @@ class ScalableDataFrame(Registry, ABC):
         for chunk_i in range(0, len(chunks_list)):
             idx_start: int = rows_covered_so_far
             idx_end: int = rows_covered_so_far + len(chunks_list[chunk_i])
-            chunk_name = f'{prefix}-{String.pad_zeros(chunk_i + 1, len(chunks_list))}'
-            chunk_name += f'-rows-{String.pad_zeros(idx_start + 1, length)}-{String.pad_zeros(idx_end, length)}'
+            chunk_name = f"{prefix}-{String.pad_zeros(chunk_i + 1, len(chunks_list))}"
+            chunk_name += (
+                f"-rows-{String.pad_zeros(idx_start + 1, length)}-{String.pad_zeros(idx_end, length)}"
+            )
             chunks_dict[chunk_name] = chunks_list[chunk_i]
             rows_covered_so_far += len(chunks_list[chunk_i])
         return chunks_dict
@@ -367,60 +403,62 @@ class ScalableDataFrame(Registry, ABC):
         Alias.set_shard_seed(kwargs)
         Alias.set_num_workers(kwargs)
         Alias.set_parallelize(kwargs)
-        Alias.set_mapper(kwargs, param='map')
+        Alias.set_mapper(kwargs, param="map")
         Alias.set_map_executor(kwargs)
         Alias.set_map_failure(kwargs)
         Alias.set_shard_rank(kwargs)
         Alias.set_num_shards(kwargs)
 
-        if kwargs.get('parallelize') == Parallelize.sync:
-            if kwargs.get('num_workers', 1) != 1:
+        if kwargs.get("parallelize") == Parallelize.sync:
+            if kwargs.get("num_workers", 1) != 1:
                 warnings.warn(
-                    f'When setting parallelize={Parallelize.sync}, we implicitly use only one worker (the main thread). '
-                    f'The entered value of `num_workers` will be ignored.'
+                    f"When setting parallelize={Parallelize.sync}, we implicitly use only one worker (the main thread). "
+                    f"The entered value of `num_workers` will be ignored."
                 )
-            kwargs['num_workers'] = 1
+            kwargs["num_workers"] = 1
 
-        if kwargs.get('stream_as') in LAZY_SDF_DATA_LAYOUTS:
+        if kwargs.get("stream_as") in LAZY_SDF_DATA_LAYOUTS:
             raise AttributeError(
-                f'Cannot stream data as a {kwargs["stream_as"]}, `stream_as` must be an in-memory datatype '
-                f'on the client, such as {DataLayout.LIST_OF_DICT} or {DataLayout.PANDAS}'
+                f"Cannot stream data as a {kwargs['stream_as']}, `stream_as` must be an in-memory datatype "
+                f"on the client, such as {DataLayout.LIST_OF_DICT} or {DataLayout.PANDAS}"
             )
-        if multiple_are_not_none(kwargs.get('num_rows'), kwargs.get('num_chunks')):
-            raise ValueError(f'Only one of `num_rows` or `num_chunks` can be non-None.')
-        if all_are_not_none(kwargs.get('shard_rank'), kwargs.get('num_shards')):
-            kwargs['shard']: Tuple[int, int] = (kwargs.pop('shard_rank'), kwargs.pop('num_shards'))
-        if kwargs.get('shard') is not None:
-            shard_rank, num_shards = kwargs['shard']
-            if not (isinstance(shard_rank, int) and isinstance(num_shards, int) and 0 <= shard_rank < num_shards):
+        if multiple_are_not_none(kwargs.get("num_rows"), kwargs.get("num_chunks")):
+            raise ValueError("Only one of `num_rows` or `num_chunks` can be non-None.")
+        if all_are_not_none(kwargs.get("shard_rank"), kwargs.get("num_shards")):
+            kwargs["shard"]: Tuple[int, int] = (kwargs.pop("shard_rank"), kwargs.pop("num_shards"))
+        if kwargs.get("shard") is not None:
+            shard_rank, num_shards = kwargs["shard"]
+            if not (
+                isinstance(shard_rank, int) and isinstance(num_shards, int) and 0 <= shard_rank < num_shards
+            ):
                 raise ValueError(
-                    f'Expected `shard` to be a tuple of two elements: (shard_rank, num_shards), '
-                    f'where 0 <= shard_rank < num_shards; found: shard_rank={shard_rank}, num_shards={num_shards}'
+                    f"Expected `shard` to be a tuple of two elements: (shard_rank, num_shards), "
+                    f"where 0 <= shard_rank < num_shards; found: shard_rank={shard_rank}, num_shards={num_shards}"
                 )
-        kwargs.setdefault('map_kwargs', {})
+        kwargs.setdefault("map_kwargs", {})
         return self._stream_chunks(**kwargs)
 
     @safe_validate_arguments
     def _stream_chunks(
-            self,
-            map_kwargs: Dict,
-            num_rows: Optional[conint(ge=1)] = None,
-            num_chunks: Optional[conint(ge=1)] = None,
-            stream_as: Optional[DataLayout] = None,
-            raw: bool = False,
-            shuffle: bool = False,
-            seed: Optional[int] = None,
-            map: Optional[Callable] = None,
-            num_workers: conint(ge=1) = 1,
-            parallelize: Parallelize = Parallelize.sync,
-            map_failure: Literal['raise', 'drop'] = 'raise',
-            map_executor: Literal['spawn'] = 'spawn',
-            shard: Tuple[conint(ge=0), conint(ge=1)] = (0, 1),
-            shard_shuffle: bool = False,
-            shard_seed: Optional[int] = None,
-            reverse_sharding: bool = False,
-            drop_last: Optional[bool] = None,
-            **kwargs,
+        self,
+        map_kwargs: Dict,
+        num_rows: Optional[conint(ge=1)] = None,
+        num_chunks: Optional[conint(ge=1)] = None,
+        stream_as: Optional[DataLayout] = None,
+        raw: bool = False,
+        shuffle: bool = False,
+        seed: Optional[int] = None,
+        map: Optional[Callable] = None,
+        num_workers: conint(ge=1) = 1,
+        parallelize: Parallelize = Parallelize.sync,
+        map_failure: Literal["raise", "drop"] = "raise",
+        map_executor: Literal["spawn"] = "spawn",
+        shard: Tuple[conint(ge=0), conint(ge=1)] = (0, 1),
+        shard_shuffle: bool = False,
+        shard_seed: Optional[int] = None,
+        reverse_sharding: bool = False,
+        drop_last: Optional[bool] = None,
+        **kwargs,
     ) -> Generator[ScalableDataFrameOrRaw, None, None]:
         """
         Retrieve data from the ScalableDataframe in batches (either ScalableDataFrame objects or raw data).
@@ -479,7 +517,9 @@ class ScalableDataFrame(Registry, ABC):
                 map_executor=map_executor,
             )
 
-            sdf: ScalableDataFrame = self._stream_in_memory_sdf_convert_to_streaming_layout(stream_as=stream_as)
+            sdf: ScalableDataFrame = self._stream_in_memory_sdf_convert_to_streaming_layout(
+                stream_as=stream_as
+            )
             ## Get the complete list of batches which we must stream.
             ## Here, `row_idxs` is a list of numpy arrays, where each numpy array has the row-indexes which make
             ## up the chunk which will be yielded.
@@ -540,41 +580,42 @@ class ScalableDataFrame(Registry, ABC):
             )
         return
 
-    stream.__doc__ = _stream_chunks.__doc__  ## Clone docstring. Ref: https://stackoverflow.com/a/68901244/4900327
+    stream.__doc__ = (
+        _stream_chunks.__doc__
+    )  ## Clone docstring. Ref: https://stackoverflow.com/a/68901244/4900327
 
     @classmethod
     @safe_validate_arguments
     def _stream_in_memory_sdf_get_shard_chunks_row_idxs(
-            cls,
-            length: conint(ge=1),
-            shard: Tuple[conint(ge=0), conint(ge=1)],
-            num_rows: Optional[conint(ge=1)],
-            num_chunks: Optional[conint(ge=1)],
-            drop_last: Optional[bool],
-            shuffle: bool,
-            shard_shuffle: bool,
-            seed: Optional[int],
-            shard_seed: Optional[int],
-            reverse_sharding: bool,
+        cls,
+        length: conint(ge=1),
+        shard: Tuple[conint(ge=0), conint(ge=1)],
+        num_rows: Optional[conint(ge=1)],
+        num_chunks: Optional[conint(ge=1)],
+        drop_last: Optional[bool],
+        shuffle: bool,
+        shard_shuffle: bool,
+        seed: Optional[int],
+        shard_seed: Optional[int],
+        reverse_sharding: bool,
     ) -> List[np.ndarray]:
         shard_rank, num_shards = shard
         if not (0 <= shard_rank < num_shards):
             raise DataFrameShardingError(
-                f'`shard_rank` must be in range [0, {num_shards}); '
-                f'found shard_rank={shard_rank}.'
+                f"`shard_rank` must be in range [0, {num_shards}); found shard_rank={shard_rank}."
             )
 
         if num_shards > length:
             raise DataFrameShardingError(
-                f'Cannot shard DataFrame of {length} rows into {num_shards} shards; DataFrame length is insufficient. '
-                f'Please reduce the number of shards.'
+                f"Cannot shard DataFrame of {length} rows into {num_shards} shards; DataFrame length is insufficient. "
+                f"Please reduce the number of shards."
             )
 
         if num_shards > 1:
             if shard_shuffle and shard_seed is None:
                 raise DataFrameShardingError(
-                    f'When calling .stream() with {num_shards} shards and shard_shuffle=True, '
-                    f'you must pass `shard_seed` to ensure you get consistent results.'
+                    f"When calling .stream() with {num_shards} shards and shard_shuffle=True, "
+                    f"you must pass `shard_seed` to ensure you get consistent results."
                 )
         if num_rows is not None:
             ## Here, we split the DataFrame into batches of <= num_rows
@@ -585,10 +626,10 @@ class ScalableDataFrame(Registry, ABC):
             num_rows: int = min(num_rows, length)
             if num_shards * num_rows > length:
                 raise DataFrameShardingError(
-                    f'Cannot shard DataFrame into {num_shards} shards into batches of size {num_rows}; '
-                    f'{num_shards}*{num_rows} is more than the length of the DataFrame ({length} rows), '
-                    f'so we cannot even create one batch for each shard. '
-                    f'Please reduce the number of shards and/or reduce the number of rows per batch.'
+                    f"Cannot shard DataFrame into {num_shards} shards into batches of size {num_rows}; "
+                    f"{num_shards}*{num_rows} is more than the length of the DataFrame ({length} rows), "
+                    f"so we cannot even create one batch for each shard. "
+                    f"Please reduce the number of shards and/or reduce the number of rows per batch."
                 )
 
             sharding_num_rows: int = num_rows
@@ -601,10 +642,10 @@ class ScalableDataFrame(Registry, ABC):
             num_chunks: int = min(num_chunks, length)
             if num_shards * num_chunks > length:
                 raise DataFrameShardingError(
-                    f'Cannot shard DataFrame into {num_shards} shards into {num_chunks} chunks; '
-                    f'{num_shards}*{num_chunks} is more than the length of the DataFrame ({length} rows), '
-                    f'so we cannot put even one row for each shard. '
-                    f'Please reduce the number of shards and/or reduce the number of chunks.'
+                    f"Cannot shard DataFrame into {num_shards} shards into {num_chunks} chunks; "
+                    f"{num_shards}*{num_chunks} is more than the length of the DataFrame ({length} rows), "
+                    f"so we cannot put even one row for each shard. "
+                    f"Please reduce the number of shards and/or reduce the number of chunks."
                 )
             if drop_last in {False, None}:
                 sharding_drop_last: bool = False
@@ -615,10 +656,10 @@ class ScalableDataFrame(Registry, ABC):
                 sharding_num_rows: int = math.floor(length / (num_shards * num_chunks))
                 if num_shards * num_chunks > length:
                     raise DataFrameShardingError(
-                        f'Cannot shard DataFrame into {num_shards} shards with {num_chunks} per shard; '
-                        f'{num_shards}*{num_chunks} is more than the length of the DataFrame ({length} rows), '
-                        f'so we cannot even create one batch of 1 row for each shard. '
-                        f'Please reduce the number of shards and/or reduce the number of chunks per shard.'
+                        f"Cannot shard DataFrame into {num_shards} shards with {num_chunks} per shard; "
+                        f"{num_shards}*{num_chunks} is more than the length of the DataFrame ({length} rows), "
+                        f"so we cannot even create one batch of 1 row for each shard. "
+                        f"Please reduce the number of shards and/or reduce the number of chunks per shard."
                     )
             # else:
             # raise ValueError(
@@ -630,7 +671,9 @@ class ScalableDataFrame(Registry, ABC):
             # )
 
         else:
-            raise NotImplementedError(f'Must pass exactly one of `num_rows` or `num_chunks`; found both to be None')
+            raise NotImplementedError(
+                "Must pass exactly one of `num_rows` or `num_chunks`; found both to be None"
+            )
         ## Get the (shuffled) row idxs which should be in the current shard:
         shard_row_idxs, num_chunks_per_shard = cls._stream_in_memory_get_balanced_shard_row_idxs(
             length=length,
@@ -651,10 +694,10 @@ class ScalableDataFrame(Registry, ABC):
         rows_i: int = 0
         while rows_i < shard_length:
             if num_rows is not None:
-                shard_chunk_row_idxs: np.array = shard_row_idxs[rows_i: rows_i + num_rows]
+                shard_chunk_row_idxs: np.array = shard_row_idxs[rows_i : rows_i + num_rows]
                 if drop_last is False and chunks_returned == num_chunks_per_shard - 1:
                     ## We are in the last chunk/batch, so we should pad it with all the remaining rows.
-                    shard_chunk_row_idxs: np.array = shard_row_idxs[rows_i: length]
+                    shard_chunk_row_idxs: np.array = shard_row_idxs[rows_i:length]
             elif num_chunks is not None:
                 if drop_last in {None, False}:
                     ## In this condition, `num_chunks` is not None, so we want to ensure we return `num_chunks` chunks,
@@ -668,27 +711,29 @@ class ScalableDataFrame(Registry, ABC):
                         chunks_returned=chunks_returned,
                         num_chunks=num_chunks,
                     )
-                    shard_chunk_row_idxs: np.array = shard_row_idxs[rows_i: rows_i + __num_rows]
+                    shard_chunk_row_idxs: np.array = shard_row_idxs[rows_i : rows_i + __num_rows]
                 elif drop_last is True:
                     __num_rows: int = math.floor(shard_length / num_chunks)
-                    shard_chunk_row_idxs: np.array = shard_row_idxs[rows_i: rows_i + __num_rows]
-            rows_i += len(shard_chunk_row_idxs)  ## Handles the case where rows_i + num_rows exceeds shard_length
+                    shard_chunk_row_idxs: np.array = shard_row_idxs[rows_i : rows_i + __num_rows]
+            rows_i += len(
+                shard_chunk_row_idxs
+            )  ## Handles the case where rows_i + num_rows exceeds shard_length
             chunks_returned += 1
             shard_chunks_row_idxs.append(shard_chunk_row_idxs)
             shard_chunks_row_lens.append(len(shard_chunk_row_idxs))
         if num_chunks is not None and num_chunks <= shard_length and drop_last in {None, False}:
             if len(shard_chunks_row_idxs) != num_chunks:
                 raise ValueError(
-                    f'Expected shard {shard} of {shard_length} rows would be split into {num_chunks} chunks; however, '
-                    f'created {len(shard_chunks_row_idxs)} chunks with following lengths: {shard_chunks_row_lens}'
+                    f"Expected shard {shard} of {shard_length} rows would be split into {num_chunks} chunks; however, "
+                    f"created {len(shard_chunks_row_idxs)} chunks with following lengths: {shard_chunks_row_lens}"
                 )
         if drop_last is True:
             shard_chunks_row_lens: np.ndarray = np.array(shard_chunks_row_lens)
             if not np.all(shard_chunks_row_lens == shard_chunks_row_lens[0]):
                 raise ValueError(
-                    f'(Shard: {shard}): When setting drop_last=True (num_rows={num_rows}, num_chunks={num_chunks}), '
-                    f'expected all chunks to be the same size; however, created {len(shard_chunks_row_idxs)} chunks '
-                    f'with the following lengths (from shard of {shard_length} rows): {shard_chunks_row_lens}'
+                    f"(Shard: {shard}): When setting drop_last=True (num_rows={num_rows}, num_chunks={num_chunks}), "
+                    f"expected all chunks to be the same size; however, created {len(shard_chunks_row_idxs)} chunks "
+                    f"with the following lengths (from shard of {shard_length} rows): {shard_chunks_row_lens}"
                 )
         return shard_chunks_row_idxs
 
@@ -698,30 +743,27 @@ class ScalableDataFrame(Registry, ABC):
 
     @classmethod
     def _stream_in_memory_sdf_select_row_idxs(
-            cls,
-            sdf: ScalableDataFrame,
-            chunk_row_idxs: np.ndarray,
-            stream_as: DataLayout,
+        cls,
+        sdf: ScalableDataFrame,
+        chunk_row_idxs: np.ndarray,
+        stream_as: DataLayout,
     ) -> ScalableDataFrame:
-        out_sdf_chunk: ScalableDataFrame = ScalableDataFrame.of(
-            sdf.iloc[chunk_row_idxs],
-            layout=stream_as
-        )
+        out_sdf_chunk: ScalableDataFrame = ScalableDataFrame.of(sdf.iloc[chunk_row_idxs], layout=stream_as)
         return out_sdf_chunk
 
     @classmethod
     @safe_validate_arguments
     def _stream_in_memory_get_balanced_shard_row_idxs(
-            cls,
-            length: conint(ge=1),
-            shard: Tuple[conint(ge=0), conint(ge=1)],
-            num_rows: conint(ge=1),
-            drop_last: bool,
-            shuffle: bool,
-            shard_shuffle: bool,
-            seed: Optional[int],
-            shard_seed: Optional[int],
-            reverse_sharding: bool,
+        cls,
+        length: conint(ge=1),
+        shard: Tuple[conint(ge=0), conint(ge=1)],
+        num_rows: conint(ge=1),
+        drop_last: bool,
+        shuffle: bool,
+        shard_shuffle: bool,
+        seed: Optional[int],
+        shard_seed: Optional[int],
+        reverse_sharding: bool,
     ) -> Tuple[np.ndarray, int]:
         """
         For in-memory ScalableDataFrames, we should use this function to get an equal number of batches per shard.
@@ -749,7 +791,8 @@ class ScalableDataFrame(Registry, ABC):
             shard_intervals: List[Tuple[int, int]] = [
                 interval
                 for interval_i, interval in enumerate(intervals)
-                if interval_i % num_shards != shard_rank  ## Only pick intervals which do NOT belong to this rank.
+                if interval_i % num_shards
+                != shard_rank  ## Only pick intervals which do NOT belong to this rank.
             ]
         else:
             shard_intervals: List[Tuple[int, int]] = [
@@ -770,10 +813,12 @@ class ScalableDataFrame(Registry, ABC):
             np_random_sharding.shuffle(row_idxs)
 
         ## Select shard:
-        shard_row_idxs: np.ndarray = np.concatenate([
-            row_idxs[shard_interval_start: shard_interval_end]
-            for (shard_interval_start, shard_interval_end) in shard_intervals
-        ])
+        shard_row_idxs: np.ndarray = np.concatenate(
+            [
+                row_idxs[shard_interval_start:shard_interval_end]
+                for (shard_interval_start, shard_interval_end) in shard_intervals
+            ]
+        )
 
         if shuffle:
             ## Set a random seed to ensure we get the same ordering of examples within a shard.
@@ -807,12 +852,12 @@ class ScalableDataFrame(Registry, ABC):
     @classmethod
     @safe_validate_arguments
     def _stream_get_balanced_shard_intervals(
-            cls,
-            length: conint(ge=1),
-            npartitions: conint(ge=1),
-            num_shards: conint(ge=1),
-            num_rows: conint(ge=1),
-            drop_last: bool,
+        cls,
+        length: conint(ge=1),
+        npartitions: conint(ge=1),
+        num_shards: conint(ge=1),
+        num_rows: conint(ge=1),
+        drop_last: bool,
     ) -> Tuple[
         List[int],
         List[Tuple[int, int]],
@@ -973,20 +1018,25 @@ class ScalableDataFrame(Registry, ABC):
         S: int = num_shards
 
         if N < S:
-            raise ValueError(f'Cannot shard intervals when number of rows ({N}) is less than number of shards ({S})')
+            raise ValueError(
+                f"Cannot shard intervals when number of rows ({N}) is less than number of shards ({S})"
+            )
 
         new_P: int = cls.get_closest_npartitions(npartitions=npartitions, num_shards=num_shards)
         if N < new_P:
             raise ValueError(
-                f'Cannot shard intervals when number of rows ({N}) is less than the '
-                f'desired number of partitions (new_P={new_P}). Please set a smaller number of partitions, '
-                f'e.g. npartitions=1 is recommended for <1,000 rows.'
+                f"Cannot shard intervals when number of rows ({N}) is less than the "
+                f"desired number of partitions (new_P={new_P}). Please set a smaller number of partitions, "
+                f"e.g. npartitions=1 is recommended for <1,000 rows."
             )
 
         ## M is the number of "groups" as explained above.
-        M: int = 1 + (  ## Correction value
+        M: int = (
+            1
+            +  ## Correction value
             (N // (S * B))  ## Number of "complete" columns of S*B rows
-        ) // (new_P // S)  ## Number of groups we want
+            // (new_P // S)
+        )  ## Number of groups we want
 
         divisions: List[int] = [0]
         num_batches_per_shard: int = 0
@@ -1043,16 +1093,15 @@ class ScalableDataFrame(Registry, ABC):
                 # print(f'[{divisions[-2]}, {divisions[-1]}], remaining={remaining_num_rows}')
 
         if divisions[0] != 0:
-            raise ValueError(f'The first division should be 0; created divisions: {divisions}')
+            raise ValueError(f"The first division should be 0; created divisions: {divisions}")
         if drop_last is False and divisions[-1] != length:
             raise ValueError(
-                f'When drop_last=False, the final division should be length={length}; '
-                f'created divisions: {divisions}'
+                f"When drop_last=False, the final division should be length={length}; "
+                f"created divisions: {divisions}"
             )
         if len(set(divisions)) != len(divisions) or sorted(divisions) != divisions:
             raise ValueError(
-                f'Expected all values in divisions to be unique and sorted; '
-                f'created divisions: {divisions}'
+                f"Expected all values in divisions to be unique and sorted; created divisions: {divisions}"
             )
 
         ## Split the divisions into intervals.
@@ -1063,40 +1112,41 @@ class ScalableDataFrame(Registry, ABC):
 
         if len(intervals) % num_shards != 0:
             raise ValueError(
-                f'Expected the number of created intervals to be a multiple of num_shards={num_shards}; '
-                f'instead {len(intervals)} intervals were created (using length={N}; npartitions={npartitions}; '
-                f'num_shards={S}; num_rows={B}; drop_last={drop_last}). '
-                f'Consider using a smaller number of partitions. Typically, you should set `npartitions` such that '
-                f'each partition has at least 1,000 rows.\nCreated intervals: {intervals}'
+                f"Expected the number of created intervals to be a multiple of num_shards={num_shards}; "
+                f"instead {len(intervals)} intervals were created (using length={N}; npartitions={npartitions}; "
+                f"num_shards={S}; num_rows={B}; drop_last={drop_last}). "
+                f"Consider using a smaller number of partitions. Typically, you should set `npartitions` such that "
+                f"each partition has at least 1,000 rows.\nCreated intervals: {intervals}"
             )
 
-        interval_lengths: np.ndarray = np.array([
-            interval_end - interval_start
-            for (interval_start, interval_end) in intervals[:-num_shards]
-        ])
+        interval_lengths: np.ndarray = np.array(
+            [interval_end - interval_start for (interval_start, interval_end) in intervals[:-num_shards]]
+        )
         ## Except for the last "S" intervals, all intervals should have the same length.
         if len(interval_lengths) > 0 and not np.all(interval_lengths == interval_lengths[0]):
-            interval_lengths_str: str = ", ".join([
-                f'(idx={i}, start={interval_start}, end={interval_end}, len={interval_end - interval_start})'
-                for i, (interval_start, interval_end) in enumerate(intervals[:-num_shards])
-            ])
+            interval_lengths_str: str = ", ".join(
+                [
+                    f"(idx={i}, start={interval_start}, end={interval_end}, len={interval_end - interval_start})"
+                    for i, (interval_start, interval_end) in enumerate(intervals[:-num_shards])
+                ]
+            )
             raise ValueError(
-                f'Expected all intervals (except last num_shards={num_shards}) to have the same length;'
-                f'found intervals of unequal lengths:\n{interval_lengths_str}'
+                f"Expected all intervals (except last num_shards={num_shards}) to have the same length;"
+                f"found intervals of unequal lengths:\n{interval_lengths_str}"
             )
         return divisions, intervals, num_batches_per_shard
 
     @classmethod
     def _stream_get_executor(
-            cls,
-            map: Callable,
-            parallelize: Parallelize,
-            num_workers: conint(ge=1),
-            map_executor: Literal['spawn'],
+        cls,
+        map: Callable,
+        parallelize: Parallelize,
+        num_workers: conint(ge=1),
+        map_executor: Literal["spawn"],
     ) -> Optional[Executor]:
         if map is not None:
             if parallelize in {Parallelize.processes, Parallelize.threads}:
-                assert map_executor == 'spawn'
+                assert map_executor == "spawn"
             return dispatch_executor(
                 parallelize=parallelize,
                 max_workers=num_workers,
@@ -1105,27 +1155,27 @@ class ScalableDataFrame(Registry, ABC):
 
     @classmethod
     def _stream_cleanup_executor(
-            cls,
-            executor: Executor,
-            map_executor: Literal['spawn'] = 'spawn',
+        cls,
+        executor: Executor,
+        map_executor: Literal["spawn"] = "spawn",
     ):
-        if map_executor == 'spawn':
+        if map_executor == "spawn":
             del executor
 
     @classmethod
     def _stream_loop_enqueue_dequeue_map_chunk(
-            cls,
-            out_sdf_chunk: ScalableDataFrame,
-            mapped_sdf_chunks: Deque[Dict[str, Union[int, Future]]],
-            chunks_returned: int,
-            map: Optional[Callable],
-            map_kwargs: Dict,
-            parallelize: Parallelize,
-            num_workers: int,
-            map_failure: Literal['raise', 'drop'],
-            stream_as: Optional[DataLayout],
-            raw: bool,
-            executor: Optional[Executor],
+        cls,
+        out_sdf_chunk: ScalableDataFrame,
+        mapped_sdf_chunks: Deque[Dict[str, Union[int, Future]]],
+        chunks_returned: int,
+        map: Optional[Callable],
+        map_kwargs: Dict,
+        parallelize: Parallelize,
+        num_workers: int,
+        map_failure: Literal["raise", "drop"],
+        stream_as: Optional[DataLayout],
+        raw: bool,
+        executor: Optional[Executor],
     ) -> Optional[ScalableDataFrame]:
         ## Push the chunk onto the queue for processing. At the same time, dequeue the head chunk if it has
         ## finished processing, or if the queue length has been exceeded. If neither of these conditions is
@@ -1144,8 +1194,9 @@ class ScalableDataFrame(Registry, ABC):
                 parallelize=parallelize,
                 executor=executor,
             )
-            if len(mapped_sdf_chunks) > num_workers or \
-                    (len(mapped_sdf_chunks) > 0 and is_done(mapped_sdf_chunks[0]['future'])):
+            if len(mapped_sdf_chunks) > num_workers or (
+                len(mapped_sdf_chunks) > 0 and is_done(mapped_sdf_chunks[0]["future"])
+            ):
                 out_sdf_chunk: Optional[ScalableDataFrame] = cls._stream_dequeue_mapped_chunk(
                     mapped_sdf_chunks=mapped_sdf_chunks,
                     stream_as=stream_as,
@@ -1157,49 +1208,45 @@ class ScalableDataFrame(Registry, ABC):
 
     @classmethod
     def _stream_enqueue_chunk_for_mapping(
-            cls,
-            out_sdf_chunk: ScalableDataFrame,
-            mapped_sdf_chunks: Deque[Dict[str, Union[int, Future]]],
-            chunks_returned: int,
-            map: Callable,
-            map_kwargs: Dict,
-            map_failure: Literal['raise', 'drop'],
-            parallelize: Parallelize,
-            executor: Optional[Executor]
+        cls,
+        out_sdf_chunk: ScalableDataFrame,
+        mapped_sdf_chunks: Deque[Dict[str, Union[int, Future]]],
+        chunks_returned: int,
+        map: Callable,
+        map_kwargs: Dict,
+        map_failure: Literal["raise", "drop"],
+        parallelize: Parallelize,
+        executor: Optional[Executor],
     ):
         ## Adds the chunk to the queue for processing
         try:
-            item = dispatch(
-                map,
-                out_sdf_chunk,
-                parallelize=parallelize,
-                executor=executor,
-                **map_kwargs
+            item = dispatch(map, out_sdf_chunk, parallelize=parallelize, executor=executor, **map_kwargs)
+            mapped_sdf_chunks.append(
+                {
+                    "i": chunks_returned,
+                    "future": item,
+                }
             )
-            mapped_sdf_chunks.append({
-                'i': chunks_returned,
-                'future': item,
-            })
         except Exception as e:
-            if map_failure == 'raise':
+            if map_failure == "raise":
                 raise e
-            assert map_failure == 'drop'
+            assert map_failure == "drop"
             return
 
     @classmethod
     def _stream_dequeue_mapped_chunk(
-            cls,
-            mapped_sdf_chunks: Deque[Dict[str, Union[int, Future]]],
-            stream_as: Optional[DataLayout],
-            map_failure: Literal['raise', 'drop'],
+        cls,
+        mapped_sdf_chunks: Deque[Dict[str, Union[int, Future]]],
+        stream_as: Optional[DataLayout],
+        map_failure: Literal["raise", "drop"],
     ) -> Optional[ScalableDataFrame]:
-        f = mapped_sdf_chunks.popleft()['future']
+        f = mapped_sdf_chunks.popleft()["future"]
         try:
             mapped_sdf = accumulate(f)
         except Exception as e:
-            if map_failure == 'raise':
+            if map_failure == "raise":
                 raise e
-            assert map_failure == 'drop'
+            assert map_failure == "drop"
             return None
         finally:
             del f  ## Without this line, the inputs to the future, i.e. the chunk, are persisted in memory.
@@ -1213,9 +1260,11 @@ class ScalableDataFrame(Registry, ABC):
             return out_sdf_chunk
 
     @classmethod
-    def _stream_update_num_rows_according_to_num_chunks(cls, length: int, chunks_returned: int, num_chunks: int) -> int:
+    def _stream_update_num_rows_according_to_num_chunks(
+        cls, length: int, chunks_returned: int, num_chunks: int
+    ) -> int:
         ## This function is used when num_chunks is not None.
-        ## When we have N=len(df) rows and want to break them into M chunks, to ensure 
+        ## When we have N=len(df) rows and want to break them into M chunks, to ensure
         ## the chunks have a similar number of rows, we should make it such that:
         ## (a) N%M chunks will have math.ceil(N/M) rows, and
         ## (b) M - N%M chunks will have math.floor(N/M) rows.
@@ -1233,130 +1282,248 @@ class ScalableDataFrame(Registry, ABC):
 
     _NOT_IMPLEMENTED_INSTANCE_PROPERTIES: Set[str] = {
         ## Attributes and underlying data
-        'index', 'dtypes', 'values', 'axes', 'size',
+        "index",
+        "dtypes",
+        "values",
+        "axes",
+        "size",
         ## Indexing, iteration
-        'at', 'iat',
+        "at",
+        "iat",
         ## Reshaping, sorting, transposing
-        'T',
+        "T",
         ## Metadata
-        'attrs',
+        "attrs",
         ## Plotting
-        'plot',
+        "plot",
         ## Sparse accessor
-        'sparse',
+        "sparse",
     }
 
     _NOT_IMPLEMENTED_INSTANCE_METHODS: Set[str] = {
         ## Attributes and underlying data:
-        'info', 'select_dtypes', 'memory_usage', 'set_flags',
+        "info",
+        "select_dtypes",
+        "memory_usage",
+        "set_flags",
         ## Conversion
-        'astype', 'convert_dtypes', 'infer_objects', 'bool',
+        "astype",
+        "convert_dtypes",
+        "infer_objects",
+        "bool",
         ## Indexing, iteration
-        'insert', '__iter__', 'items', 'iteritems', 'keys', 'iterrows', 'itertuples', 'lookup', 'pop', 'xs', 'get',
-        'where', 'mask',
+        "insert",
+        "__iter__",
+        "items",
+        "iteritems",
+        "keys",
+        "iterrows",
+        "itertuples",
+        "lookup",
+        "pop",
+        "xs",
+        "get",
+        "where",
+        "mask",
         ## Binary operator functions
-        'add', 'sub', 'mul', 'div', 'truediv', 'floordiv', 'mod', 'pow', 'dot', 'radd', 'rsub', 'rmul', 'rdiv',
-        'rtruediv', 'rfloordiv', 'rmod', 'rpow', 'lt', 'gt', 'le', 'ge', 'ne', 'eq', 'combine', 'combine_first',
+        "add",
+        "sub",
+        "mul",
+        "div",
+        "truediv",
+        "floordiv",
+        "mod",
+        "pow",
+        "dot",
+        "radd",
+        "rsub",
+        "rmul",
+        "rdiv",
+        "rtruediv",
+        "rfloordiv",
+        "rmod",
+        "rpow",
+        "lt",
+        "gt",
+        "le",
+        "ge",
+        "ne",
+        "eq",
+        "combine",
+        "combine_first",
         ## Function application, GroupBy & window
-        'pipe', 'transform', 'rolling', 'expanding', 'ewm',
+        "pipe",
+        "transform",
+        "rolling",
+        "expanding",
+        "ewm",
         ## Computations / descriptive stats
-        'corr', 'corrwith', 'count', 'cov', 'cummax', 'cummin', 'cumprod', 'cumsum', 'describe', 'diff', 'eval', 'kurt',
-        'kurtosis', 'mad', 'pct_change', 'prod', 'product', 'quantile', 'rank', 'sem', 'skew', 'nunique',
-        'value_counts',
+        "corr",
+        "corrwith",
+        "count",
+        "cov",
+        "cummax",
+        "cummin",
+        "cumprod",
+        "cumsum",
+        "describe",
+        "diff",
+        "eval",
+        "kurt",
+        "kurtosis",
+        "mad",
+        "pct_change",
+        "prod",
+        "product",
+        "quantile",
+        "rank",
+        "sem",
+        "skew",
+        "nunique",
+        "value_counts",
         ## Reindexing / selection / label manipulation
-        'add_prefix', 'add_suffix', 'align', 'at_time', 'between_time', 'filter', 'first', 'last',
-        'set_axis', 'take', 'truncate',
+        "add_prefix",
+        "add_suffix",
+        "align",
+        "at_time",
+        "between_time",
+        "filter",
+        "first",
+        "last",
+        "set_axis",
+        "take",
+        "truncate",
         ## Missing data handling
-        'backfill', 'bfill', 'ffill', 'interpolate', 'pad',
+        "backfill",
+        "bfill",
+        "ffill",
+        "interpolate",
+        "pad",
         ## Reshaping, sorting, transposing
-        'droplevel', 'pivot', 'pivot_table', 'reorder_levels', 'sort_index', 'nlargest', 'nsmallest',
-        'swaplevel', 'stack', 'unstack', 'swapaxes', 'melt', 'explode', 'squeeze', 'to_xarray', 'transpose',
+        "droplevel",
+        "pivot",
+        "pivot_table",
+        "reorder_levels",
+        "sort_index",
+        "nlargest",
+        "nsmallest",
+        "swaplevel",
+        "stack",
+        "unstack",
+        "swapaxes",
+        "melt",
+        "explode",
+        "squeeze",
+        "to_xarray",
+        "transpose",
         ## Combining / comparing / joining / merging
-        'compare', 'join', 'update',
+        "compare",
+        "join",
+        "update",
         ## Time Series-related
-        'asfreq', 'asof', 'shift', 'slice_shift', 'tshift', 'first_valid_index', 'last_valid_index', 'resample',
-        'to_period', 'to_timestamp', 'tz_convert', 'tz_localize',
+        "asfreq",
+        "asof",
+        "shift",
+        "slice_shift",
+        "tshift",
+        "first_valid_index",
+        "last_valid_index",
+        "resample",
+        "to_period",
+        "to_timestamp",
+        "tz_convert",
+        "tz_localize",
         ## Flags
-        'Flags',
+        "Flags",
         ## Serialization / IO / conversion:
-        'from_dict', 'from_records',
-        'to_pickle', 'to_hdf', 'to_sql', 'to_dict', 'to_excel', 'to_html', 'to_feather', 'to_latex', 'to_stata',
-        'to_gbq', 'to_records', 'to_string', 'to_clipboard', 'to_markdown',
+        "from_dict",
+        "from_records",
+        "to_pickle",
+        "to_hdf",
+        "to_sql",
+        "to_dict",
+        "to_excel",
+        "to_html",
+        "to_feather",
+        "to_latex",
+        "to_stata",
+        "to_gbq",
+        "to_records",
+        "to_string",
+        "to_clipboard",
+        "to_markdown",
     }
 
     _NOT_IMPLEMENTED_REASONS: Dict[str, str] = {
-        'append': 'as it is deprecated in newer versions of Pandas',
+        "append": "as it is deprecated in newer versions of Pandas",
     }
 
     _ALTERNATIVE: Dict[str, str] = {
-        'values': f'.{RAW_DATA_MEMBER} to get the raw data in the respective layout',
-        'ndim': '.shape',
-        'at': '.loc or .iloc',
-        'iat': '.loc or .iloc',
-        'insert': '.loc or .iloc',
-        'keys': '.columns',
-        'get': '.loc or .iloc',
-        'join': '.merge',
-        'sparse': f'.{RAW_DATA_MEMBER} to get the raw data in the respective layout',
-        'plot': f'.{RAW_DATA_MEMBER} to access the raw data for plotting',
-
+        "values": f".{RAW_DATA_MEMBER} to get the raw data in the respective layout",
+        "ndim": ".shape",
+        "at": ".loc or .iloc",
+        "iat": ".loc or .iloc",
+        "insert": ".loc or .iloc",
+        "keys": ".columns",
+        "get": ".loc or .iloc",
+        "join": ".merge",
+        "sparse": f".{RAW_DATA_MEMBER} to get the raw data in the respective layout",
+        "plot": f".{RAW_DATA_MEMBER} to access the raw data for plotting",
         ## Computations / descriptive stats
-        'abs': 'the corresponding method on the Series',
-        'all': 'the corresponding method on the Series',
-        'any': 'the corresponding method on the Series',
-        'clip': 'the corresponding method on the Series',
-        'corr': 'the corresponding method on the Series',
-        'corrwith': 'the corresponding method on the Series',
-        'count': 'the corresponding method on the Series',
-        'cov': 'the corresponding method on the Series',
-        'cummax': 'the corresponding method on the Series',
-        'cummin': 'the corresponding method on the Series',
-        'cumprod': 'the corresponding method on the Series',
-        'cumsum': 'the corresponding method on the Series',
-        'describe': 'the corresponding method on the Series',
-        'diff': 'the corresponding method on the Series',
-        'eval': 'the corresponding method on the Series',
-        'kurt': 'the corresponding method on the Series',
-        'kurtosis': 'the corresponding method on the Series',
-        'mad': 'the corresponding method on the Series',
-        'max': 'the corresponding method on the Series',
-        'mean': 'the corresponding method on the Series',
-        'median': 'the corresponding method on the Series',
-        'min': 'the corresponding method on the Series',
-        'mode': 'the corresponding method on the Series',
-        'pct_change': 'the corresponding method on the Series',
-        'prod': 'the corresponding method on the Series',
-        'product': 'the corresponding method on the Series',
-        'quantile': 'the corresponding method on the Series',
-        'rank': 'the corresponding method on the Series',
-        'round': 'the corresponding method on the Series',
-        'sem': 'the corresponding method on the Series',
-        'skew': 'the corresponding method on the Series',
-        'sum': 'the corresponding method on the Series',
-        'std': 'the corresponding method on the Series',
-        'var': 'the corresponding method on the Series',
-        'nunique': 'the corresponding method on the Series',
-        'value_counts': 'the corresponding method on the Series',
-
+        "abs": "the corresponding method on the Series",
+        "all": "the corresponding method on the Series",
+        "any": "the corresponding method on the Series",
+        "clip": "the corresponding method on the Series",
+        "corr": "the corresponding method on the Series",
+        "corrwith": "the corresponding method on the Series",
+        "count": "the corresponding method on the Series",
+        "cov": "the corresponding method on the Series",
+        "cummax": "the corresponding method on the Series",
+        "cummin": "the corresponding method on the Series",
+        "cumprod": "the corresponding method on the Series",
+        "cumsum": "the corresponding method on the Series",
+        "describe": "the corresponding method on the Series",
+        "diff": "the corresponding method on the Series",
+        "eval": "the corresponding method on the Series",
+        "kurt": "the corresponding method on the Series",
+        "kurtosis": "the corresponding method on the Series",
+        "mad": "the corresponding method on the Series",
+        "max": "the corresponding method on the Series",
+        "mean": "the corresponding method on the Series",
+        "median": "the corresponding method on the Series",
+        "min": "the corresponding method on the Series",
+        "mode": "the corresponding method on the Series",
+        "pct_change": "the corresponding method on the Series",
+        "prod": "the corresponding method on the Series",
+        "product": "the corresponding method on the Series",
+        "quantile": "the corresponding method on the Series",
+        "rank": "the corresponding method on the Series",
+        "round": "the corresponding method on the Series",
+        "sem": "the corresponding method on the Series",
+        "skew": "the corresponding method on the Series",
+        "sum": "the corresponding method on the Series",
+        "std": "the corresponding method on the Series",
+        "var": "the corresponding method on the Series",
+        "nunique": "the corresponding method on the Series",
+        "value_counts": "the corresponding method on the Series",
         ## Combining / comparing / joining / merging
-        'append': f'ScalableDataFrame.concat',
-
+        "append": "ScalableDataFrame.concat",
         ## Serialization / IO / conversion:
-        'from_dict': f'.create with layout="{DataLayout.DICT}" or layout="{DataLayout.LIST_OF_DICT}"',
-        'from_records': f'.create with layout="{DataLayout.NUMPY_RECORD_ARRAY}"',
-        'to_pickle': f'.{RAW_DATA_MEMBER} to get the raw data in the respective layout',
-        'to_hdf': f'.{RAW_DATA_MEMBER} to get the raw data in the respective layout',
-        'to_sql': f'.{RAW_DATA_MEMBER} to get the raw data in the respective layout',
-        'to_excel': 'CsvDataFrameWriter or TsvDataFrameWriter',  ## TODO: add ExcelDataFrameWriter
-        'to_html': f'.{RAW_DATA_MEMBER} to get the raw data in the respective layout',
-        'to_feather': f'.{RAW_DATA_MEMBER} to get the raw data in the respective layout',
-        'to_latex': f'.{RAW_DATA_MEMBER} to get the raw data in the respective layout',
-        'to_stata': f'.{RAW_DATA_MEMBER} to get the raw data in the respective layout',
-        'to_gbq': f'.{RAW_DATA_MEMBER} to get the raw data in the respective layout',
-        'to_records': f'as_numpy',
-        'to_string': f'.{RAW_DATA_MEMBER} to get the raw data in the respective layout',
-        'to_clipboard': f'.{RAW_DATA_MEMBER} to get the raw data in the respective layout',
-        'to_markdown': f'.{RAW_DATA_MEMBER} to get the raw data in the respective layout',
+        "from_dict": f'.create with layout="{DataLayout.DICT}" or layout="{DataLayout.LIST_OF_DICT}"',
+        "from_records": f'.create with layout="{DataLayout.NUMPY_RECORD_ARRAY}"',
+        "to_pickle": f".{RAW_DATA_MEMBER} to get the raw data in the respective layout",
+        "to_hdf": f".{RAW_DATA_MEMBER} to get the raw data in the respective layout",
+        "to_sql": f".{RAW_DATA_MEMBER} to get the raw data in the respective layout",
+        "to_excel": "CsvDataFrameWriter or TsvDataFrameWriter",  ## TODO: add ExcelDataFrameWriter
+        "to_html": f".{RAW_DATA_MEMBER} to get the raw data in the respective layout",
+        "to_feather": f".{RAW_DATA_MEMBER} to get the raw data in the respective layout",
+        "to_latex": f".{RAW_DATA_MEMBER} to get the raw data in the respective layout",
+        "to_stata": f".{RAW_DATA_MEMBER} to get the raw data in the respective layout",
+        "to_gbq": f".{RAW_DATA_MEMBER} to get the raw data in the respective layout",
+        "to_records": "as_numpy",
+        "to_string": f".{RAW_DATA_MEMBER} to get the raw data in the respective layout",
+        "to_clipboard": f".{RAW_DATA_MEMBER} to get the raw data in the respective layout",
+        "to_markdown": f".{RAW_DATA_MEMBER} to get the raw data in the respective layout",
     }
 
     def __getattr__(self, attr_name: str):
@@ -1365,22 +1532,22 @@ class ScalableDataFrame(Registry, ABC):
                 attr_name,
                 is_property=True,
                 reason=self._NOT_IMPLEMENTED_REASONS.get(attr_name),
-                alternative=self._ALTERNATIVE.get(attr_name)
+                alternative=self._ALTERNATIVE.get(attr_name),
             )
         elif attr_name in self._NOT_IMPLEMENTED_INSTANCE_METHODS:
             raise self._get_attribute_not_implemented_error(
                 attr_name,
                 is_property=False,
                 reason=self._NOT_IMPLEMENTED_REASONS.get(attr_name),
-                alternative=self._ALTERNATIVE.get(attr_name)
+                alternative=self._ALTERNATIVE.get(attr_name),
             )
         ## Forwards calls to the respective method of the data class.
         try:
             data = self.__dict__[RAW_DATA_MEMBER]
-        except KeyError as e:
+        except KeyError:
             raise AttributeError(
-                f'Raw_data field `{RAW_DATA_MEMBER}` does not exist in {self.__class__}.\n'
-                f'__dict__ keys:{list(self.__dict__.keys())}'
+                f"Raw_data field `{RAW_DATA_MEMBER}` does not exist in {self.__class__}.\n"
+                f"__dict__ keys:{list(self.__dict__.keys())}"
             )
         if not hasattr(data, attr_name):
             raise AttributeError(
@@ -1389,22 +1556,21 @@ class ScalableDataFrame(Registry, ABC):
         return getattr(data, attr_name)
 
     def _get_attribute_not_implemented_error(
-            self,
-            attr_name: str,
-            is_property: bool,
-            reason: Optional[str] = None,
-            alternative: Optional[str] = None,
+        self,
+        attr_name: str,
+        is_property: bool,
+        reason: Optional[str] = None,
+        alternative: Optional[str] = None,
     ) -> AttributeError:
         if is_property:
-            fn_type = 'Property'
+            fn_type = "Property"
         else:
-            fn_type = 'Method'
+            fn_type = "Method"
         if reason is None:
-            reason = f'to maintain compatibility between {self.__class__.__name__} subclasses with different layouts'
+            reason = f"to maintain compatibility between {self.__class__.__name__} subclasses with different layouts"
         if alternative is not None:
-            alternative = f' Please use {alternative} instead.'
-        return AttributeError(
-            f'{fn_type} .{attr_name} has not been implemented {reason}.{alternative}')
+            alternative = f" Please use {alternative} instead."
+        return AttributeError(f"{fn_type} .{attr_name} has not been implemented {reason}.{alternative}")
 
     """
     ---------------------------------------------
@@ -1469,12 +1635,12 @@ class ScalableDataFrame(Registry, ABC):
 
     def __getitem__(self, key: Any):
         raise NotImplementedError(
-            f'We do not allow getting values from {ScalableDataFrame} instances directly; use .loc or .iloc instead.'
+            f"We do not allow getting values from {ScalableDataFrame} instances directly; use .loc or .iloc instead."
         )
 
     def __setitem__(self, key: Any, value: Any):
         raise NotImplementedError(
-            f'We do not allow setting values on {ScalableDataFrame} instances directly; use .loc or .iloc instead.'
+            f"We do not allow setting values on {ScalableDataFrame} instances directly; use .loc or .iloc instead."
         )
 
     @property
@@ -1512,8 +1678,18 @@ class ScalableDataFrame(Registry, ABC):
         return self.agg(*args, **kwargs)
 
     @abstractmethod
-    def groupby(self, by=None, axis=0, level=None, as_index=True, sort=True, group_keys=True, squeeze=False,
-                observed=False, dropna=True):
+    def groupby(
+        self,
+        by=None,
+        axis=0,
+        level=None,
+        as_index=True,
+        sort=True,
+        group_keys=True,
+        squeeze=False,
+        observed=False,
+        dropna=True,
+    ):
         pass
 
     """
@@ -1533,15 +1709,15 @@ class ScalableDataFrame(Registry, ABC):
     """
 
     @abstractmethod
-    def drop(self, labels=None, axis=0, index=None, columns=None, level=None, inplace=False, errors='raise'):
+    def drop(self, labels=None, axis=0, index=None, columns=None, level=None, inplace=False, errors="raise"):
         pass
 
     @abstractmethod
-    def drop_duplicates(self, subset=None, keep='first', inplace=False, ignore_index=False):
+    def drop_duplicates(self, subset=None, keep="first", inplace=False, ignore_index=False):
         pass
 
     @abstractmethod
-    def duplicated(self, subset=None, keep='first'):
+    def duplicated(self, subset=None, keep="first"):
         pass
 
     @abstractmethod
@@ -1559,16 +1735,16 @@ class ScalableDataFrame(Registry, ABC):
     @abstractmethod
     @safe_validate_arguments
     def rename(
-            self,
-            mapper: Optional[Union[Dict, Callable]] = None,
-            *,
-            index: Optional[Union[Dict, Callable]] = None,
-            columns: Optional[Union[Dict, Callable]] = None,
-            axis: Literal[1, 'columns'] = 1,
-            copy: bool = True,
-            inplace: bool = False,
-            level: Optional[Union[int, str]] = None,
-            errors: Literal['ignore', 'raise'] = 'ignore',
+        self,
+        mapper: Optional[Union[Dict, Callable]] = None,
+        *,
+        index: Optional[Union[Dict, Callable]] = None,
+        columns: Optional[Union[Dict, Callable]] = None,
+        axis: Literal[1, "columns"] = 1,
+        copy: bool = True,
+        inplace: bool = False,
+        level: Optional[Union[int, str]] = None,
+        errors: Literal["ignore", "raise"] = "ignore",
     ) -> Optional[ScalableDataFrame]:
         pass
 
@@ -1577,8 +1753,9 @@ class ScalableDataFrame(Registry, ABC):
         pass
 
     @abstractmethod
-    def sample(self, n=None, frac=None, replace=False, weights=None, random_state=None, axis=None,
-               ignore_index=False) -> ScalableDataFrame:
+    def sample(
+        self, n=None, frac=None, replace=False, weights=None, random_state=None, axis=None, ignore_index=False
+    ) -> ScalableDataFrame:
         pass
 
     """
@@ -1588,7 +1765,7 @@ class ScalableDataFrame(Registry, ABC):
     """
 
     @abstractmethod
-    def dropna(self, axis=0, how='any', thresh=None, subset=None, inplace=False):
+    def dropna(self, axis=0, how="any", thresh=None, subset=None, inplace=False):
         pass
 
     @abstractmethod
@@ -1624,28 +1801,41 @@ class ScalableDataFrame(Registry, ABC):
         pass
 
     @abstractmethod
-    def merge(self, right, how='inner', on=None, left_on=None, right_on=None, left_index=False, right_index=False,
-              sort=False, suffixes=('_x', '_y'), copy=True, indicator=False, validate=None) -> ScalableDataFrame:
+    def merge(
+        self,
+        right,
+        how="inner",
+        on=None,
+        left_on=None,
+        right_on=None,
+        left_index=False,
+        right_index=False,
+        sort=False,
+        suffixes=("_x", "_y"),
+        copy=True,
+        indicator=False,
+        validate=None,
+    ) -> ScalableDataFrame:
         pass
 
     @classmethod
     def concat(
-            cls,
-            sdfs: List[ScalableDataFrameOrRaw],
-            axis: Literal[0, 'index'] = 0,
-            layout: Optional[DataLayout] = None,
-            reset_index: bool = True,
+        cls,
+        sdfs: List[ScalableDataFrameOrRaw],
+        axis: Literal[0, "index"] = 0,
+        layout: Optional[DataLayout] = None,
+        reset_index: bool = True,
     ) -> ScalableDataFrame:
         sdfs: List[ScalableDataFrame] = [ScalableDataFrame.of(sdf) for sdf in as_list(sdfs)]
-        if axis not in {0, 'index'}:
+        if axis not in {0, "index"}:
             raise AttributeError(
-                f'{cls} only supports concatenating row-wise (i.e. with axis=0). '
-                f'Please use .merge(...) for column-wise  concatenation.'
+                f"{cls} only supports concatenating row-wise (i.e. with axis=0). "
+                f"Please use .merge(...) for column-wise  concatenation."
             )
         if layout is None and len({type(sdf) for sdf in sdfs}) > 1:
             raise ValueError(
-                f'When concatenating multiple {cls} instances with different data layouts, '
-                f'you must specify the resultant data layout by passing the `layout=...` parameter.'
+                f"When concatenating multiple {cls} instances with different data layouts, "
+                f"you must specify the resultant data layout by passing the `layout=...` parameter."
             )
         if layout is not None:
             sdfs: List[ScalableDataFrame] = [cls.of(sdf, layout=layout) for sdf in sdfs]
@@ -1690,21 +1880,19 @@ class ScalableDataFrame(Registry, ABC):
         return self.as_dict(**kwargs)
 
     def as_dict(
-            self,
-            col_type: Optional[Literal['list', 'numpy', list, np.ndarray, 'record']] = None,
-            **kwargs
+        self, col_type: Optional[Literal["list", "numpy", list, np.ndarray, "record"]] = None, **kwargs
     ) -> Dict[str, Union[List, np.ndarray, Any]]:
-        if col_type in {'record'}:
+        if col_type in {"record"}:
             if len(self) > 1:
-                raise ValueError(f'Cannot convert DataFrame of length {len(self)} into record')
+                raise ValueError(f"Cannot convert DataFrame of length {len(self)} into record")
             return {col: self.iloc[0, col] for col in self.columns_set}
         if col_type is None:
             return {col: self[col].raw(**kwargs) for col in self.columns_set}
-        if col_type in {'numpy', np.ndarray}:
+        if col_type in {"numpy", np.ndarray}:
             return {col: self[col].numpy(**kwargs) for col in self.columns_set}
-        if col_type in {'list', list}:
+        if col_type in {"list", list}:
             return {col: self[col].to_list(**kwargs) for col in self.columns_set}
-        raise NotImplementedError(f'Unsupported `col_type`: {col_type}')
+        raise NotImplementedError(f"Unsupported `col_type`: {col_type}")
 
     def list_of_dict(self, **kwargs) -> List[Dict]:
         """Alias for .as_list_of_dict()"""
@@ -1735,8 +1923,7 @@ class ScalableDataFrame(Registry, ABC):
     def as_record(self, **kwargs) -> Dict:
         if len(self) != 1:
             raise ValueError(
-                f'Can only convert to {DataLayout.RECORD} when we have exactly 1 row; '
-                f'found {len(self)} rows.'
+                f"Can only convert to {DataLayout.RECORD} when we have exactly 1 row; found {len(self)} rows."
             )
         return self.as_list_of_dict(**kwargs)[0]
 
@@ -1773,8 +1960,8 @@ class ScalableDataFrame(Registry, ABC):
 
     def as_dask(self, **kwargs) -> DaskDataFrame:
         _check_is_dask_installed()
-        if 'npartitions' not in kwargs and 'chunksize' not in kwargs:
-            kwargs['npartitions'] = 1  ## Create a dask dataframe with a single partition.
+        if "npartitions" not in kwargs and "chunksize" not in kwargs:
+            kwargs["npartitions"] = 1  ## Create a dask dataframe with a single partition.
         return dd.from_pandas(self.pandas(), **kwargs)
 
     def is_lazy(self) -> bool:
@@ -1835,12 +2022,12 @@ class CompressedScalableDataFrame(Parameters):
 
     @root_validator(pre=False)
     def _set_params(cls, params: Dict) -> Dict:
-        if params['base64_encoding'] is False and not isinstance(params['payload'], bytes):
+        if params["base64_encoding"] is False and not isinstance(params["payload"], bytes):
             raise ValueError(
                 f"Must pass a bytes `payload` when passing `base64_encoding=False`; "
                 f"found {type(params['payload'])}"
             )
-        elif params['base64_encoding'] is True and not isinstance(params['payload'], str):
+        elif params["base64_encoding"] is True and not isinstance(params["payload"], str):
             raise ValueError(
                 f"Must pass a string `payload` when passing `base64_encoding=True`; "
                 f"found {type(params['payload'])}"
@@ -1849,19 +2036,20 @@ class CompressedScalableDataFrame(Parameters):
 
     @safe_validate_arguments
     def decompress(
-            self,
-            *,
-            layout: Optional[DataLayout] = None,
-            **kwargs,
+        self,
+        *,
+        layout: Optional[DataLayout] = None,
+        **kwargs,
     ) -> ScalableDataFrame:
         eng: CompressionEngine = CompressionEngine.from_str(self.compression_engine)
         layout: DataLayout = get_default(layout, self.layout)
         if eng is CompressionEngine.BROTLI:
-            with optional_dependency('brotli', error='ignore'):
+            with optional_dependency("brotli", error="ignore"):
                 import brotli
+
                 payload: Union[bytes, str] = self.payload
                 if self.base64_encoding is True:
-                    payload: bytes = base64.urlsafe_b64decode(payload.encode('utf-8'))
+                    payload: bytes = base64.urlsafe_b64decode(payload.encode("utf-8"))
                 return ScalableDataFrame.of(
                     json.loads(brotli.decompress(payload).decode("utf8")),
                     layout=layout,
@@ -1870,7 +2058,7 @@ class CompressedScalableDataFrame(Parameters):
         elif eng is CompressionEngine.GZIP:
             payload: Union[bytes, str] = self.payload
             if self.base64_encoding is True:
-                payload: bytes = base64.urlsafe_b64decode(payload.encode('utf-8'))
+                payload: bytes = base64.urlsafe_b64decode(payload.encode("utf-8"))
             return ScalableDataFrame.of(
                 json.loads(gzip.decompress(payload).decode("utf8")),
                 layout=layout,

@@ -1,11 +1,12 @@
 from typing import *
-from fmcore.data.processor import Nto1ColumnProcessor, VectorAssemblerInputProcessor, VectorOutputProcessor
-import pandas as pd
+
 import numpy as np
-from fmcore.data.sdf import ScalableDataFrame, ScalableSeries
-from fmcore.util import AutoEnum, auto, as_list, is_list_like, is_null
-from fmcore.constants import MLType
 from scipy.sparse import csr_matrix as SparseCSRMatrix
+
+from fmcore.constants import MLType
+from fmcore.data.processor import Nto1ColumnProcessor, VectorAssemblerInputProcessor, VectorOutputProcessor
+from fmcore.data.sdf import ScalableDataFrame, ScalableSeries
+from fmcore.util import AutoEnum, as_list, auto, is_null
 
 
 class InvalidBehavior(AutoEnum):
@@ -42,14 +43,16 @@ class VectorAssembler(Nto1ColumnProcessor, VectorAssemblerInputProcessor, Vector
         elif feature_type is MLType.SPARSE_VECTOR:
             return data.apply(self._convert_sparse_vector_to_dense_vector, col=col)
         else:
-            raise TypeError(f'{col} Column must be of type {self.input_mltypes}; found {feature_type}')
+            raise TypeError(f"{col} Column must be of type {self.input_mltypes}; found {feature_type}")
 
     def _convert_sparse_vector_to_dense_vector(self, vector: SparseCSRMatrix, col: str):
         if isinstance(vector, SparseCSRMatrix):
             dense_vector: np.ndarray = vector.toarray()[0]
         else:
             if self.params.handle_invalid is InvalidBehavior.ERROR:
-                raise ValueError(f'Expected only SparseCSRMatrix in column "{col}", got a value of type {type(vector)}')
+                raise ValueError(
+                    f'Expected only SparseCSRMatrix in column "{col}", got a value of type {type(vector)}'
+                )
             dense_vector: Optional[np.ndarray] = None
         return self._convert_to_list(dense_vector, col)
 

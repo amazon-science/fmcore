@@ -1,16 +1,25 @@
-import types
+import copy
 from typing import *
-import random, copy
+
 import numpy as np
 import pandas as pd
 from pandas.core.frame import Series as PandasSeries
-from fmcore.util import is_function, all_are_none, all_are_not_none, is_null, optional_dependency, infer_np_dtype, \
-    get_default, String
-from fmcore.constants import DataLayout
-from fmcore.data.sdf.ScalableSeries import ScalableSeries, SS_DEFAULT_NAME
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame
 from pydantic import conint
 from pydantic.typing import Literal
+
+from fmcore.constants import DataLayout
+from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame
+from fmcore.data.sdf.ScalableSeries import SS_DEFAULT_NAME, ScalableSeries
+from fmcore.util import (
+    String,
+    all_are_none,
+    all_are_not_none,
+    get_default,
+    infer_np_dtype,
+    is_function,
+    is_null,
+    optional_dependency,
+)
 
 DatumScalableSeries = "DatumScalableSeries"
 
@@ -22,13 +31,13 @@ class DatumScalableSeries(ScalableSeries):
     layout_validator = ScalableSeries.is_datum
 
     def __init__(
-            self,
-            data: Optional[Any] = None,
-            name: Optional[str] = None,
-            empty: bool = False,
-            dtype: Optional[Union[np.dtype, Type]] = None,
-            str_to_object: bool = True,
-            **kwargs
+        self,
+        data: Optional[Any] = None,
+        name: Optional[str] = None,
+        empty: bool = False,
+        dtype: Optional[Union[np.dtype, Type]] = None,
+        str_to_object: bool = True,
+        **kwargs,
     ):
         super(self.__class__, self).__init__(**kwargs)
         if isinstance(data, self.__class__):
@@ -37,8 +46,8 @@ class DatumScalableSeries(ScalableSeries):
         self._data: Any = data
         if name is not None and not isinstance(name, (str, int, float)):
             raise ValueError(
-                f'`name` used to construct {self.__class__} can only be int, str or float; '
-                f'found object of type: {type(name)} with value: {name}'
+                f"`name` used to construct {self.__class__} can only be int, str or float; "
+                f"found object of type: {type(name)} with value: {name}"
             )
         self._name: Optional[str] = name
         ## Lazily-computed attributes:
@@ -77,9 +86,9 @@ class DatumScalableSeries(ScalableSeries):
         return String.pretty(self._data)
 
     def _repr_html_(self):
-        name_str: str = '' if self._name is None else f'"{self._name}": '
+        name_str: str = "" if self._name is None else f'"{self._name}": '
         out = f"<b>{name_str}Datum of type <code>{self.dtype}</code>: <code>{self._data}</code></b>"
-        return f'<div>{String.pretty(out)}</div>'
+        return f"<div>{String.pretty(out)}</div>"
 
     def _repr_latex_(self):
         return self._repr_html_()
@@ -100,9 +109,10 @@ class DatumScalableSeries(ScalableSeries):
     def as_numpy(self, **kwargs) -> np.ndarray:
         return np.ndarray([self._data], dtype=self.dtype)
 
-    def as_torch(self, error: Literal['raise', 'warn', 'ignore'] = 'raise', **kwargs) -> Optional[Any]:
-        with optional_dependency('torch', error=error):
+    def as_torch(self, error: Literal["raise", "warn", "ignore"] = "raise", **kwargs) -> Optional[Any]:
+        with optional_dependency("torch", error=error):
             import torch
+
             if isinstance(self._data, torch.Tensor):
                 return self._data
             if isinstance(self._data, np.ndarray):
@@ -177,7 +187,7 @@ class DatumScalableSeries(ScalableSeries):
     def __getitem__(self, key) -> Union[Any, DatumScalableSeries]:
         if isinstance(key, int):
             if key != 0:
-                raise KeyError(f'For {self.__class__.__name__}, can only index using 0')
+                raise KeyError(f"For {self.__class__.__name__}, can only index using 0")
             return self._data
         ## Refs for slicing:
         ## - https://stackoverflow.com/a/9951672
@@ -190,27 +200,27 @@ class DatumScalableSeries(ScalableSeries):
             return self
         if isinstance(key, np.ndarray):
             if key.ndim > 1:
-                raise KeyError(f'Can only index with 1-D NumPy array; found array with shape {key.shape}')
+                raise KeyError(f"Can only index with 1-D NumPy array; found array with shape {key.shape}")
             if len(key) > 1:
-                raise KeyError(f'Cannot index {self.__class__.__name__} using multiple elements')
+                raise KeyError(f"Cannot index {self.__class__.__name__} using multiple elements")
         if isinstance(key, np.ndarray):
             key = key[0]
             if key == 0 or key is True:
                 return self
             elif key is False:
                 return self._empty_datum_series
-            raise KeyError(f'When indexing with a Numpy array, must pass the index as 0 or True')
-        raise IndexError(f'Unsupported indexing using: {type(key)} with value: {key}')
+            raise KeyError("When indexing with a Numpy array, must pass the index as 0 or True")
+        raise IndexError(f"Unsupported indexing using: {type(key)} with value: {key}")
 
     def __setitem__(self, key: Any, value: Any):
-        raise NotImplementedError(f'Cannot set at the moment')
+        raise NotImplementedError("Cannot set at the moment")
 
     def astype(self, dtype: Union[np.dtype, str, Type]) -> DatumScalableSeries:
         if self.__dtype == dtype:
             return self
         if dtype is object:
             return self._constructor(self._data, dtype=object)
-        if dtype in {str, 'str'}:
+        if dtype in {str, "str"}:
             return self._constructor(str(self._data), dtype=str)
         if isinstance(dtype, str):
             dtype = np.type(dtype)
@@ -236,18 +246,14 @@ class DatumScalableSeries(ScalableSeries):
     """
 
     def apply(
-            self,
-            func: Callable,
-            convert_dtype: bool = True,
-            args: Tuple[Any, ...] = (),
-            **kwargs
+        self, func: Callable, convert_dtype: bool = True, args: Tuple[Any, ...] = (), **kwargs
     ) -> Union[ScalableSeries, ScalableDataFrame]:
         return self._constructor(func(self._data, *args, **kwargs))
 
     def map(
-            self,
-            arg: Union[Callable, Dict, ScalableSeries],
-            na_action: Optional[Literal['ignore']] = None,
+        self,
+        arg: Union[Callable, Dict, ScalableSeries],
+        na_action: Optional[Literal["ignore"]] = None,
     ) -> ScalableSeries:
         ## Ref: https://github.com/pandas-dev/pandas/blob/221f6362bc25833da87f00015d4d5418ee316eff/pandas/core/base.py#L820
         mapper: Callable = arg
@@ -261,8 +267,8 @@ class DatumScalableSeries(ScalableSeries):
                 dict_without_default = mapper
                 mapper: Callable = lambda k: dict_without_default.get(k, None)
         if not is_function(mapper):
-            raise ValueError(f'Expected input to be function/method/lambda or dict, found: {type(mapper)}')
-        if na_action == 'ignore':
+            raise ValueError(f"Expected input to be function/method/lambda or dict, found: {type(mapper)}")
+        if na_action == "ignore":
             map_fn: Callable = lambda x: mapper(x) if not is_null(x) else x
         else:
             map_fn: Callable = mapper
@@ -280,48 +286,48 @@ class DatumScalableSeries(ScalableSeries):
         return self
 
     def mean(
-            self,
-            axis: int = 0,
-            skipna: bool = True,
-            level: Literal[None] = None,
-            numeric_only: Literal[None] = None,
-            **kwargs
+        self,
+        axis: int = 0,
+        skipna: bool = True,
+        level: Literal[None] = None,
+        numeric_only: Literal[None] = None,
+        **kwargs,
     ) -> Union[int, float]:
         if self.__empty or (skipna and self._is_null):
             return np.nan  ## pd.Series([np.nan]).median()
         return float(self._data)
 
     def median(
-            self,
-            axis: int = 0,
-            skipna: bool = True,
-            level: Literal[None] = None,
-            numeric_only: Literal[None] = None,
-            **kwargs
+        self,
+        axis: int = 0,
+        skipna: bool = True,
+        level: Literal[None] = None,
+        numeric_only: Literal[None] = None,
+        **kwargs,
     ) -> Union[int, float]:
         if self.__empty or (skipna and self._is_null):
             return np.nan  ## pd.Series([np.nan]).median()
         return float(self._data)
 
     def max(
-            self,
-            axis: int = 0,
-            skipna: bool = True,
-            level: Literal[None] = None,
-            numeric_only: Literal[None] = None,
-            **kwargs,
+        self,
+        axis: int = 0,
+        skipna: bool = True,
+        level: Literal[None] = None,
+        numeric_only: Literal[None] = None,
+        **kwargs,
     ) -> Union[int, float]:
         if self.__empty or (skipna and self._is_null):
             return np.nan  ## pd.Series([np.nan]).max()
         return float(self._data)
 
     def min(
-            self,
-            axis: int = 0,
-            skipna: bool = True,
-            level: Literal[None] = None,
-            numeric_only: Literal[None] = None,
-            **kwargs,
+        self,
+        axis: int = 0,
+        skipna: bool = True,
+        level: Literal[None] = None,
+        numeric_only: Literal[None] = None,
+        **kwargs,
     ) -> Union[int, float]:
         if self.__empty or (skipna and self._is_null):
             return np.nan  ## pd.Series([np.nan]).max()
@@ -347,20 +353,20 @@ class DatumScalableSeries(ScalableSeries):
         return self
 
     def fillna(
-            self,
-            value: Optional[Union[Any, Dict, ScalableSeries, ScalableDataFrame]] = None,
-            method: Optional[Literal["backfill", "bfill", "ffill", "pad"]] = None,
-            axis: Literal[0, 'index'] = 0,
-            inplace: bool = False,
-            limit: Optional[conint(ge=1)] = None,
-            downcast: Optional[Dict] = None,
+        self,
+        value: Optional[Union[Any, Dict, ScalableSeries, ScalableDataFrame]] = None,
+        method: Optional[Literal["backfill", "bfill", "ffill", "pad"]] = None,
+        axis: Literal[0, "index"] = 0,
+        inplace: bool = False,
+        limit: Optional[conint(ge=1)] = None,
+        downcast: Optional[Dict] = None,
     ) -> Optional[ScalableSeries]:
         if all_are_none(value, method):
-            raise ValueError(f'Must specify a fill `value` or `method`.')
+            raise ValueError("Must specify a fill `value` or `method`.")
         if all_are_not_none(value, method):
-            raise ValueError(f'Cannot specify both `value` and `method`.')
+            raise ValueError("Cannot specify both `value` and `method`.")
         if method is not None:
-            raise NotImplementedError(f'`method` is not currently supported')
+            raise NotImplementedError("`method` is not currently supported")
         if value is not None:
             if self._is_null:
                 if inplace:

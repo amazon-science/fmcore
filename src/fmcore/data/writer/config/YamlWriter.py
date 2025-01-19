@@ -1,8 +1,10 @@
+import io
 from typing import *
-import io, yaml
+
+import yaml
+
+from fmcore.constants import FileFormat
 from fmcore.data.writer.config.ConfigWriter import ConfigWriter
-from fmcore.util import StructuredBlob
-from fmcore.constants import FileFormat, FileContents
 
 
 class YamlWriter(ConfigWriter):

@@ -1,10 +1,11 @@
-from typing import *
 from abc import ABC, abstractmethod
-import json
-from fmcore.util import MutableParameters, UserEnteredParameters, Registry
-from fmcore.constants import MLType, MLTypeSchema, MissingColumnBehavior, DataLayout
-from fmcore.data.sdf import ScalableDataFrame, ScalableDataFrameRawType, ScalableSeries, ScalableSeriesRawType
-from pydantic import validator, root_validator
+from typing import *
+
+from pydantic import root_validator, validator
+
+from fmcore.constants import DataLayout, MissingColumnBehavior, MLType, MLTypeSchema
+from fmcore.data.sdf import ScalableDataFrame, ScalableDataFrameRawType, ScalableSeries
+from fmcore.util import MutableParameters, Registry, UserEnteredParameters
 
 
 class DataProcessor(MutableParameters, Registry, ABC):
@@ -26,17 +27,18 @@ class DataProcessor(MutableParameters, Registry, ABC):
     input_mltypes: ClassVar[Tuple[MLType, ...]]
     output_mltype: ClassVar[MLType]
 
-    AlreadyFitError: ClassVar[ValueError] = ValueError(f'.fit() has already been called.')
-    FitBeforeTransformError: ClassVar[ValueError] = ValueError(f'.fit() must be called before .transform()')
+    AlreadyFitError: ClassVar[ValueError] = ValueError(".fit() has already been called.")
+    FitBeforeTransformError: ClassVar[ValueError] = ValueError(".fit() must be called before .transform()")
 
     class Params(UserEnteredParameters):
         """
         BaseModel for parameters. Expected to be overridden by subclasses of DataProcessor.
-        Example: 
+        Example:
             class CaseTransformer(DataProcessor):
                 class Params(DataProcessor.Params):
-                    case: Literal['lowercase', 'uppercase']         
+                    case: Literal['lowercase', 'uppercase']
         """
+
         pass
 
     name: str = None
@@ -44,19 +46,16 @@ class DataProcessor(MutableParameters, Registry, ABC):
     params: Params = {}
 
     def __str__(self):
-        params_str: str = self.json(
-            include={'name': True, 'data_schema': True, 'params': True},
-            indent=4
-        )
-        out: str = f'{self.class_name} with params:\n{params_str}'
+        params_str: str = self.json(include={"name": True, "data_schema": True, "params": True}, indent=4)
+        out: str = f"{self.class_name} with params:\n{params_str}"
         return out
 
     @root_validator(pre=True)
     def convert_params(cls, params: Dict):
-        params['params'] = super(DataProcessor, cls)._convert_params(cls.Params, params.get('params'))
+        params["params"] = super(DataProcessor, cls)._convert_params(cls.Params, params.get("params"))
         return params
 
-    @validator('name')
+    @validator("name")
     def set_name(cls, name: Optional[str]):
         if name is None:
             name: str = cls.class_name
@@ -64,9 +63,9 @@ class DataProcessor(MutableParameters, Registry, ABC):
 
     @abstractmethod
     def fit(
-            self,
-            data: Union[ScalableDataFrame, ScalableDataFrameRawType, ScalableSeries, ScalableDataFrameRawType],
-            process_as: Optional[DataLayout] = None,
+        self,
+        data: Union[ScalableDataFrame, ScalableDataFrameRawType, ScalableSeries, ScalableDataFrameRawType],
+        process_as: Optional[DataLayout] = None,
     ) -> NoReturn:
         """
         Fits the data processor instance on the input data.
@@ -81,9 +80,9 @@ class DataProcessor(MutableParameters, Registry, ABC):
 
     @abstractmethod
     def transform(
-            self,
-            data: Union[ScalableDataFrame, ScalableDataFrameRawType, ScalableSeries, ScalableDataFrameRawType],
-            process_as: Optional[DataLayout] = None,
+        self,
+        data: Union[ScalableDataFrame, ScalableDataFrameRawType, ScalableSeries, ScalableDataFrameRawType],
+        process_as: Optional[DataLayout] = None,
     ) -> Union[ScalableDataFrame, ScalableDataFrameRawType, ScalableSeries, ScalableDataFrameRawType]:
         """
         Transforms the input data and returns the result. Any subclass implementation must not modify the input data.
@@ -94,9 +93,9 @@ class DataProcessor(MutableParameters, Registry, ABC):
         pass
 
     def fit_transform(
-            self,
-            data: Union[ScalableDataFrame, ScalableDataFrameRawType, ScalableSeries, ScalableDataFrameRawType],
-            process_as: Optional[DataLayout] = None
+        self,
+        data: Union[ScalableDataFrame, ScalableDataFrameRawType, ScalableSeries, ScalableDataFrameRawType],
+        process_as: Optional[DataLayout] = None,
     ) -> Union[ScalableDataFrame, ScalableDataFrameRawType, ScalableSeries, ScalableDataFrameRawType]:
         self.fit(data, process_as=process_as)
         return self.transform(data, process_as=process_as)

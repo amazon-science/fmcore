@@ -7,24 +7,35 @@ import pandas as pd
 from pydantic import confloat
 from pydantic.typing import Literal
 
-from fmcore.constants import Task, AggregationStrategy, DataSplit
-from fmcore.framework import ClassificationPredictions, TopKClassificationPredictions, LabelwiseClassificationPredictions, \
-    TOP_1_PREDICTED_LABEL
-from fmcore.framework import Predictions, PercentageMetric, AggregatedPercentageMetric, TabularMetric
-from fmcore.framework.trainer.RayTuneTrainer import _RAY_TRIAL_ID, _RAY_TRAINING_ITERATION
-from fmcore.util import as_tuple, type_str, check_isinstance, argmax, dict_key_with_best_value
+from fmcore.constants import AggregationStrategy, DataSplit, Task
+from fmcore.framework import (
+    TOP_1_PREDICTED_LABEL,
+    AggregatedPercentageMetric,
+    ClassificationPredictions,
+    LabelwiseClassificationPredictions,
+    PercentageMetric,
+    Predictions,
+    TabularMetric,
+    TopKClassificationPredictions,
+)
+from fmcore.framework.trainer.RayTuneTrainer import _RAY_TRAINING_ITERATION, _RAY_TRIAL_ID
+from fmcore.util import argmax, as_tuple, check_isinstance, dict_key_with_best_value, type_str
 
 
 def _check_clf_preds(data: Predictions):
     if not isinstance(data, ClassificationPredictions):
         raise ValueError(
-            f'Expected input data to be subclass of {ClassificationPredictions}; '
-            f'found data of type {type(data)}'
+            f"Expected input data to be subclass of {ClassificationPredictions}; "
+            f"found data of type {type(data)}"
         )
-    if data.task not in {Task.BINARY_CLASSIFICATION, Task.MULTI_CLASS_CLASSIFICATION, Task.MULTI_LABEL_CLASSIFICATION}:
+    if data.task not in {
+        Task.BINARY_CLASSIFICATION,
+        Task.MULTI_CLASS_CLASSIFICATION,
+        Task.MULTI_LABEL_CLASSIFICATION,
+    }:
         raise ValueError(
-            f'Data expected to be predictions of a binary, multi-class or multi-label classification task; '
-            f'found task to be {data.task}.'
+            f"Data expected to be predictions of a binary, multi-class or multi-label classification task; "
+            f"found task to be {data.task}."
         )
     data.has_ground_truths()
     data.has_predictions()
@@ -33,11 +44,10 @@ def _check_clf_preds(data: Predictions):
 def _check_binary_clf_preds(data: ClassificationPredictions):
     _check_clf_preds(data)
     if not data.is_binary:
-        raise ValueError(f'Data expected to be binary; found {data.num_labels} classes.')
+        raise ValueError(f"Data expected to be binary; found {data.num_labels} classes.")
     if data.task is not Task.BINARY_CLASSIFICATION:
         raise ValueError(
-            f'Data expected to be predictions of a binary classification task; '
-            f'found task to be {data.task}.'
+            f"Data expected to be predictions of a binary classification task; found task to be {data.task}."
         )
 
 
@@ -45,8 +55,8 @@ def _check_multiclass_or_multilabel_clf_preds(data: ClassificationPredictions):
     _check_clf_preds(data)
     if data.task not in {Task.MULTI_CLASS_CLASSIFICATION, Task.MULTI_LABEL_CLASSIFICATION}:
         raise ValueError(
-            f'Data expected to be predictions of a multi-class or multi-label classification task; '
-            f'found task to be {data.task}.'
+            f"Data expected to be predictions of a multi-class or multi-label classification task; "
+            f"found task to be {data.task}."
         )
 
 
@@ -54,8 +64,8 @@ def _check_multiclass_clf_preds(data: ClassificationPredictions):
     _check_clf_preds(data)
     if data.task is not Task.MULTI_CLASS_CLASSIFICATION:
         raise ValueError(
-            f'Data expected to be predictions of a multi-class classification task; '
-            f'found task to be {data.task}.'
+            f"Data expected to be predictions of a multi-class classification task; "
+            f"found task to be {data.task}."
         )
 
 
@@ -63,8 +73,8 @@ def _check_binary_or_multiclass_clf_preds(data: ClassificationPredictions):
     _check_clf_preds(data)
     if data.task not in {Task.BINARY_CLASSIFICATION, Task.MULTI_CLASS_CLASSIFICATION}:
         raise ValueError(
-            f'Data expected to be predictions of a binary or multi-class classification task; '
-            f'found task to be {data.task}.'
+            f"Data expected to be predictions of a binary or multi-class classification task; "
+            f"found task to be {data.task}."
         )
 
 
@@ -72,8 +82,8 @@ def _check_multilabel_clf_preds(data: ClassificationPredictions):
     _check_clf_preds(data)
     if data.task is not Task.MULTI_LABEL_CLASSIFICATION:
         raise ValueError(
-            f'Data expected to be predictions of a multi-label classification task; '
-            f'found task to be {data.task}.'
+            f"Data expected to be predictions of a multi-label classification task; "
+            f"found task to be {data.task}."
         )
 
 
@@ -81,9 +91,9 @@ def _check_labelspace(labelspace: Optional[Set[str]], data: ClassificationPredic
     _check_clf_preds(data)
     if labelspace is not None and labelspace != set(data.labelspace):
         raise ValueError(
-            f'Cannot compute classification error counts on data with different labels; '
-            f'we have so far been calculating on labels: {labelspace}, but input data has '
-            f'labels: {data.labelspace}'
+            f"Cannot compute classification error counts on data with different labels; "
+            f"we have so far been calculating on labels: {labelspace}, but input data has "
+            f"labels: {data.labelspace}"
         )
     return set(data.labelspace)
 
@@ -103,9 +113,11 @@ class BinaryClassificationErrorCount(TabularMetric):
         top_k_predictions: TopKClassificationPredictions = data.to_top_k()
         positive_lb: Any = data.positive_label
         negative_lb: Any = data.negative_label
-        counts = top_k_predictions.data.pandas().groupby(
-            [data.ground_truth_label_col_name, TOP_1_PREDICTED_LABEL]
-        ).size()
+        counts = (
+            top_k_predictions.data.pandas()
+            .groupby([data.ground_truth_label_col_name, TOP_1_PREDICTED_LABEL])
+            .size()
+        )
         for (gt_lb, pred_lb), count in counts.to_dict().items():
             self.total += count
             if gt_lb == pred_lb == positive_lb:
@@ -118,16 +130,16 @@ class BinaryClassificationErrorCount(TabularMetric):
                 self.fp += count
             else:
                 raise ValueError(
-                    f'Unrecognized labels in predictions: actual={gt_lb}, predicted={pred_lb}; '
-                    f'expected one of the following (binary) labels: positive={positive_lb}, negative={negative_lb}'
+                    f"Unrecognized labels in predictions: actual={gt_lb}, predicted={pred_lb}; "
+                    f"expected one of the following (binary) labels: positive={positive_lb}, negative={negative_lb}"
                 )
 
     def compute(self) -> Any:
         return {
-            'tp': self.tp,
-            'fp': self.fp,
-            'tn': self.tn,
-            'fn': self.fn,
+            "tp": self.tp,
+            "fp": self.fp,
+            "tn": self.tn,
+            "fn": self.fn,
         }
 
 
@@ -145,7 +157,7 @@ class Prevalence(PercentageMetric):
 
 class Precision(PercentageMetric):
     ## From the examples when we predict positive, how often are we correct?
-    aliases = ['Positive Predictive Value', 'PPV']
+    aliases = ["Positive Predictive Value", "PPV"]
 
     _error_count: BinaryClassificationErrorCount = BinaryClassificationErrorCount()
 
@@ -160,7 +172,7 @@ class Precision(PercentageMetric):
 class FalseDiscoveryRate(PercentageMetric):
     ## From the examples when we predict positive, how often are we incorrect (i.e. false positive)?
     ## Equal to 1 - Precision.
-    aliases = ['FDR']
+    aliases = ["FDR"]
 
     _error_count: BinaryClassificationErrorCount = BinaryClassificationErrorCount()
 
@@ -174,7 +186,7 @@ class FalseDiscoveryRate(PercentageMetric):
 
 class NegativePredictiveValue(PercentageMetric):
     ## From the examples when we predict negative, how often are we correct?
-    aliases = ['Negative Predictive Value', 'NPV']
+    aliases = ["Negative Predictive Value", "NPV"]
 
     _error_count: BinaryClassificationErrorCount = BinaryClassificationErrorCount()
 
@@ -189,7 +201,7 @@ class NegativePredictiveValue(PercentageMetric):
 class FalseOmissionRate(PercentageMetric):
     ## From the examples when we predict negative, how often are we incorrect (i.e. false negative)?
     ## Equal to 1-NPV.
-    aliases = ['FOR']
+    aliases = ["FOR"]
 
     _error_count: BinaryClassificationErrorCount = BinaryClassificationErrorCount()
 
@@ -203,7 +215,7 @@ class FalseOmissionRate(PercentageMetric):
 
 class Recall(PercentageMetric):
     ## From the examples when the result was actually positive, what fraction did we catch?
-    aliases = ['Sensitivity', 'True Positive Rate', 'TPR']
+    aliases = ["Sensitivity", "True Positive Rate", "TPR"]
 
     _error_count: BinaryClassificationErrorCount = BinaryClassificationErrorCount()
 
@@ -218,7 +230,7 @@ class Recall(PercentageMetric):
 class FalseNegativeRate(PercentageMetric):
     ## From the examples when the result was actually positive, what fraction did we miss (i.e. false negative)?
     ## Equal to 1-Recall.
-    aliases = ['FNR']
+    aliases = ["FNR"]
 
     _error_count: BinaryClassificationErrorCount = BinaryClassificationErrorCount()
 
@@ -232,7 +244,7 @@ class FalseNegativeRate(PercentageMetric):
 
 class Specificity(PercentageMetric):
     ## From the examples when the result was actually negative, what fraction did we catch?
-    aliases = ['True Negative Rate', 'TNR']
+    aliases = ["True Negative Rate", "TNR"]
 
     _error_count: BinaryClassificationErrorCount = BinaryClassificationErrorCount()
 
@@ -247,7 +259,7 @@ class Specificity(PercentageMetric):
 class FalsePositiveRate(PercentageMetric):
     ## From the examples when the result was actually negative, what fraction did we miss (i.e. false positive)?
     ## Equal to 1-TNR i.e. 1-Specificity
-    aliases = ['FPR']
+    aliases = ["FPR"]
 
     _error_count: BinaryClassificationErrorCount = BinaryClassificationErrorCount()
 
@@ -261,7 +273,13 @@ class FalsePositiveRate(PercentageMetric):
 
 class Informedness(PercentageMetric):
     ## Sensitivity + Specificity - 1, i.e. Recall + Specificity - 1, i.e. TPR + TNR - 1
-    aliases = ["Youden's J statistic", "Youden's J", "Youden J statistic", "Youden's statistic", "Youden statistic"]
+    aliases = [
+        "Youden's J statistic",
+        "Youden's J",
+        "Youden J statistic",
+        "Youden's statistic",
+        "Youden statistic",
+    ]
 
     _error_count: BinaryClassificationErrorCount = BinaryClassificationErrorCount()
 
@@ -270,12 +288,15 @@ class Informedness(PercentageMetric):
         self._error_count.update(data)
 
     def compute(self) -> Any:
-        return (self._error_count.tp / (self._error_count.tp + self._error_count.fn)) + \
-               (self._error_count.tn / (self._error_count.tn + self._error_count.fp)) - 1
+        return (
+            (self._error_count.tp / (self._error_count.tp + self._error_count.fn))
+            + (self._error_count.tn / (self._error_count.tn + self._error_count.fp))
+            - 1
+        )
 
 
 class FBetaScore(PercentageMetric):
-    aliases = ['FBeta', 'FScore']
+    aliases = ["FBeta", "FScore"]
 
     class Params(PercentageMetric.Params):
         beta: confloat(ge=0)  ## Recall is considered "β" times more important than Precision.
@@ -288,17 +309,17 @@ class FBetaScore(PercentageMetric):
 
     def compute(self) -> Any:
         ## FBeta = (1+β^2) * (P*R)/(β^2*P + R) = (1+β^2)*TP/((1+β^2)*TP + β^2*FN + FP)
-        beta_square = self.params.beta ** 2
+        beta_square = self.params.beta**2
         beta_square_plus_1 = beta_square + 1
         return (beta_square_plus_1 * self._error_count.tp) / (
-                beta_square_plus_1 * self._error_count.tp +
-                beta_square * self._error_count.fn +
-                self._error_count.fp
+            beta_square_plus_1 * self._error_count.tp
+            + beta_square * self._error_count.fn
+            + self._error_count.fp
         )
 
 
 class F1Score(FBetaScore):
-    aliases = ['F1']
+    aliases = ["F1"]
 
     class Params(FBetaScore.Params):
         beta: Literal[1] = 1
@@ -307,7 +328,7 @@ class F1Score(FBetaScore):
 class ConfusionMatrix(TabularMetric):
     """Confusion matrix for binary, multi-class tasks."""
 
-    aliases = ['confusion', 'confusion_matrix']
+    aliases = ["confusion", "confusion_matrix"]
     ## Sparse confusion matrix. Tuple is (gt, predicted) label
     confusion_matrix: Dict[Tuple[Any, Any], int] = defaultdict(lambda: 0)
     total: int = 0
@@ -321,25 +342,36 @@ class ConfusionMatrix(TabularMetric):
         self.labelspace: Set[str] = _check_labelspace(self.labelspace, data)
         if data.task in {Task.BINARY_CLASSIFICATION, Task.MULTI_CLASS_CLASSIFICATION}:
             top_k_predictions: TopKClassificationPredictions = data.to_top_k()
-            counts: Dict[Tuple[str, str], int] = top_k_predictions.data.pandas().groupby(
-                [data.ground_truth_label_col_name, TOP_1_PREDICTED_LABEL]
-            ).size().to_dict()
+            counts: Dict[Tuple[str, str], int] = (
+                top_k_predictions.data.pandas()
+                .groupby([data.ground_truth_label_col_name, TOP_1_PREDICTED_LABEL])
+                .size()
+                .to_dict()
+            )
         elif data.task is Task.MULTI_LABEL_CLASSIFICATION:
             labelwise_predictions: LabelwiseClassificationPredictions = data.to_labelwise()
             multi_label_preds: pd.Series = labelwise_predictions.predictions(multilabel=True).pandas()
-            multi_labels_df: pd.DataFrame = pd.DataFrame({
-                'multi_label_predictions': multi_label_preds,
-                data.ground_truth_label_col_name: data.data[data.ground_truth_label_col_name].pandas(),
-            })
-            counts: Dict[Tuple[Tuple[str, ...], Tuple[str, ...]], int] = multi_labels_df.groupby(
-                [data.ground_truth_label_col_name, 'multi_label_predictions']
-            ).size().to_dict()
+            multi_labels_df: pd.DataFrame = pd.DataFrame(
+                {
+                    "multi_label_predictions": multi_label_preds,
+                    data.ground_truth_label_col_name: data.data[data.ground_truth_label_col_name].pandas(),
+                }
+            )
+            counts: Dict[Tuple[Tuple[str, ...], Tuple[str, ...]], int] = (
+                multi_labels_df.groupby([data.ground_truth_label_col_name, "multi_label_predictions"])
+                .size()
+                .to_dict()
+            )
         else:
-            raise NotImplementedError(f'Cannot create confusion matrix from {type_str(data)} with task "{data.task}".')
+            raise NotImplementedError(
+                f'Cannot create confusion matrix from {type_str(data)} with task "{data.task}".'
+            )
         for (gt_lbs, pred_lbs), count in counts.items():
             for gt_lb in as_tuple(gt_lbs):  ## It is a list during multi-label
                 for pred_lb in as_tuple(pred_lbs):  ## It is a list during multi-label
-                    self.confusion_matrix[(gt_lb, pred_lb)] = self.confusion_matrix.get((gt_lb, pred_lb), 0) + count
+                    self.confusion_matrix[(gt_lb, pred_lb)] = (
+                        self.confusion_matrix.get((gt_lb, pred_lb), 0) + count
+                    )
                     self.total += count
 
     def compute(self) -> Any:
@@ -347,8 +379,8 @@ class ConfusionMatrix(TabularMetric):
         cf_mat: pd.DataFrame = pd.DataFrame(np.zeros((len(labels), len(labels)))).astype(int)
         cf_mat.columns = labels
         cf_mat.index = labels
-        cf_mat.T.index.name = 'Predicted Label→'  ## Columns
-        cf_mat.index.name = 'Ground-Truth Label↓'  ## Rows
+        cf_mat.T.index.name = "Predicted Label→"  ## Columns
+        cf_mat.index.name = "Ground-Truth Label↓"  ## Rows
         for i, gt_lb in enumerate(labels):
             for j, pred_lb in enumerate(labels):
                 cf_mat.iloc[i, j] = self.confusion_matrix.get((gt_lb, pred_lb), 0)
@@ -420,9 +452,7 @@ class MacroPrecision(_AggregatedClassificationMetric):
         tp_counts: Dict[str, int] = cf_mat.true_positive_counts()
         pred_lb_counts: Dict[str, int] = cf_mat.predicted_label_counts()
         labelwise_macro_precision: Dict[str, float] = {
-            lb: tp_counts[lb] / pred_lb_counts[lb]
-            for lb in tp_counts.keys()
-            if pred_lb_counts[lb] > 0
+            lb: tp_counts[lb] / pred_lb_counts[lb] for lb in tp_counts.keys() if pred_lb_counts[lb] > 0
         }
         return labelwise_macro_precision
 
@@ -441,7 +471,7 @@ class MicroPrecision(_AggregatedClassificationMetric):
     def _from_cf_mat(self, cf_mat: ConfusionMatrix) -> Dict[str, float]:
         numer: int = sum(cf_mat.true_positive_counts().values())
         denom: int = numer + sum(cf_mat.false_positive_counts().values())
-        return {'all_labels': float(numer / denom)}
+        return {"all_labels": float(numer / denom)}
 
 
 class MacroRecall(_AggregatedClassificationMetric):
@@ -455,9 +485,7 @@ class MacroRecall(_AggregatedClassificationMetric):
         tp_counts: Dict[str, int] = cf_mat.true_positive_counts()
         gt_lb_counts: Dict[str, int] = cf_mat.ground_truth_label_counts()
         labelwise_macro_recall: Dict[str, float] = {
-            lb: tp_counts[lb] / gt_lb_counts[lb]
-            for lb in tp_counts.keys()
-            if gt_lb_counts[lb] > 0
+            lb: tp_counts[lb] / gt_lb_counts[lb] for lb in tp_counts.keys() if gt_lb_counts[lb] > 0
         }
         return labelwise_macro_recall
 
@@ -476,11 +504,11 @@ class MicroRecall(_AggregatedClassificationMetric):
     def _from_cf_mat(self, cf_mat: ConfusionMatrix) -> Dict[str, float]:
         numer: int = sum(cf_mat.true_positive_counts().values())
         denom: int = numer + sum(cf_mat.false_negative_counts().values())
-        return {'all_labels': float(numer / denom)}
+        return {"all_labels": float(numer / denom)}
 
 
 class MacroFBeta(_AggregatedClassificationMetric):
-    aliases = ['FBetaMacro']
+    aliases = ["FBetaMacro"]
 
     ## Macro-F_β: take the F_β of each class, and combine it via:
     ## (a) averaging i.e. Macro-averaged F_β
@@ -494,15 +522,12 @@ class MacroFBeta(_AggregatedClassificationMetric):
         tp_counts: Dict[str, int] = cf_mat.true_positive_counts()
         fp_counts: Dict[str, int] = cf_mat.false_positive_counts()
         fn_counts: Dict[str, int] = cf_mat.false_negative_counts()
-        beta_square = self.params.beta ** 2
+        beta_square = self.params.beta**2
         beta_square_plus_1 = beta_square + 1
 
         labelwise_fbeta: Dict[str, float] = {
-            lb: (beta_square_plus_1 * tp_counts[lb]) / (
-                    beta_square_plus_1 * tp_counts[lb] +
-                    beta_square * fn_counts[lb] +
-                    fp_counts[lb]
-            )
+            lb: (beta_square_plus_1 * tp_counts[lb])
+            / (beta_square_plus_1 * tp_counts[lb] + beta_square * fn_counts[lb] + fp_counts[lb])
             for lb in tp_counts.keys()
             if fp_counts[lb] > 0 or fn_counts[lb] > 0 or tp_counts[lb] > 0
         }
@@ -510,7 +535,7 @@ class MacroFBeta(_AggregatedClassificationMetric):
 
 
 class MacroF1(MacroFBeta):
-    aliases = ['F1Macro']
+    aliases = ["F1Macro"]
 
     ## F1 is 2*TP_i/(2*TP_i + FN_i + FP_i)
     class Params(MacroFBeta.Params):
@@ -531,14 +556,10 @@ class MicroFBeta(_AggregatedClassificationMetric):
         tp: int = sum(cf_mat.true_positive_counts().values())
         fp: int = sum(cf_mat.false_positive_counts().values())
         fn: int = sum(cf_mat.false_negative_counts().values())
-        beta_square = self.params.beta ** 2
+        beta_square = self.params.beta**2
         beta_square_plus_1 = beta_square + 1
-        fbeta: float = (beta_square_plus_1 * tp) / (
-                beta_square_plus_1 * tp +
-                beta_square * fn +
-                fp
-        )
-        return {'all_labels': fbeta}
+        fbeta: float = (beta_square_plus_1 * tp) / (beta_square_plus_1 * tp + beta_square * fn + fp)
+        return {"all_labels": fbeta}
 
 
 class MicroF1(MicroFBeta):
@@ -562,7 +583,7 @@ class Accuracy(PercentageMetric):
     def compute(self) -> float:
         return float(self._num_correct_examples / self._num_total_examples)
 
-    def merge(self, other: 'Accuracy') -> 'Accuracy':
+    def merge(self, other: "Accuracy") -> "Accuracy":
         merged_metric: Accuracy = self.clear()
         merged_metric._num_correct_examples = self._num_correct_examples + other._num_correct_examples
         merged_metric._num_total_examples = self._num_total_examples + other._num_total_examples
@@ -571,7 +592,7 @@ class Accuracy(PercentageMetric):
 
 
 class LabelwiseAccuracy(TabularMetric):
-    aliases = ['classwise_accuracy']
+    aliases = ["classwise_accuracy"]
 
     _labelspace: Optional[Tuple[str, ...]] = None
     _num_correct_examples: Dict[str, int] = dict()
@@ -604,24 +625,24 @@ class LabelwiseAccuracy(TabularMetric):
 
 
 class DatasetCartography(TabularMetric):
-    aliases = ['DataMap']
+    aliases = ["DataMap"]
 
     """
     Implementation of paper "Dataset Cartography: Mapping and Diagnosing Datasets with Training Dynamics"
     by Swayamdipta et. al. (2020): https://arxiv.org/abs/2009.10795
     """
-    IDX: ClassVar[str] = 'idx'
-    GOLD_LABEL: ClassVar[str] = 'gold_label'
-    GOLD_LABEL_PROB: ClassVar[str] = 'gold_label_prob'
-    ALL_LABEL_PROBS: ClassVar[str] = 'all_label_probs'
-    PREDICTED_LABEL: ClassVar[str] = 'predicted_label'
-    PREDICTED_LABEL_MATCHES_GOLD: ClassVar[str] = 'predicted_label_matches_gold'
-    CONFIDENCE: ClassVar[str] = 'confidence'
-    VARIABILITY: ClassVar[str] = 'variability'
-    CORRECTNESS: ClassVar[str] = 'correctness'
-    CORRECTNESS_BUCKET: ClassVar[str] = 'correctness_bucket'
-    CORRECTNESS_MARKER: ClassVar[str] = 'correctness_marker'
-    CORRECTNESS_COLOR: ClassVar[str] = 'correctness_color'
+    IDX: ClassVar[str] = "idx"
+    GOLD_LABEL: ClassVar[str] = "gold_label"
+    GOLD_LABEL_PROB: ClassVar[str] = "gold_label_prob"
+    ALL_LABEL_PROBS: ClassVar[str] = "all_label_probs"
+    PREDICTED_LABEL: ClassVar[str] = "predicted_label"
+    PREDICTED_LABEL_MATCHES_GOLD: ClassVar[str] = "predicted_label_matches_gold"
+    CONFIDENCE: ClassVar[str] = "confidence"
+    VARIABILITY: ClassVar[str] = "variability"
+    CORRECTNESS: ClassVar[str] = "correctness"
+    CORRECTNESS_BUCKET: ClassVar[str] = "correctness_bucket"
+    CORRECTNESS_MARKER: ClassVar[str] = "correctness_marker"
+    CORRECTNESS_COLOR: ClassVar[str] = "correctness_color"
 
     _labelspace: Optional[Tuple[str, ...]] = None
     _idx_col_name: Optional[str] = None
@@ -647,7 +668,7 @@ class DatasetCartography(TabularMetric):
         for row in data.data.to_list_of_dict():
             idx: str = row[self._idx_col_name]
             if idx in self._metric_data:
-                raise ValueError(f'Found duplicate index in data: {self._idx_col_name}={idx}')
+                raise ValueError(f"Found duplicate index in data: {self._idx_col_name}={idx}")
             self._metric_data[idx] = {}
 
             gold_lb: str = row[self._gt_col_name]
@@ -657,8 +678,7 @@ class DatasetCartography(TabularMetric):
             self._metric_data[idx][self.GOLD_LABEL_PROB] = gold_lb_prob
 
             self._metric_data[idx][self.ALL_LABEL_PROBS]: Dict[str, float] = {
-                lb: float(row[lb])
-                for lb in self._labelspace
+                lb: float(row[lb]) for lb in self._labelspace
             }
             pred_lb: str = argmax(self._metric_data[idx][self.ALL_LABEL_PROBS])  ## Gets label with max prob
             check_isinstance(pred_lb, str)
@@ -666,75 +686,95 @@ class DatasetCartography(TabularMetric):
             self._metric_data[idx][self.PREDICTED_LABEL_MATCHES_GOLD] = bool(pred_lb == gold_lb)
 
     def compute(self) -> pd.DataFrame:
-        data_map_single_epoch: pd.DataFrame = pd.DataFrame([
-            {
-                self.IDX: idx,
-                **d,
-            }
-            for idx, d in self._metric_data.items()
-        ])
+        data_map_single_epoch: pd.DataFrame = pd.DataFrame(
+            [
+                {
+                    self.IDX: idx,
+                    **d,
+                }
+                for idx, d in self._metric_data.items()
+            ]
+        )
         return data_map_single_epoch
 
     @classmethod
     def calc_data_map(cls, detailed_final_model_metrics: pd.DataFrame, *, index_col: str) -> pd.DataFrame:
         correctness_marker_map = {
-            0.0: 'circle',
-            0.1: 'circle',
-            0.2: 'diamond',
-            0.3: 'x',
-            0.4: 'x',
-            0.5: 'square',
-            0.6: 'cross',
-            0.7: 'cross',
-            0.8: 'triangle-down',
-            0.9: 'triangle-up',
-            1.0: 'triangle-up',
+            0.0: "circle",
+            0.1: "circle",
+            0.2: "diamond",
+            0.3: "x",
+            0.4: "x",
+            0.5: "square",
+            0.6: "cross",
+            0.7: "cross",
+            0.8: "triangle-down",
+            0.9: "triangle-up",
+            1.0: "triangle-up",
         }
         correctness_color_map = {
-            0.0: '#64b5f6',
-            0.1: '#64b5f6',
-            0.2: '#1976d2',
-            0.3: '#053061',
-            0.4: '#525252',
-            0.5: '#525252',
-            0.6: '#525252',
-            0.7: '#662506',
-            0.8: '#c62828',
-            0.9: '#ef5350',
-            1.0: '#ef5350',
+            0.0: "#64b5f6",
+            0.1: "#64b5f6",
+            0.2: "#1976d2",
+            0.3: "#053061",
+            0.4: "#525252",
+            0.5: "#525252",
+            0.6: "#525252",
+            0.7: "#662506",
+            0.8: "#c62828",
+            0.9: "#ef5350",
+            1.0: "#ef5350",
         }
         ## Take the longest:
-        longest_trial_id: str = dict_key_with_best_value({
-            trial_id: int(trial_df[_RAY_TRAINING_ITERATION].nunique())
-            for trial_id, trial_df in detailed_final_model_metrics.groupby(_RAY_TRIAL_ID)
-        }, how='max')
+        longest_trial_id: str = dict_key_with_best_value(
+            {
+                trial_id: int(trial_df[_RAY_TRAINING_ITERATION].nunique())
+                for trial_id, trial_df in detailed_final_model_metrics.groupby(_RAY_TRIAL_ID)
+            },
+            how="max",
+        )
 
         trial_cart_metrics: List[Dict] = []
         for trial_id, trial_df in detailed_final_model_metrics.groupby(_RAY_TRIAL_ID):
             if trial_id != longest_trial_id:
                 continue
-            trial_df: pd.DataFrame = trial_df.sort_values(_RAY_TRAINING_ITERATION, ascending=True).reset_index(
-                drop=True)
+            trial_df: pd.DataFrame = trial_df.sort_values(
+                _RAY_TRAINING_ITERATION, ascending=True
+            ).reset_index(drop=True)
             trial_cart_df: List[pd.DataFrame] = []
-            for training_iteration, iter_data_map_df in trial_df.set_index(_RAY_TRAINING_ITERATION)[
-                f'{DataSplit.TRAIN.capitalize()}/{DatasetCartography.class_name}'
-            ].to_dict().items():
+            for training_iteration, iter_data_map_df in (
+                trial_df.set_index(_RAY_TRAINING_ITERATION)[
+                    f"{DataSplit.TRAIN.capitalize()}/{DatasetCartography.class_name}"
+                ]
+                .to_dict()
+                .items()
+            ):
                 iter_data_map_df[_RAY_TRAINING_ITERATION] = training_iteration
                 trial_cart_df.append(iter_data_map_df)
-            trial_cart_df: pd.DataFrame = pd.concat(trial_cart_df).sort_values(
-                [index_col, _RAY_TRAINING_ITERATION],
-                ascending=True,
-            ).reset_index(drop=True)
+            trial_cart_df: pd.DataFrame = (
+                pd.concat(trial_cart_df)
+                .sort_values(
+                    [index_col, _RAY_TRAINING_ITERATION],
+                    ascending=True,
+                )
+                .reset_index(drop=True)
+            )
             for idx, idx_df in trial_cart_df.groupby(index_col):
-                trial_cart_metrics.append({
-                    index_col: idx,
-                    cls.CONFIDENCE: float(idx_df[cls.GOLD_LABEL_PROB].mean()),
-                    cls.VARIABILITY: float(idx_df[cls.GOLD_LABEL_PROB].std(ddof=0)),  ## Biased std for some reason?
-                    cls.CORRECTNESS: float(idx_df[cls.PREDICTED_LABEL_MATCHES_GOLD].mean()),
-                })
+                trial_cart_metrics.append(
+                    {
+                        index_col: idx,
+                        cls.CONFIDENCE: float(idx_df[cls.GOLD_LABEL_PROB].mean()),
+                        cls.VARIABILITY: float(
+                            idx_df[cls.GOLD_LABEL_PROB].std(ddof=0)
+                        ),  ## Biased std for some reason?
+                        cls.CORRECTNESS: float(idx_df[cls.PREDICTED_LABEL_MATCHES_GOLD].mean()),
+                    }
+                )
             break  ## Only take first one
         trial_cart_metrics: pd.DataFrame = pd.DataFrame(trial_cart_metrics)
-        trial_cart_metrics[cls.CORRECTNESS_BUCKET] = trial_cart_metrics[cls.CORRECTNESS].apply(lambda x: round(x, 1))
+        trial_cart_metrics[cls.CORRECTNESS_BUCKET] = trial_cart_metrics[cls.CORRECTNESS].apply(
+            lambda x: round(x, 1)
+        )
         # print(json.dumps(trial_cart_metrics.query('confidence <= 0.4')['idx'].tolist(), indent=2), end='\n\n\n')
         trial_cart_metrics[cls.CORRECTNESS_MARKER] = trial_cart_metrics[cls.CORRECTNESS_BUCKET].map(
             correctness_marker_map
@@ -748,7 +788,8 @@ class DatasetCartography(TabularMetric):
     def plot_data_map(cls, detailed_final_model_metrics: pd.DataFrame, *, index_col: str) -> Any:
         data_map_df: pd.DataFrame = cls.calc_data_map(detailed_final_model_metrics, index_col=index_col)
         return data_map_df.hvplot.scatter(
-            x=cls.VARIABILITY, y=cls.CONFIDENCE,
+            x=cls.VARIABILITY,
+            y=cls.CONFIDENCE,
             c=cls.CORRECTNESS_COLOR,
             marker=cls.CORRECTNESS_MARKER,
             size=30,

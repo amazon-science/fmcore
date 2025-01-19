@@ -1,9 +1,10 @@
-from typing import *
-from fmcore.data.processor import SingleColumnProcessor, TextInputProcessor, TextOutputProcessor
-from fmcore.util import AutoEnum, auto, String, is_null
-import pandas as pd
 import string
+from typing import *
+
 from pydantic import constr
+
+from fmcore.data.processor import SingleColumnProcessor, TextInputProcessor, TextOutputProcessor
+from fmcore.util import String, is_null
 
 
 class PunctuationCleaner(SingleColumnProcessor, TextInputProcessor, TextOutputProcessor):
@@ -18,8 +19,5 @@ class PunctuationCleaner(SingleColumnProcessor, TextInputProcessor, TextOutputPr
         if is_null(data):
             return None
         return data.translate(
-            str.maketrans(
-                string.punctuation,
-                self.params.replacement_char * len(string.punctuation)
-            )
+            str.maketrans(string.punctuation, self.params.replacement_char * len(string.punctuation))
         )

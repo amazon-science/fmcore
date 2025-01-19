@@ -1,4 +1,5 @@
 """A collection of concurrency utilities to augment the Python language:"""
+
 import ctypes
 import logging
 import multiprocessing as mp
@@ -13,6 +14,7 @@ from typing import *
 
 class ThreadKilledSystemException(BaseException):
     """Custom exception for killing threads."""
+
     pass
 
 
@@ -20,17 +22,17 @@ class ThreadKilledSystemExceptionFilter(logging.Filter):
     def filter(self, record):
         if record.exc_info:
             exc_type = record.exc_info[0]
-            if exc_type.__name__ == 'ThreadKilledSystemException':
+            if exc_type.__name__ == "ThreadKilledSystemException":
                 return False
         return True
 
 
 def suppress_ThreadKilledSystemException():
-    for _logger_module in ['concurrent.futures', 'ipykernel', 'ipykernel.ipykernel']:
+    for _logger_module in ["concurrent.futures", "ipykernel", "ipykernel.ipykernel"]:
         _logger = logging.getLogger(_logger_module)
         _filter_exists: bool = False
         for _filter in _logger.filters:
-            if _filter.__class__.__name__ == 'ThreadKilledSystemExceptionFilter':
+            if _filter.__class__.__name__ == "ThreadKilledSystemExceptionFilter":
                 _filter_exists: bool = True
                 # print(f'{_filter.__class__.__name__} exists in {_logger_module} filters')
                 break
@@ -41,42 +43,42 @@ def suppress_ThreadKilledSystemException():
 
 def kill_thread(tid: int):
     """
-    Forces termination of a thread by injecting a ThreadKilledSystemException into it. 
-    This is a last-resort mechanism that should only be used when normal thread 
+    Forces termination of a thread by injecting a ThreadKilledSystemException into it.
+    This is a last-resort mechanism that should only be used when normal thread
     termination methods have failed.
 
     Technical Implementation:
         Uses the CPython C API (via ctypes) to inject an exception into the target thread's
-        execution context. When the exception is raised, it will terminate the thread's 
+        execution context. When the exception is raised, it will terminate the thread's
         execution at its next Python instruction.
 
     Example usage:
         >>> def long_running_task():
                 while True:
                     time.sleep(1)  ## Simulate work
-        
+
         >>> thread = threading.Thread(target=long_running_task)
         >>> thread.start()
         >>> thread_id = thread.ident
         >>> kill_thread(thread_id)  ## Thread will terminate on next instruction
 
-    Intended usage: 
+    Intended usage:
         1. When performing concurrent/parallel tasks that may need to be cancelled after submission to a ThreadPoolExecutor:
             Example: Cancelling a task in an interactive Jupyter session:
             >>> prompt_template = "Who is the head of state in: {country}"
             >>> countries = ['USA', 'UK', 'India', 'China', 'Russia', ... ] ## Assume a large list
-            >>> prompts = [prompt_template.format(country=country) for country in countries]  
+            >>> prompts = [prompt_template.format(country=country) for country in countries]
             >>> def call_llm(prompt) -> str:
                     return call_gpt(prompt)
             >>> ## Create a ThreadPoolExecutor:
                 executor = ThreadPoolExecutor(max_workers=10)
             >>> ## Submit tasks to ThreadPoolExecutor:
                 for gpt_generated_text in accumulate_iter([
-                    run_concurrent(call_llm, prompt) 
+                    run_concurrent(call_llm, prompt)
                     for prompt in prompt
                 ]):  ## Waits for results as they complete and prints (may be out-of-order):
                     print(gpt_generated_text)
-            >>> ## Now, suppose while printing the results, we realise the prompt is not good. 
+            >>> ## Now, suppose while printing the results, we realise the prompt is not good.
             >>> ## We want to cancel the pending tasks by pressing "stop" in Jupyter notebook.
             >>> ## By default, this will raise a KeyboardInterrupt, but WILL NOT stop the running tasks!
             >>> ## Instead, we can use kill_thread to stop the tasks:
@@ -105,7 +107,7 @@ def kill_thread(tid: int):
                 >>> kill_thread(tid)  ## System left in unknown state
 
     Args:
-        tid: Thread ID (integer) of the thread to terminate. Obtain this from 
+        tid: Thread ID (integer) of the thread to terminate. Obtain this from
              threading.Thread.ident
 
     Raises:
@@ -117,7 +119,7 @@ def kill_thread(tid: int):
     if not issubclass(exctype, BaseException):
         raise TypeError("Only types derived from BaseException are allowed")
     res = ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(tid), ctypes.py_object(exctype))
-    logging.debug(f'...killed thread ID: {tid}')
+    logging.debug(f"...killed thread ID: {tid}")
     if res == 0:
         raise ValueError(f"Invalid thread ID: {tid}")
     elif res != 1:
@@ -183,7 +185,9 @@ def concurrent(max_workers: int = 10, max_calls_per_second: float = inf):
         def wrapper(*args, **kwargs) -> Future:
             semaphore.acquire()
             time_elapsed_since_last_called = time.time() - time_last_called[0]
-            time_to_wait_before_next_call = max(0.0, min_time_interval_between_calls - time_elapsed_since_last_called)
+            time_to_wait_before_next_call = max(
+                0.0, min_time_interval_between_calls - time_elapsed_since_last_called
+            )
             time.sleep(time_to_wait_before_next_call)
 
             def run_function(*args, **kwargs):
@@ -208,17 +212,17 @@ class RestrictedConcurrencyThreadPoolExecutor(ThreadPoolExecutor):
     """
 
     def __init__(
-            self,
-            max_workers: Optional[int] = None,
-            *args,
-            max_calls_per_second: float = float('inf'),
-            **kwargs,
+        self,
+        max_workers: Optional[int] = None,
+        *args,
+        max_calls_per_second: float = float("inf"),
+        **kwargs,
     ):
         if max_workers is None:
             max_workers: int = min(32, (mp.cpu_count() or 1) + 4)
-        if (not isinstance(max_workers, int) or (max_workers < 1)):
-            raise ValueError(f'Expected `max_workers`to be a non-negative integer.')
-        kwargs['max_workers'] = max_workers
+        if not isinstance(max_workers, int) or (max_workers < 1):
+            raise ValueError("Expected `max_workers`to be a non-negative integer.")
+        kwargs["max_workers"] = max_workers
         super().__init__(*args, **kwargs)
         self._semaphore = Semaphore(max_workers)
         self._max_calls_per_second = max_calls_per_second
@@ -235,13 +239,15 @@ class RestrictedConcurrencyThreadPoolExecutor(ThreadPoolExecutor):
         self._semaphore.acquire()
 
         # Rate limiting logic: Before starting a new call, ensure we wait long enough if needed
-        if (self._min_time_interval_between_calls > 0.0):
+        if self._min_time_interval_between_calls > 0.0:
             with self._lock:
                 time_elapsed_since_last_called = time.time() - self._time_last_called
-                time_to_wait = max(0.0, self._min_time_interval_between_calls - time_elapsed_since_last_called)
+                time_to_wait = max(
+                    0.0, self._min_time_interval_between_calls - time_elapsed_since_last_called
+                )
 
             # Wait the required time
-            if (time_to_wait > 0):
+            if time_to_wait > 0:
                 time.sleep(time_to_wait)
 
             # Update the last-called time after the wait
@@ -263,24 +269,26 @@ _GLOBAL_THREAD_POOL_EXECUTOR_MAX_WORKERS: int = 16
 
 
 def run_concurrent(
-        fn,
-        *args,
-        executor: Optional[ThreadPoolExecutor] = None,
-        **kwargs,
+    fn,
+    *args,
+    executor: Optional[ThreadPoolExecutor] = None,
+    **kwargs,
 ):
     global _GLOBAL_THREAD_POOL_EXECUTOR
-    if (_GLOBAL_THREAD_POOL_EXECUTOR is None):
+    if _GLOBAL_THREAD_POOL_EXECUTOR is None:
         _GLOBAL_THREAD_POOL_EXECUTOR = RestrictedConcurrencyThreadPoolExecutor(
             max_workers=_GLOBAL_THREAD_POOL_EXECUTOR_MAX_WORKERS
         )
-    if (executor is None):
+    if executor is None:
         executor: ThreadPoolExecutor = _GLOBAL_THREAD_POOL_EXECUTOR
     try:
         # logging.debug(f'Running {fn_str(fn)} using {Parallelize.threads} with max_workers={executor._max_workers}')
         return executor.submit(fn, *args, **kwargs)  ## return a future
     except BrokenThreadPool as e:
-        if (executor is _GLOBAL_THREAD_POOL_EXECUTOR):
-            executor = RestrictedConcurrencyThreadPoolExecutor(max_workers=_GLOBAL_THREAD_POOL_EXECUTOR_MAX_WORKERS)
+        if executor is _GLOBAL_THREAD_POOL_EXECUTOR:
+            executor = RestrictedConcurrencyThreadPoolExecutor(
+                max_workers=_GLOBAL_THREAD_POOL_EXECUTOR_MAX_WORKERS
+            )
             del _GLOBAL_THREAD_POOL_EXECUTOR
             _GLOBAL_THREAD_POOL_EXECUTOR = executor
             return executor.submit(fn, *args, **kwargs)  ## return a future

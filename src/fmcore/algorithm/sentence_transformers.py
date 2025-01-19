@@ -1,24 +1,25 @@
-from typing import *
 import os
-from fmcore.util import optional_dependency, set_param_from_alias
-from fmcore.data import FileMetadata
-from fmcore.framework.task import EmbeddingData, Embedder
-from fmcore.framework.dl.torch import PyTorchBaseModel
-from fmcore.constants import Task, Storage, MLType
-from pydantic import root_validator, conint, confloat
+from typing import *
 
-with optional_dependency('torch', 'transformers'):
+from pydantic import root_validator
+
+from fmcore.constants import MLType, Storage
+from fmcore.data import FileMetadata
+from fmcore.framework.dl.torch import PyTorchBaseModel
+from fmcore.framework.task import EmbeddingData
+from fmcore.util import optional_dependency, set_param_from_alias
+
+with optional_dependency("torch", "transformers"):
     import torch
     from torch import Tensor
-    from transformers import AutoTokenizer, AutoModel, PreTrainedTokenizerBase, PreTrainedModel, BatchEncoding
+    from transformers import AutoModel, AutoTokenizer, BatchEncoding, PreTrainedModel, PreTrainedTokenizerBase
 
     ## Globally disable tokenizer parallelism. Instead, load and preprocess batches using a Processing queue (which is
     ## used by default in .stream())
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-
     class SentenceTransformersBaseModel(PyTorchBaseModel):
-        aliases = ['sentence_transformers']
+        aliases = ["sentence_transformers"]
         model: Optional[PreTrainedModel] = None
         tokenizer: Optional[PreTrainedTokenizerBase] = None
         _embedding_size: Optional[int] = None
@@ -31,17 +32,25 @@ with optional_dependency('torch', 'transformers'):
 
             @root_validator(pre=True)
             def set_aliases(cls, params: Dict) -> Dict:
-                set_param_from_alias(params, param='max_length', alias=[
-                    'max_len', 'max_sequence_length', 'max_sequence_len',
-                ])
+                set_param_from_alias(
+                    params,
+                    param="max_length",
+                    alias=[
+                        "max_len",
+                        "max_sequence_length",
+                        "max_sequence_len",
+                    ],
+                )
                 return params
 
         def initialize(self, model_dir: Optional[FileMetadata] = None):
             if model_dir is None:
-                self.tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(self.hyperparams.model_name)
+                self.tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(
+                    self.hyperparams.model_name
+                )
                 self.model: PreTrainedModel = AutoModel.from_pretrained(self.hyperparams.model_name)
             else:
-                assert model_dir.storage is Storage.LOCAL_FILE_SYSTEM, 'Can only load models from disk.'
+                assert model_dir.storage is Storage.LOCAL_FILE_SYSTEM, "Can only load models from disk."
                 self.tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(model_dir.path)
                 self.model: PreTrainedModel = AutoModel.from_pretrained(model_dir.path)
 
@@ -52,10 +61,10 @@ with optional_dependency('torch', 'transformers'):
         def embedding_size(self) -> int:
             if self._embedding_size is None:
                 input: BatchEncoding = self.tokenizer(
-                    ['test'],
+                    ["test"],
                     truncation=True,
                     max_length=3,
-                    return_tensors='pt',
+                    return_tensors="pt",
                 )
                 with torch.no_grad():
                     model_output = self.model(**input)
@@ -63,17 +72,17 @@ with optional_dependency('torch', 'transformers'):
             return self._embedding_size
 
         def prepare_input(
-                self,
-                batch: EmbeddingData,
-                **kwargs,
+            self,
+            batch: EmbeddingData,
+            **kwargs,
         ) -> Dict[str, Tensor]:
-            sentences: List[str] = batch.features(MLType.TEXT, return_series=True).fillna('').to_list()
+            sentences: List[str] = batch.features(MLType.TEXT, return_series=True).fillna("").to_list()
             input: BatchEncoding = self.tokenizer(
                 sentences,
                 padding=self.hyperparams.padding,
                 truncation=self.hyperparams.truncation,
                 max_length=self.hyperparams.max_length,
-                return_tensors='pt'
+                return_tensors="pt",
             )
             return dict(input)
 
@@ -81,12 +90,14 @@ with optional_dependency('torch', 'transformers'):
             # print(f'input: {input}')
             with torch.no_grad():
                 model_output = self.model(**input)
-            return self.mean_pooling(model_output, input['attention_mask'])
+            return self.mean_pooling(model_output, input["attention_mask"])
 
         def embed_multi(self, input: Dict[str, Tensor], **kwargs) -> Tensor:
             with torch.no_grad():
                 model_output = self.model(**input)
-            return model_output[0]  ## model_output[0] is a Tensor of shape (batch_size, num_tokens, embedding_size)
+            return model_output[
+                0
+            ]  ## model_output[0] is a Tensor of shape (batch_size, num_tokens, embedding_size)
 
         @staticmethod
         def mean_pooling(model_output, attention_mask) -> Tensor:

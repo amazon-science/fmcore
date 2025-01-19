@@ -1,4 +1,5 @@
 """Jupyter-friendly asyncio usage:"""
+
 import asyncio
 import atexit
 import inspect
@@ -45,6 +46,7 @@ def run_asyncio(fn, *args, **kwargs):
 
 async def async_http_get(url):
     import aiohttp
+
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             return await response.read()

@@ -1,14 +1,25 @@
+import io
+import pathlib
+import time
+from abc import ABC, abstractmethod
 from typing import *
-from abc import abstractmethod, ABC
-import time, io, json, pathlib, numpy as np
-from math import inf
-from fmcore.constants import FileFormat, Storage, FileContents, MLTypeSchema, FILE_FORMAT_TO_FILE_ENDING_MAP
-from fmcore.util.language import as_list, classproperty, String, safe_validate_arguments, filter_kwargs, \
-    get_default, shuffle_items
-from fmcore.util import String, FileSystemUtil, Parameters, Registry, Log, Alias
-from fmcore.util.aws import S3Util
+
+import numpy as np
+from pydantic import Extra, Field, confloat, conint, constr, root_validator
+
+from fmcore.constants import FILE_FORMAT_TO_FILE_ENDING_MAP, FileContents, FileFormat, MLTypeSchema, Storage
 from fmcore.data.FileMetadata import FileMetadata
-from pydantic import conint, confloat, constr, root_validator, Extra
+from fmcore.util import Alias, FileSystemUtil, Log, Parameters, Registry, String
+from fmcore.util.aws import S3Util
+from fmcore.util.language import (
+    String,
+    as_list,
+    classproperty,
+    filter_kwargs,
+    get_default,
+    safe_validate_arguments,
+    shuffle_items,
+)
 
 Reader = "Reader"
 
@@ -20,6 +31,7 @@ class Reader(Parameters, Registry, ABC):
     - params: params for reading from the particular file-format. These are forwarded to .read_csv, .read_yaml, etc.
     - filter_kwargs: whether to filter out (ignore) args in `params` that are not supported by the reader function.
     """
+
     _allow_multiple_subclasses = True
     _allow_subclass_override = False
     file_formats: ClassVar[Tuple[FileFormat, ...]]
@@ -42,13 +54,13 @@ class Reader(Parameters, Registry, ABC):
             ## These will be forwarded to the respective reader method like .read_csv, .read_json, etc.
             extra = Extra.allow
 
-    params: Params = {}
+    params: Params = Field(default_factory=Params)
     filter_kwargs: bool = True
 
     @root_validator(pre=True)
     def convert_params(cls, params: Dict) -> Dict:
         Alias.set_retry(params)
-        params['params'] = cls._convert_params(cls.Params, params.get('params'))
+        params["params"] = cls._convert_params(cls.Params, params.get("params"))
         return params
 
     @classmethod
@@ -78,16 +90,12 @@ class Reader(Parameters, Registry, ABC):
         elif isinstance(source, str):
             return Reader.of(FileMetadata.detect_file_format(source), **kwargs).read(source, **kwargs)
         raise ValueError(
-            f'Cannot detect file format from data of type {type(source)}; '
-            f'please instantiate a reader using {Reader}.of(file_format=...)'
+            f"Cannot detect file format from data of type {type(source)}; "
+            f"please instantiate a reader using {Reader}.of(file_format=...)"
         )
 
     @safe_validate_arguments
-    def read(
-            self,
-            source: Union[FileMetadata, io.IOBase, str],
-            **kwargs
-    ) -> Any:
+    def read(self, source: Union[FileMetadata, io.IOBase, str], **kwargs) -> Any:
         """Wrapper function to read all data using file contents"""
         if isinstance(source, FileMetadata):
             return self.read_metadata(source, **kwargs)
@@ -102,16 +110,16 @@ class Reader(Parameters, Registry, ABC):
                 return self.read_url(source, **kwargs)
             elif storage is Storage.LOCAL_FILE_SYSTEM:
                 return self.read_local(source, **kwargs)
-        raise IOError(f'Cannot read object of type: {type(source)}: {source}')
+        raise IOError(f"Cannot read object of type: {type(source)}: {source}")
 
     @safe_validate_arguments
     def read_stream(
-            self,
-            stream: io.IOBase,
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            log_perf: bool = True,
-            **kwargs
+        self,
+        stream: io.IOBase,
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        log_perf: bool = True,
+        **kwargs,
     ) -> Any:
         """
         Method to read data from text and binary input streams. Ref: https://docs.python.org/3/library/io.html
@@ -125,7 +133,7 @@ class Reader(Parameters, Registry, ABC):
         self._check_file_contents(file_contents)
         if not isinstance(stream, tuple(list(self.streams))):
             raise TypeError(
-                f'Input stream should be one of the following types: {self.streams}; '
+                f"Input stream should be one of the following types: {self.streams}; "
                 f'found object of type: "{type(stream)}"'
             )
         if not stream.readable() or stream.closed:
@@ -135,15 +143,11 @@ class Reader(Parameters, Registry, ABC):
             start = time.perf_counter()
             ## Do NOT log a long message at the start, as that can make reading very slow during realtime deployment.
             obj = self._read_stream(
-                stream,
-                file_contents=file_contents,
-                data_schema=data_schema,
-                log_perf=log_perf,
-                **kwargs
+                stream, file_contents=file_contents, data_schema=data_schema, log_perf=log_perf, **kwargs
             )
             end = time.perf_counter()
             if log_perf:
-                Log.debug(f'Took {String.readable_seconds(end - start)} to read from stream.')
+                Log.debug(f"Took {String.readable_seconds(end - start)} to read from stream.")
             return obj
         except Exception as e:
             Log.error(String.format_exception_msg(e))
@@ -152,22 +156,22 @@ class Reader(Parameters, Registry, ABC):
     @abstractmethod
     @safe_validate_arguments
     def _read_stream(
-            self,
-            stream: io.IOBase,
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            **kwargs
+        self,
+        stream: io.IOBase,
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        **kwargs,
     ) -> Any:
         pass
 
     @safe_validate_arguments
     def read_url(
-            self,
-            url: constr(min_length=1),
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            log_perf: bool = True,
-            **kwargs
+        self,
+        url: constr(min_length=1),
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        log_perf: bool = True,
+        **kwargs,
     ) -> Any:
         """
         Method to read a URL over HTTP/HTTPS/SCP/SFTP/etc.
@@ -183,11 +187,7 @@ class Reader(Parameters, Registry, ABC):
             start = time.perf_counter()
             ## Do NOT log a long message at the start, as that can make reading very slow during realtime deployment.
             obj = self._read_url(
-                url,
-                file_contents=file_contents,
-                data_schema=data_schema,
-                log_perf=log_perf,
-                **kwargs
+                url, file_contents=file_contents, data_schema=data_schema, log_perf=log_perf, **kwargs
             )
             end = time.perf_counter()
             if log_perf:
@@ -200,25 +200,25 @@ class Reader(Parameters, Registry, ABC):
     @abstractmethod
     @safe_validate_arguments
     def _read_url(
-            self,
-            url: str,
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            **kwargs,
+        self,
+        url: str,
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        **kwargs,
     ) -> Any:
         pass
 
     @safe_validate_arguments
     def read_local(
-            self,
-            local_path: Union[str, pathlib.Path],
-            *,
-            file_glob: str = String.DOUBLE_ASTERISK,
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            files_to_ignore: List[str] = String.FILES_TO_IGNORE,
-            log_perf: bool = True,
-            **kwargs
+        self,
+        local_path: Union[str, pathlib.Path],
+        *,
+        file_glob: str = String.DOUBLE_ASTERISK,
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        files_to_ignore: List[str] = String.FILES_TO_IGNORE,
+        log_perf: bool = True,
+        **kwargs,
     ) -> Any:
         """
         Reads data from the local filesystem.
@@ -249,7 +249,7 @@ class Reader(Parameters, Registry, ABC):
                             only_files=True,
                         ),
                         **kwargs,
-                    }
+                    },
                 )
                 num_files_to_read = len(local_path_to_read)
                 if num_files_to_read == 0:
@@ -267,7 +267,7 @@ class Reader(Parameters, Registry, ABC):
                             recursive=True,
                         ),
                         **kwargs,
-                    }
+                    },
                 )
                 num_files_to_read = len(local_path_to_read)
                 if num_files_to_read == 0:
@@ -275,19 +275,21 @@ class Reader(Parameters, Registry, ABC):
                 if self.shuffled_multi_read:
                     local_path_to_read: List[str] = list(np.random.permutation(local_path_to_read))
             if log_perf:
-                Log.debug(f'Reading {num_files_to_read} file(s) from local path "{local_path}" using {str(self)}')
+                Log.debug(
+                    f'Reading {num_files_to_read} file(s) from local path "{local_path}" using {str(self)}'
+                )
             start = time.perf_counter()
             obj = self._read_local(
                 local_path_to_read,
                 file_contents=file_contents,
                 data_schema=data_schema,
                 log_perf=log_perf,
-                **kwargs
+                **kwargs,
             )
             end = time.perf_counter()
             if log_perf:
                 Log.debug(
-                    f'Took {String.readable_seconds(end - start)} '
+                    f"Took {String.readable_seconds(end - start)} "
                     f'to read {num_files_to_read} file(s) from local path "{local_path}"'
                 )
             return obj
@@ -298,25 +300,25 @@ class Reader(Parameters, Registry, ABC):
     @abstractmethod
     @safe_validate_arguments
     def _read_local(
-            self,
-            local_path: Union[str, List[str]],
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            **kwargs
+        self,
+        local_path: Union[str, List[str]],
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        **kwargs,
     ) -> Any:
         pass
 
     @safe_validate_arguments
     def read_s3(
-            self,
-            s3_path: str,
-            *,
-            file_glob: str = String.DOUBLE_ASTERISK,
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            files_to_ignore: List[str] = String.FILES_TO_IGNORE,
-            log_perf: bool = True,
-            **kwargs
+        self,
+        s3_path: str,
+        *,
+        file_glob: str = String.DOUBLE_ASTERISK,
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        files_to_ignore: List[str] = String.FILES_TO_IGNORE,
+        log_perf: bool = True,
+        **kwargs,
     ) -> Any:
         """
         Reads data from AWS S3.
@@ -335,10 +337,7 @@ class Reader(Parameters, Registry, ABC):
         try:
             if S3Util.is_path_valid_s3_dir(s3_path):
                 s3_path_to_read: List[str] = S3Util.list(
-                    s3_path,
-                    ignored_files=files_to_ignore,
-                    file_glob=file_glob,
-                    **kwargs
+                    s3_path, ignored_files=files_to_ignore, file_glob=file_glob, **kwargs
                 )
                 num_files_to_read = len(s3_path_to_read)
                 if num_files_to_read == 0:
@@ -352,7 +351,7 @@ class Reader(Parameters, Registry, ABC):
                 ## Globs are not supported by S3:
                 raise FileNotFoundError(
                     f'Cannot read file or directory at S3 path "{s3_path}";\n'
-                    f'Note that glob-like patterns are not supported by S3'
+                    f"Note that glob-like patterns are not supported by S3"
                 )
             if log_perf:
                 Log.debug(f'Reading {num_files_to_read} file(s) from S3 path "{s3_path}" using {str(self)}')
@@ -362,12 +361,12 @@ class Reader(Parameters, Registry, ABC):
                 file_contents=file_contents,
                 data_schema=data_schema,
                 log_perf=log_perf,
-                **kwargs
+                **kwargs,
             )
             end = time.perf_counter()
             if log_perf:
                 Log.debug(
-                    f'Took {String.readable_seconds(end - start)} '
+                    f"Took {String.readable_seconds(end - start)} "
                     f'to read {num_files_to_read} file(s) from S3 path "{s3_path}"'
                 )
             return obj
@@ -378,25 +377,25 @@ class Reader(Parameters, Registry, ABC):
     @abstractmethod
     @safe_validate_arguments
     def _read_s3(
-            self,
-            s3_path: str,
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            **kwargs
+        self,
+        s3_path: str,
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        **kwargs,
     ) -> Any:
         pass
 
     @safe_validate_arguments
     def read_metadata(
-            self,
-            file: FileMetadata,
-            *,
-            file_glob: Optional[str] = None,
-            **kwargs,
+        self,
+        file: FileMetadata,
+        *,
+        file_glob: Optional[str] = None,
+        **kwargs,
     ) -> Any:
         file_glob: Optional[str] = get_default(file_glob, file.file_glob)
         if file_glob is not None:
-            kwargs['file_glob'] = file_glob
+            kwargs["file_glob"] = file_glob
 
         if file.storage is Storage.LOCAL_FILE_SYSTEM:
             return self.read_local(
@@ -419,7 +418,7 @@ class Reader(Parameters, Registry, ABC):
                 data_schema=file.data_schema,
                 **kwargs,
             )
-        raise NotImplementedError(f'Reading from {file.storage} is not supported.')
+        raise NotImplementedError(f"Reading from {file.storage} is not supported.")
 
     @classproperty
     def file_ending(cls) -> str:
@@ -427,11 +426,13 @@ class Reader(Parameters, Registry, ABC):
         file_format: FileFormat = as_list(cls.file_formats)[0]
         file_endings: List[str] = as_list(FILE_FORMAT_TO_FILE_ENDING_MAP.get(file_format, []))
         if len(file_endings) == 0:
-            raise ValueError(f'No file ending registered for supported file formats of class {cls.class_name}.')
+            raise ValueError(
+                f"No file ending registered for supported file formats of class {cls.class_name}."
+            )
         return file_endings[0]
 
     @classmethod
     def _check_file_contents(cls, file_contents: Optional[FileContents]) -> NoReturn:
         if file_contents is not None:
             if file_contents not in cls.file_contents:
-                raise ValueError(f'{cls.class_name} only supports contents {cls.file_contents}.')
+                raise ValueError(f"{cls.class_name} only supports contents {cls.file_contents}.")

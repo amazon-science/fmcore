@@ -1,9 +1,10 @@
 from typing import *
+
+from pydantic import constr, root_validator
+
 from fmcore.data.processor import Nto1ColumnProcessor, TextInputProcessor, TextOutputProcessor
-import pandas as pd
 from fmcore.data.sdf import ScalableDataFrame, ScalableSeries
-from fmcore.util import AutoEnum, auto, String, get_default, is_list_like, is_null
-from pydantic import root_validator, validator, constr
+from fmcore.util import AutoEnum, String, auto, is_list_like, is_null
 
 
 class ColumnOrder(AutoEnum):
@@ -25,7 +26,9 @@ class TextConcatenation(Nto1ColumnProcessor, TextInputProcessor, TextOutputProce
 
     class Params(Nto1ColumnProcessor.Params):
         sep: constr(min_length=1) = String.SPACE
-        column_order: ColumnOrder = ColumnOrder.SORT_BY_NAME_ASCENDING  ## Do not change this for legacy reasons.
+        column_order: ColumnOrder = (
+            ColumnOrder.SORT_BY_NAME_ASCENDING
+        )  ## Do not change this for legacy reasons.
         input_ordering: Optional[List[str]] = None
         prefix_col_name: Optional[bool] = False
         prefix_col_sep: Optional[str] = ": "
@@ -35,20 +38,19 @@ class TextConcatenation(Nto1ColumnProcessor, TextInputProcessor, TextOutputProce
 
     @root_validator(pre=False)
     def set_ordered_cols(cls, params: Dict):
-        if params['params'].column_order is ColumnOrder.INPUT_ORDER:
-            if not is_list_like(params['params'].input_ordering):
+        if params["params"].column_order is ColumnOrder.INPUT_ORDER:
+            if not is_list_like(params["params"].input_ordering):
                 raise ValueError(
-                    f'`input_ordering` must be a non-empty list when column_order={ColumnOrder.INPUT_ORDER}'
+                    f"`input_ordering` must be a non-empty list when column_order={ColumnOrder.INPUT_ORDER}"
                 )
-            params['ordered_cols']: List[str] = params['params'].input_ordering
+            params["ordered_cols"]: List[str] = params["params"].input_ordering
         return params
 
     def _fit_df(self, data: ScalableDataFrame):
         cols: List[str] = list(data.columns)
         if self.params.column_order is ColumnOrder.SORT_BY_SHORTEST_FIRST:
             avg_column_length: Dict[str, float] = {
-                col: data[col].dropna().astype(str).apply(len).mean()
-                for col in cols
+                col: data[col].dropna().astype(str).apply(len).mean() for col in cols
             }
             ## Sort first by avg. length, then by column name:
             self.ordered_cols: List[str] = [
@@ -75,7 +77,9 @@ class TextConcatenation(Nto1ColumnProcessor, TextInputProcessor, TextOutputProce
             if col not in data.columns_set:
                 if self.params.allow_missing:
                     continue
-                raise ValueError(f'Column {col} is required but not found in input data. Input data has columns: {data.columns}')
+                raise ValueError(
+                    f"Column {col} is required but not found in input data. Input data has columns: {data.columns}"
+                )
             to_add_col = col + self.params.prefix_col_sep
             if self.params.prefix_col_name is False:
                 to_add_col = ""

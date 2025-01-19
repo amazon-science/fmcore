@@ -1,12 +1,22 @@
-from typing import *
 from abc import ABC, abstractmethod
-from fmcore.constants import VisualizationBackend, AVAILABLE_VISUALIZATION_BACKENDS, VISUALIZATION_BACKEND_DEPENDENCIES
-from fmcore.util import Parameters, Registry, optional_dependency, safe_validate_arguments, as_list, String, \
-    is_abstract, all_are_not_none, all_are_none, get_default
-from fmcore.framework.task_data import Dataset
-from fmcore.framework.predictions import Predictions
-from pydantic import constr, root_validator, Extra
 from functools import singledispatchmethod
+from typing import *
+
+from pydantic import Extra, constr, root_validator
+
+from fmcore.constants import VISUALIZATION_BACKEND_DEPENDENCIES, VisualizationBackend
+from fmcore.framework.predictions import Predictions
+from fmcore.framework.task_data import Dataset
+from fmcore.util import (
+    Parameters,
+    Registry,
+    String,
+    all_are_not_none,
+    as_list,
+    is_abstract,
+    optional_dependency,
+    safe_validate_arguments,
+)
 
 
 class Visualization(Parameters, Registry, ABC):
@@ -56,32 +66,29 @@ class Visualization(Parameters, Registry, ABC):
     def _validate_data_classes(data_classes: List[Type]) -> List[Type]:
         if data_classes is None:
             raise ValueError(
-                f'You must specify class variable `data_classes` on a subclass of {Visualization}. '
-                f'This must be a list of classes which the visualization can take as an input data, '
-                f'e.g Dataset, ClassificationTaskData, Predictions, RegressionPredictions, pd.DataFrame, etc.'
+                f"You must specify class variable `data_classes` on a subclass of {Visualization}. "
+                f"This must be a list of classes which the visualization can take as an input data, "
+                f"e.g Dataset, ClassificationTaskData, Predictions, RegressionPredictions, pd.DataFrame, etc."
             )
         data_classes: List = as_list(data_classes)
         for input_type in as_list(data_classes):
             if not isinstance(input_type, type):
                 raise ValueError(
-                    f'Class variable `data_classes` must be a list of classes which the visualization can take as an '
-                    f'input data, e.g Dataset, ClassificationTaskData, Predictions, RegressionPredictions, '
+                    f"Class variable `data_classes` must be a list of classes which the visualization can take as an "
+                    f"input data, e.g Dataset, ClassificationTaskData, Predictions, RegressionPredictions, "
                     f'pd.DataFrame, etc; found unsupported value: "{input_type}"'
                 )
         return data_classes
 
     @classmethod
     def _registry_keys(cls) -> Optional[Union[List[Any], Any]]:
-        return [
-            (String.str_normalize(name), cls.backend)
-            for name in (cls.class_name,) + cls.aliases
-        ]
+        return [(String.str_normalize(name), cls.backend) for name in (cls.class_name,) + cls.aliases]
 
     @classmethod
     def get_subclass(
-            cls,
-            key: Any,
-            **kwargs,
+        cls,
+        key: Any,
+        **kwargs,
     ) -> Optional[Union[Type, List[Type]]]:
         if isinstance(key, tuple) and len(key) == 2:
             if (isinstance(key[0], (str, type))) and VisualizationBackend.matches_any(key[1]):
@@ -120,19 +127,20 @@ class Visualization(Parameters, Registry, ABC):
                     precision: confloat(ge=0.0, le=1.0)
                 ...
         """
+
         width: int = None
         height: int = None
         title: Optional[str] = None
-        title_font_size: Union[int, str] = '12pt'
-        data_font_size: Union[int, str] = '8pt'
-        xaxis_ticks_font_size: Union[int, str] = '8pt'
-        yaxis_ticks_font_size: Union[int, str] = '8pt'
-        xaxis_label_font_size: str = '11pt'
-        yaxis_label_font_size: str = '11pt'
-        xaxis_label_font_style: str = 'normal'
-        yaxis_label_font_style: str = 'normal'
-        xaxis_position: str = 'bottom'
-        yaxis_position: str = 'left'
+        title_font_size: Union[int, str] = "12pt"
+        data_font_size: Union[int, str] = "8pt"
+        xaxis_ticks_font_size: Union[int, str] = "8pt"
+        yaxis_ticks_font_size: Union[int, str] = "8pt"
+        xaxis_label_font_size: str = "11pt"
+        yaxis_label_font_size: str = "11pt"
+        xaxis_label_font_style: str = "normal"
+        yaxis_label_font_style: str = "normal"
+        xaxis_position: str = "bottom"
+        yaxis_position: str = "left"
         decimals: int = 3
 
         class Config(Parameters.Config):
@@ -143,22 +151,22 @@ class Visualization(Parameters, Registry, ABC):
 
     @root_validator(pre=True)
     def convert_params(cls, params: Dict):
-        params['params'] = super(Visualization, cls)._convert_params(cls.Params, params.get('params'))
-        params['name'] = cls.class_name
+        params["params"] = super(Visualization, cls)._convert_params(cls.Params, params.get("params"))
+        params["name"] = cls.class_name
         return params
 
     def __str__(self):
-        params_str: str = self.json(indent=4, exclude={'figure'})
-        out: str = f'{self.class_name} with params:\n{params_str}'
+        params_str: str = self.json(indent=4, exclude={"figure"})
+        out: str = f"{self.class_name} with params:\n{params_str}"
         return out
 
     @classmethod
     def of(
-            cls,
-            name: Optional[Union['Visualization', Dict, str]] = None,
-            backend: Optional[VisualizationBackend] = None,
-            **kwargs,
-    ) -> 'Visualization':
+        cls,
+        name: Optional[Union["Visualization", Dict, str]] = None,
+        backend: Optional[VisualizationBackend] = None,
+        **kwargs,
+    ) -> "Visualization":
         if isinstance(name, Visualization):
             return name
         if isinstance(name, dict):
@@ -169,8 +177,8 @@ class Visualization(Parameters, Registry, ABC):
         elif name is not None:
             if not isinstance(name, str):
                 raise NotImplementedError(
-                    f'Unsupported value for `name`; expected a string, but '
-                    f'found {type(name)} with value:\n{name}'
+                    f"Unsupported value for `name`; expected a string, but "
+                    f"found {type(name)} with value:\n{name}"
                 )
             backend: VisualizationBackend = cls._initialize_backend_for_viz(name=name, **kwargs)
             VisualizationClass: Type[Visualization] = Visualization.get_subclass((name, backend))
@@ -187,17 +195,13 @@ class Visualization(Parameters, Registry, ABC):
     @classmethod
     @safe_validate_arguments
     def init(cls, backend: VisualizationBackend, **kwargs) -> bool:
-        init_fn = getattr(cls, f'_initialize_{backend.lower().strip()}')
+        init_fn = getattr(cls, f"_initialize_{backend.lower().strip()}")
         return init_fn(**kwargs)
 
     @classmethod
     @safe_validate_arguments
     def plot(
-            cls,
-            data: Any,
-            name: Optional[str] = None,
-            backend: Optional[VisualizationBackend] = None,
-            **kwargs
+        cls, data: Any, name: Optional[str] = None, backend: Optional[VisualizationBackend] = None, **kwargs
     ) -> Any:
         viz = Visualization.of(name=name, backend=backend, **kwargs)
         if not isinstance(data, tuple(viz.data_classes)):
@@ -207,24 +211,25 @@ class Visualization(Parameters, Registry, ABC):
             )
         if isinstance(data, (Dataset, Predictions)):
             if not data.in_memory():
-                raise ValueError(f'Can only visualize data which is in memory. Please call .read() beforehand.')
+                raise ValueError(
+                    "Can only visualize data which is in memory. Please call .read() beforehand."
+                )
         figure: Optional[Any] = viz.plot_figure(data=data, **kwargs)
         return viz._postprocess_figure(figure=figure, backend=viz.backend, **kwargs)
 
     @classmethod
     @safe_validate_arguments
     def _initialize_backend_for_viz(
-            cls,
-            name: str,
-            backend: Optional[VisualizationBackend] = None,
-            **kwargs
+        cls, name: str, backend: Optional[VisualizationBackend] = None, **kwargs
     ) -> VisualizationBackend:
         def _create_import_error(available_backends: Set[VisualizationBackend]):
-            out_str: str = f'Could not initialize dependencies for any of the implemented backends; ' \
-                           f'please ensure the at least one of the following dependencies is installed:\n'
+            out_str: str = (
+                "Could not initialize dependencies for any of the implemented backends; "
+                "please ensure the at least one of the following dependencies is installed:\n"
+            )
             for available_backend in available_backends:
                 deps: List[str] = VISUALIZATION_BACKEND_DEPENDENCIES[available_backend]
-                out_str += f'To plot using {available_backend}: {deps}'
+                out_str += f"To plot using {available_backend}: {deps}"
             return ImportError(out_str)
 
         available_backends: Set[VisualizationBackend] = cls.available_backends(name)
@@ -237,44 +242,35 @@ class Visualization(Parameters, Registry, ABC):
             if backend is None:
                 raise _create_import_error(available_backends)
         else:
-            init_fn = getattr(cls, f'_initialize_{backend.lower()}')
+            init_fn = getattr(cls, f"_initialize_{backend.lower()}")
             if not init_fn(**kwargs):
                 raise _create_import_error(available_backends)
         return backend
 
     @safe_validate_arguments
-    def _postprocess_figure(
-            self,
-            figure: Any,
-            backend: Optional[VisualizationBackend],
-            **kwargs
-    ):
+    def _postprocess_figure(self, figure: Any, backend: Optional[VisualizationBackend], **kwargs):
         if figure is None:
             raise ValueError(
-                f'Plotting using `{self.class_name}.plot_figure` must return a figure object; '
-                f'instead, found {type(figure)}.'
+                f"Plotting using `{self.class_name}.plot_figure` must return a figure object; "
+                f"instead, found {type(figure)}."
             )
-        postprocess_fn_name: str = f'_postprocess_{backend.lower().strip()}'
+        postprocess_fn_name: str = f"_postprocess_{backend.lower().strip()}"
         postproces_fn: Callable = getattr(self, postprocess_fn_name)
         if figure is None:
             raise ValueError(
-                f'Postprocessing function `{self.class_name}.{postprocess_fn_name}` must return a '
-                f'figure object; instead, found {type(figure)}.'
+                f"Postprocessing function `{self.class_name}.{postprocess_fn_name}` must return a "
+                f"figure object; instead, found {type(figure)}."
             )
         return postproces_fn(figure, **kwargs)
 
     @classmethod
     def _initialize_hvplot_bokeh(cls, reinit: bool = False, set_theme: bool = True, **kwargs) -> bool:
         backend: VisualizationBackend = VisualizationBackend.HVPLOT_BOKEH
-        with optional_dependency(
-                *VISUALIZATION_BACKEND_DEPENDENCIES[backend],
-                error='ignore'
-        ):
-            import bokeh
+        with optional_dependency(*VISUALIZATION_BACKEND_DEPENDENCIES[backend], error="ignore"):
             import holoviews as hv
-            import hvplot.pandas
+
             if reinit or backend not in cls.initialized_backends:
-                hv.extension('bokeh')
+                hv.extension("bokeh")
             cls.initialized_backends.add(backend)
             return True
         return False
@@ -283,6 +279,7 @@ class Visualization(Parameters, Registry, ABC):
         ## Ref: https://holoviews.org/FAQ.html, see the following answer:
         ## "Q: What if I need to do more complex customization supported by the backend but not exposed in HoloViews?"
         from bokeh.plotting import Figure as BokehFigure
+
         def hook(plot, element):
             # Allows accessing the backends figure object
             p: BokehFigure = plot.state
@@ -301,26 +298,22 @@ class Visualization(Parameters, Registry, ABC):
             xaxis=self.params.xaxis_position,
             yaxis=self.params.yaxis_position,
             fontsize={
-                'title': self.params.title_font_size,
-                'xticks': self.params.xaxis_ticks_font_size,
-                'yticks': self.params.yaxis_ticks_font_size,
+                "title": self.params.title_font_size,
+                "xticks": self.params.xaxis_ticks_font_size,
+                "yticks": self.params.yaxis_ticks_font_size,
             },
-            hooks=[hook]
+            hooks=[hook],
         )
         return figure
 
     @classmethod
     def _initialize_hvplot_matplotlib(cls, reinit: bool = False, **kwargs) -> bool:
         backend: VisualizationBackend = VisualizationBackend.HVPLOT_MATPLOTLIB
-        with optional_dependency(
-                *VISUALIZATION_BACKEND_DEPENDENCIES[backend],
-                error='ignore'
-        ):
-            import bokeh
+        with optional_dependency(*VISUALIZATION_BACKEND_DEPENDENCIES[backend], error="ignore"):
             import holoviews as hv
-            import hvplot.pandas
+
             if reinit or backend not in cls.initialized_backends:
-                hv.extension('matplotlib')
+                hv.extension("matplotlib")
             cls.initialized_backends.add(backend)
             return True
         return False
@@ -331,11 +324,7 @@ class Visualization(Parameters, Registry, ABC):
     @classmethod
     def _initialize_bokeh(cls, reinit: bool = False, **kwargs) -> bool:
         backend: VisualizationBackend = VisualizationBackend.BOKEH
-        with optional_dependency(
-                *VISUALIZATION_BACKEND_DEPENDENCIES[backend],
-                error='ignore'
-        ):
-            import bokeh
+        with optional_dependency(*VISUALIZATION_BACKEND_DEPENDENCIES[backend], error="ignore"):
             cls.initialized_backends.add(backend)
             return True
         return False
@@ -346,16 +335,13 @@ class Visualization(Parameters, Registry, ABC):
     @classmethod
     def _initialize_plotly_express(cls, reinit: bool = False, **kwargs) -> bool:
         backend: VisualizationBackend = VisualizationBackend.PLOTLY_EXPRESS
-        with optional_dependency(
-                *VISUALIZATION_BACKEND_DEPENDENCIES[backend],
-                error='ignore'
-        ):
+        with optional_dependency(*VISUALIZATION_BACKEND_DEPENDENCIES[backend], error="ignore"):
             import hvplot.pandas
-            import plotly.express as px
             import plotly.io as pio
-            pio.templates.default = 'plotly_white'
+
+            pio.templates.default = "plotly_white"
             if reinit or backend not in cls.initialized_backends:
-                hvplot.extension('plotly')
+                hvplot.extension("plotly")
             cls.initialized_backends.add(backend)
             return True
         return False
@@ -366,11 +352,7 @@ class Visualization(Parameters, Registry, ABC):
     @classmethod
     def _initialize_seaborn(cls, reinit: bool = False, **kwargs) -> bool:
         backend: VisualizationBackend = VisualizationBackend.SEABORN
-        with optional_dependency(
-                *VISUALIZATION_BACKEND_DEPENDENCIES[backend],
-                error='ignore'
-        ):
-            import seaborn as sns
+        with optional_dependency(*VISUALIZATION_BACKEND_DEPENDENCIES[backend], error="ignore"):
             return True
         return False
 
@@ -380,11 +362,7 @@ class Visualization(Parameters, Registry, ABC):
     @classmethod
     def _initialize_matplotlib(cls, reinit: bool = False, **kwargs) -> bool:
         backend: VisualizationBackend = VisualizationBackend.MATPLOTLIB
-        with optional_dependency(
-                *VISUALIZATION_BACKEND_DEPENDENCIES[backend],
-                error='ignore'
-        ):
-            import matplotlib as plt
+        with optional_dependency(*VISUALIZATION_BACKEND_DEPENDENCIES[backend], error="ignore"):
             cls.initialized_backends.add(backend)
             return True
         return False
@@ -395,12 +373,10 @@ class Visualization(Parameters, Registry, ABC):
     @classmethod
     def _initialize_altair(cls, reinit: bool = False, **kwargs) -> bool:
         backend: VisualizationBackend = VisualizationBackend.ALTAIR
-        with optional_dependency(
-                *VISUALIZATION_BACKEND_DEPENDENCIES[backend],
-                error='ignore'
-        ):
+        with optional_dependency(*VISUALIZATION_BACKEND_DEPENDENCIES[backend], error="ignore"):
             import altair as alt
-            alt.renderers.enable('notebook')
+
+            alt.renderers.enable("notebook")
             alt.data_transformers.disable_max_rows()
             cls.initialized_backends.add(backend)
             return True
@@ -412,11 +388,7 @@ class Visualization(Parameters, Registry, ABC):
     @classmethod
     def _initialize_termcolor(cls, reinit: bool = False, **kwargs) -> bool:
         backend: VisualizationBackend = VisualizationBackend.TERMCOLOR
-        with optional_dependency(
-                *VISUALIZATION_BACKEND_DEPENDENCIES[backend],
-                error='ignore'
-        ):
-            import termcolor
+        with optional_dependency(*VISUALIZATION_BACKEND_DEPENDENCIES[backend], error="ignore"):
             cls.initialized_backends.add(backend)
             return True
         return False
@@ -432,9 +404,6 @@ class Visualization(Parameters, Registry, ABC):
 # class Visualization(Parameters, Registry, ABC):
 #     _allow_multiple_subclasses = False
 #     _allow_subclass_override = True
-
-
-
 
 
 Viz = Visualization

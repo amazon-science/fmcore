@@ -1,10 +1,13 @@
 from typing import *
+
 import numpy as np
-from pandas.core.frame import Series as PandasSeries, DataFrame as PandasDataFrame
-from fmcore.util import wrap_fn_output, is_function, String, get_default
+from pandas.core.frame import DataFrame as PandasDataFrame
+from pandas.core.frame import Series as PandasSeries
+
 from fmcore.constants import DataLayout
-from fmcore.data.sdf.ScalableSeries import ScalableSeries, SS_DEFAULT_NAME
 from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame
+from fmcore.data.sdf.ScalableSeries import SS_DEFAULT_NAME, ScalableSeries
+from fmcore.util import get_default, is_function, wrap_fn_output
 
 PandasScalableSeries = "PandasScalableSeries"
 
@@ -21,8 +24,8 @@ class PandasScalableSeries(ScalableSeries):
         self._data: PandasSeries = data
         if name is not None and not isinstance(name, (str, int, float)):
             raise ValueError(
-                f'`name` used to construct {self.__class__} can only be int, str or float; '
-                f'found object of type: {type(name)} with value: {name}'
+                f"`name` used to construct {self.__class__} can only be int, str or float; "
+                f"found object of type: {type(name)} with value: {name}"
             )
         else:
             self._data.name = name
@@ -32,7 +35,7 @@ class PandasScalableSeries(ScalableSeries):
         return len(self._data)
 
     def __str__(self):
-        name_str: str = '' if self._name is None else f'"{self._name}": '
+        name_str: str = "" if self._name is None else f'"{self._name}": '
         out = f"{name_str}Pandas Series of dtype `{self._data.dtype}` with {len(self)} items:\n"
         # out += '\n' + '-' * len(out) + '\n'
         out += str(self._data)
@@ -60,7 +63,7 @@ class PandasScalableSeries(ScalableSeries):
 
     def __setitem__(self, key: Any, value: Any):
         # self._data[key] = value
-        raise NotImplementedError(f'Cannot set at the moment')
+        raise NotImplementedError("Cannot set at the moment")
 
     def as_list(self, **kwargs) -> List:
         return list(self._data.tolist())
@@ -69,5 +72,5 @@ class PandasScalableSeries(ScalableSeries):
         return self._data
 
     def _to_frame_raw(self, **kwargs):
-        kwargs['name']: Any = get_default(self._name, SS_DEFAULT_NAME)
+        kwargs["name"]: Any = get_default(self._name, SS_DEFAULT_NAME)
         return self._data.to_frame(**kwargs)

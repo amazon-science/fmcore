@@ -1,17 +1,16 @@
+import io
 from typing import *
-from abc import abstractmethod, ABC
-import io, numpy as np
-from fmcore.constants import FileContents, MLType, FileFormat, Parallelize, Storage
-from fmcore.util import is_list_like, String, FileSystemUtil, run_concurrent, run_parallel, run_parallel_ray, \
-    accumulate, optional_dependency
-from fmcore.util.aws import S3Util
-from fmcore.data.reader.asset.audio.AudioReader import AudioReader
+
+import numpy as np
 from pydantic import constr
 from pydantic.typing import Literal
 
-with optional_dependency('torchaudio'):
-    import torchaudio as ta
+from fmcore.constants import FileContents, FileFormat, Storage
+from fmcore.data.reader.asset.audio.AudioReader import AudioReader
+from fmcore.util import optional_dependency
+from fmcore.util.aws import S3Util
 
+with optional_dependency("torchaudio"):
 
     class TorchAudioReader(AudioReader):
         ## Subset of formats supported by imageio:
@@ -25,15 +24,15 @@ with optional_dependency('torchaudio'):
         ]
 
         class Params(ImageReader.Params):
-            mode: constr(min_length=1, max_length=6, strip_whitespace=True) = 'RGB'
+            mode: constr(min_length=1, max_length=6, strip_whitespace=True) = "RGB"
 
         def _read_image(
-                self,
-                source: Union[str, io.BytesIO],
-                storage: Storage,
-                file_contents: Optional[FileContents] = None,
-                postprocess: bool = True,
-                **kwargs
+            self,
+            source: Union[str, io.BytesIO],
+            storage: Storage,
+            file_contents: Optional[FileContents] = None,
+            postprocess: bool = True,
+            **kwargs,
         ) -> np.ndarray:
             if storage is Storage.S3:
                 source: io.BytesIO = io.BytesIO(S3Util.stream_s3_object(source).read())
@@ -45,7 +44,6 @@ with optional_dependency('torchaudio'):
                 return img
             return self._postprocess_image(img, **kwargs)
 
-
     class TIFFImageIOReader(ImageIOReader):
         ## Subset of formats supported by imageio:
         file_formats = [
@@ -53,7 +51,7 @@ with optional_dependency('torchaudio'):
         ]
 
         class Params(ImageReader.Params):
-            mode: Literal['r'] = 'r'  ## In imageio's tifffile plugin, mode is 'r' or 'w'
+            mode: Literal["r"] = "r"  ## In imageio's tifffile plugin, mode is 'r' or 'w'
 
     # def fetch_img_imageio(img_path: str):
     #     storage = FileMetadata.detect_storage(img_path)

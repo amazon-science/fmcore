@@ -35,10 +35,10 @@ def pad_interval(low: Union[int, float], high: Union[int, float], pad: float) ->
 
 
 def rolling_avg(iterator: Union[Iterable, Iterator, Generator]) -> float:
-    if not hasattr(iterator, '__iter__'):
+    if not hasattr(iterator, "__iter__"):
         raise ValueError(
-            f'Cannot calculate rolling average from an object which is neither an iterator or generator; '
-            f'found object of type {type(iterator)}.'
+            f"Cannot calculate rolling average from an object which is neither an iterator or generator; "
+            f"found object of type {type(iterator)}."
         )
     avg: float = 0
     for i, x in enumerate(iterator):
@@ -73,7 +73,7 @@ def entropy(probabilities: np.ndarray) -> float:
         assert is_numpy_float_array(probabilities)
     prob_sum: float = float(probabilities.sum())
     if abs(1 - prob_sum) > 1e-2:
-        raise ValueError(f'Probabilities sum to {prob_sum}, should sum to 1')
+        raise ValueError(f"Probabilities sum to {prob_sum}, should sum to 1")
     probabilities = probabilities[probabilities > 0]
     # probabilities += 1e-9
     _entropy = float(-np.sum(probabilities * np.log2(probabilities)))
@@ -81,23 +81,23 @@ def entropy(probabilities: np.ndarray) -> float:
 
 
 def relative_increase(
-        prev: float,
-        cur: float,
-        *,
-        how: Literal['ratio', 'pct'] = 'ratio',
-        decimals: Optional[int] = None,
+    prev: float,
+    cur: float,
+    *,
+    how: Literal["ratio", "pct"] = "ratio",
+    decimals: Optional[int] = None,
 ) -> float:
-    assert how in {'ratio', 'pct'}
+    assert how in {"ratio", "pct"}
     increase_frac: float = cur / prev
-    if how == 'ratio':
+    if how == "ratio":
         if decimals is None:
             decimals: int = 5
         return round(increase_frac - 1, decimals)
-    elif how == 'pct':
+    elif how == "pct":
         if decimals is None:
             decimals: int = 2
         return round(100 * (increase_frac - 1), decimals)
-    elif how == 'bps':
+    elif how == "bps":
         if decimals is None:
             decimals: int = 1
         return round(100 * 100 * (increase_frac - 1), decimals)
@@ -107,9 +107,11 @@ def relative_increase(
 
 def to_pct(counts: pd.Series):  ## Converts value counts to percentages
     _sum = counts.sum()
-    return pd.DataFrame({
-        'value': counts.index.tolist(),
-        'count': counts.tolist(),
-        'pct': counts.apply(lambda x: 100 * x / _sum).tolist(),
-        'count_str': counts.apply(lambda x: f'{x} of {_sum}').tolist(),
-    })
+    return pd.DataFrame(
+        {
+            "value": counts.index.tolist(),
+            "count": counts.tolist(),
+            "pct": counts.apply(lambda x: 100 * x / _sum).tolist(),
+            "count_str": counts.apply(lambda x: f"{x} of {_sum}").tolist(),
+        }
+    )

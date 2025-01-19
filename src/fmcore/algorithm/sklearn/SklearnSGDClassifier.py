@@ -1,17 +1,17 @@
-from typing import *
 import os
+from typing import *
+
 import numpy as np
 import pandas as pd
 
-from fmcore.util import optional_dependency
+from fmcore.constants import MLType, Storage
 from fmcore.data import FileMetadata
 from fmcore.framework import ClassificationData, Classifier, EncodingRange
-from fmcore.constants import Storage, MLType
+from fmcore.util import optional_dependency
 
-with optional_dependency('sklearn', 'joblib', error='raise'):
+with optional_dependency("sklearn", "joblib", error="raise"):
     import joblib
     from sklearn.linear_model import SGDClassifier
-
 
     class SklearnSGDClassifier(Classifier):
         label_encoding_range = EncodingRange.ZERO_TO_N_MINUS_ONE
@@ -20,7 +20,7 @@ with optional_dependency('sklearn', 'joblib', error='raise'):
 
         class Hyperparameters(Classifier.Hyperparameters):
             alpha: float = 3e-1  ## Custom default learning-rate
-            loss: str = 'log_loss'
+            loss: str = "log_loss"
 
         def initialize(self, model_dir: Optional[FileMetadata] = None):
             if model_dir is None:
@@ -29,8 +29,8 @@ with optional_dependency('sklearn', 'joblib', error='raise'):
                     random_state=self.hyperparams.seed,
                 )
             else:
-                assert model_dir.storage is Storage.LOCAL_FILE_SYSTEM, 'Can only load models from disk.'
-                self.model: SGDClassifier = joblib.load(os.path.join(model_dir.path, 'model.pkl'))
+                assert model_dir.storage is Storage.LOCAL_FILE_SYSTEM, "Can only load models from disk."
+                self.model: SGDClassifier = joblib.load(os.path.join(model_dir.path, "model.pkl"))
 
         def train_step(self, batch: ClassificationData, **kwargs):
             ## Convert from our internal format to Pandas Series
@@ -47,7 +47,7 @@ with optional_dependency('sklearn', 'joblib', error='raise'):
             scores: np.ndarray = self.model.predict_proba(features)
             if np.isnan(scores).all():  ## https://github.com/scikit-learn/scikit-learn/issues/17978
                 scores: np.ndarray = np.full_like(scores, fill_value=1.0, dtype=np.float) / self.num_labels
-            return {'scores': scores, 'labels': self.model.classes_}
+            return {"scores": scores, "labels": self.model.classes_}
 
         def save(self, model_dir: FileMetadata):
-            joblib.dump(self.model, os.path.join(model_dir.path, 'model.pkl'))
+            joblib.dump(self.model, os.path.join(model_dir.path, "model.pkl"))

@@ -1,16 +1,29 @@
 import io
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 from typing import *
 
-from pydantic import root_validator, conint, constr
+from pydantic import conint, constr, root_validator
 
-from fmcore.constants import FileContents, DataLayout, MLTypeSchema, Storage, Parallelize
+from fmcore.constants import DataLayout, FileContents, MLTypeSchema, Parallelize, Storage
 from fmcore.data.sdf.DaskScalableDataFrame import DaskScalableDataFrame
 from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType
 from fmcore.data.writer.Writer import Writer
-from fmcore.util import multiple_are_not_none, any_are_not_none, all_are_none, FileSystemUtil, Schema, accumulate, dispatch, \
-    get_default, Log, \
-    String, set_param_from_alias, create_progress_bar, safe_validate_arguments, TqdmProgressBar
+from fmcore.util import (
+    FileSystemUtil,
+    Log,
+    Schema,
+    String,
+    TqdmProgressBar,
+    accumulate,
+    all_are_none,
+    any_are_not_none,
+    create_progress_bar,
+    dispatch,
+    get_default,
+    multiple_are_not_none,
+    safe_validate_arguments,
+    set_param_from_alias,
+)
 from fmcore.util.aws import S3Util
 from fmcore.util.language._import import _check_is_dask_installed
 
@@ -31,7 +44,7 @@ class DataFrameWriter(Writer, ABC):
         FileContents.DATAFRAME,
     ]
     streams = [io.TextIOBase]
-    dask_multiple_write_file_suffix: ClassVar[str] = ''
+    dask_multiple_write_file_suffix: ClassVar[str] = ""
 
     data_schema: Optional[MLTypeSchema] = None
     allow_missing_columns: bool = False
@@ -43,30 +56,35 @@ class DataFrameWriter(Writer, ABC):
     @root_validator(pre=True)
     def check_df_writer_params(cls, params: Dict):
         params: Dict = Writer.convert_params(params)
-        set_param_from_alias(params, param='num_rows', alias=[
-            'batch_size',
-            'write_batch_size',
-            'file_batch_size',
-            'write_num_rows',
-            'file_num_rows',
-        ])
-        set_param_from_alias(params, param='num_chunks', alias=[
-            'num_batches',
-            'write_num_batches',
-            'file_num_batches',
-            'write_num_chunks',
-            'file_num_chunks',
-            'num_files',
-        ])
+        set_param_from_alias(
+            params,
+            param="num_rows",
+            alias=[
+                "batch_size",
+                "write_batch_size",
+                "file_batch_size",
+                "write_num_rows",
+                "file_num_rows",
+            ],
+        )
+        set_param_from_alias(
+            params,
+            param="num_chunks",
+            alias=[
+                "num_batches",
+                "write_num_batches",
+                "file_num_batches",
+                "write_num_chunks",
+                "file_num_chunks",
+                "num_files",
+            ],
+        )
 
         if multiple_are_not_none(
-                params.get('num_rows'),
-                params.get('num_chunks'),
+            params.get("num_rows"),
+            params.get("num_chunks"),
         ):
-            raise ValueError(
-                f'Only one of `num_rows` or `num_chunks` can be non-None. '
-                f'Found: {params}'
-            )
+            raise ValueError(f"Only one of `num_rows` or `num_chunks` can be non-None. Found: {params}")
         # if all_are_none(
         #         params.get('num_rows'),
         #         params.get('num_chunks'),
@@ -79,11 +97,11 @@ class DataFrameWriter(Writer, ABC):
         return self.data_schema is not None
 
     def _preprocess(
-            self,
-            data: Union[ScalableDataFrame, ScalableDataFrameRawType],
-            write_as: Optional[DataLayout] = None,
-            allow_missing_columns=False,
-            **kwargs,
+        self,
+        data: Union[ScalableDataFrame, ScalableDataFrameRawType],
+        write_as: Optional[DataLayout] = None,
+        allow_missing_columns=False,
+        **kwargs,
     ) -> ScalableDataFrame:
         ## Converts data to ScalableDataFrame, and filters it based on the schema (if it exists).
         sdf: ScalableDataFrame = ScalableDataFrame.of(data, layout=write_as)
@@ -95,11 +113,11 @@ class DataFrameWriter(Writer, ABC):
         return sdf
 
     def _write_stream(
-            self,
-            stream: io.IOBase,
-            data: Union[ScalableDataFrame, ScalableDataFrameRawType],
-            write_as: Optional[DataLayout] = None,
-            **kwargs,
+        self,
+        stream: io.IOBase,
+        data: Union[ScalableDataFrame, ScalableDataFrameRawType],
+        write_as: Optional[DataLayout] = None,
+        **kwargs,
     ) -> NoReturn:
         """
         Writes ScalableDataFrame (or raw dataframe-like object) to a stream.
@@ -121,13 +139,13 @@ class DataFrameWriter(Writer, ABC):
         ## Do not return anything here.
 
     def _write_local(
-            self,
-            local_path: str,
-            data: Union[ScalableDataFrame, ScalableDataFrameRawType],
-            write_as: Optional[DataLayout] = None,
-            file_name: Optional[constr(min_length=1)] = None,
-            single_file: Optional[bool] = None,
-            **kwargs,
+        self,
+        local_path: str,
+        data: Union[ScalableDataFrame, ScalableDataFrameRawType],
+        write_as: Optional[DataLayout] = None,
+        file_name: Optional[constr(min_length=1)] = None,
+        single_file: Optional[bool] = None,
+        **kwargs,
     ) -> Union[str, List[str]]:
         """
         Writes ScalableDataFrame (or raw dataframe-like object) to local path (file or folder).
@@ -156,7 +174,9 @@ class DataFrameWriter(Writer, ABC):
             if single_file is True or (sdf.npartitions == 1 and all_are_none(self.num_rows, self.num_chunks)):
                 ## Do not write multiple files:
                 if file_name is None:
-                    raise ValueError(f'You must pass `file_name` when writing to local directory "{local_path}".')
+                    raise ValueError(
+                        f'You must pass `file_name` when writing to local directory "{local_path}".'
+                    )
                 local_file_path: str = FileSystemUtil.construct_file_path_in_dir(
                     path=local_path,
                     name=file_name,
@@ -180,13 +200,13 @@ class DataFrameWriter(Writer, ABC):
                 )
 
     def _write_s3(
-            self,
-            s3_path: str,
-            data: Union[ScalableDataFrame, ScalableDataFrameRawType],
-            write_as: Optional[DataLayout] = None,
-            file_name: Optional[constr(min_length=1)] = None,
-            single_file: Optional[bool] = None,
-            **kwargs,
+        self,
+        s3_path: str,
+        data: Union[ScalableDataFrame, ScalableDataFrameRawType],
+        write_as: Optional[DataLayout] = None,
+        file_name: Optional[constr(min_length=1)] = None,
+        single_file: Optional[bool] = None,
+        **kwargs,
     ) -> Union[str, List[str]]:
         """
         Writes ScalableDataFrame (or raw dataframe-like object) to S3 path (file or folder).
@@ -207,7 +227,7 @@ class DataFrameWriter(Writer, ABC):
             if any_are_not_none(self.num_rows, self.num_chunks):
                 raise IOError(
                     f'Cannot write multiple files to a single S3 file "{s3_path}"; '
-                    f'please set `num_rows`, and `num_chunks` as None.'
+                    f"please set `num_rows`, and `num_chunks` as None."
                 )
             return self._write_sdf_single(
                 destination=s3_path,
@@ -245,11 +265,11 @@ class DataFrameWriter(Writer, ABC):
                 )
 
     def _write_sdf_single(
-            self,
-            destination: Union[io.IOBase, str],
-            sdf: Union[ScalableDataFrame, DaskScalableDataFrame],
-            storage: Storage,
-            **kwargs
+        self,
+        destination: Union[io.IOBase, str],
+        sdf: Union[ScalableDataFrame, DaskScalableDataFrame],
+        storage: Storage,
+        **kwargs,
     ) -> Optional[str]:
         if sdf.layout is DataLayout.DASK:
             ## `destination` here could be a filepath (local or remote), or a stream.
@@ -263,49 +283,36 @@ class DataFrameWriter(Writer, ABC):
             )
         else:
             ## `destination` here could be a filepath (local or remote), or a stream.
-            self._write_sdf(
-                destination=destination,
-                sdf=sdf,
-                storage=storage,
-                **kwargs
-            )
+            self._write_sdf(destination=destination, sdf=sdf, storage=storage, **kwargs)
         ## Returns the file path:
         if storage is not Storage.STREAM:
             return destination
 
     def _write_sdf_multi(
-            self,
-            destination: str,  ## Do not allow writing multiple files to stream.
-            sdf: Union[ScalableDataFrame, DaskScalableDataFrame],
-            storage: Storage,
-            file_name: Optional[constr(min_length=1)] = None,
-            **kwargs
+        self,
+        destination: str,  ## Do not allow writing multiple files to stream.
+        sdf: Union[ScalableDataFrame, DaskScalableDataFrame],
+        storage: Storage,
+        file_name: Optional[constr(min_length=1)] = None,
+        **kwargs,
     ) -> List[str]:
         file_name: str = get_default(file_name, ScalableDataFrame.chunk_prefix).strip()
         if sdf.layout is DataLayout.DASK:
             return self._write_sdf_multi_dask(
-                destination_dir=destination,
-                sdf=sdf,
-                storage=storage,
-                file_name=file_name,
-                **kwargs
+                destination_dir=destination, sdf=sdf, storage=storage, file_name=file_name, **kwargs
             )
         else:
             return self._write_sdf_multi_in_memory(
-                destination_dir=destination,
-                sdf=sdf,
-                storage=storage,
-                file_name=file_name,
-                **kwargs
+                destination_dir=destination, sdf=sdf, storage=storage, file_name=file_name, **kwargs
             )
 
     def _write_sdf_multi_dask(
-            self,
-            destination_dir: str,  ## Local/remote folder path. Do not allow writing multiple files to stream.
-            sdf: DaskScalableDataFrame,
-            storage: Storage,
-            file_name: constr(min_length=1),
-            **kwargs,
+        self,
+        destination_dir: str,  ## Local/remote folder path. Do not allow writing multiple files to stream.
+        sdf: DaskScalableDataFrame,
+        storage: Storage,
+        file_name: constr(min_length=1),
+        **kwargs,
     ) -> List[str]:
         _check_is_dask_installed()
 
@@ -319,7 +326,7 @@ class DataFrameWriter(Writer, ABC):
 
         ## Function to generate filenames. `idx` indexing starts from 0:
         def name_function(idx) -> str:
-            return f'{file_name}-{idx + 1:0{num_zeros}}{self.file_ending}'
+            return f"{file_name}-{idx + 1:0{num_zeros}}{self.file_ending}"
 
         self._write_dask_sdf(
             destination=destination_dir,
@@ -327,7 +334,7 @@ class DataFrameWriter(Writer, ABC):
             storage=storage,
             is_dir=True,
             name_function=name_function,
-            **kwargs
+            **kwargs,
         )
         if storage is Storage.LOCAL_FILE_SYSTEM:
             return [
@@ -346,19 +353,19 @@ class DataFrameWriter(Writer, ABC):
                 )
                 for idx in range(sdf.npartitions)
             ]
-        raise NotImplementedError(f'Unsupported storage to write multiple files using Dask: {storage}')
+        raise NotImplementedError(f"Unsupported storage to write multiple files using Dask: {storage}")
 
     @safe_validate_arguments
     def _write_sdf_multi_in_memory(
-            self,
-            destination_dir: str,  ## Local/remote folder path. Do not allow writing multiple files to stream.
-            sdf: ScalableDataFrame,
-            storage: Storage,
-            file_name: constr(min_length=1),
-            num_workers: Optional[conint(ge=1)] = None,  ## Remove from kwargs
-            parallelize: Optional[Parallelize] = None,
-            progress_bar: Optional[Union[Dict, bool]] = None,
-            **kwargs,
+        self,
+        destination_dir: str,  ## Local/remote folder path. Do not allow writing multiple files to stream.
+        sdf: ScalableDataFrame,
+        storage: Storage,
+        file_name: constr(min_length=1),
+        num_workers: Optional[conint(ge=1)] = None,  ## Remove from kwargs
+        parallelize: Optional[Parallelize] = None,
+        progress_bar: Optional[Union[Dict, bool]] = None,
+        **kwargs,
     ) -> List[str]:
         parallelize: Optional[Parallelize] = get_default(parallelize, self.parallelize)
         ## Write multiple ScalableDataFrames using in-memory data-layouts:
@@ -376,7 +383,7 @@ class DataFrameWriter(Writer, ABC):
                 is_dir=False,
             )
         else:
-            raise NotImplementedError(f'Unsupported storage: {storage}')
+            raise NotImplementedError(f"Unsupported storage: {storage}")
         chunks: Dict[str, ScalableDataFrame] = sdf.split(
             prefix=file_name,
             num_rows=self.num_rows,
@@ -389,11 +396,13 @@ class DataFrameWriter(Writer, ABC):
         if progress_bar is not None and progress_bar is not False:
             if isinstance(progress_bar, bool):
                 progress_bar: Dict = dict()
-            progress_bar['unit'] = 'file'
-            pbar: TqdmProgressBar = create_progress_bar(**{
-                **progress_bar,
-                **dict(total=len(sdf), desc=f'Wrote 0 of {len(chunks)} file(s)', unit='row'),
-            })
+            progress_bar["unit"] = "file"
+            pbar: TqdmProgressBar = create_progress_bar(
+                **{
+                    **progress_bar,
+                    **dict(total=len(sdf), desc=f"Wrote 0 of {len(chunks)} file(s)", unit="row"),
+                }
+            )
         written_chunks: List[Dict] = []
         for chunk_name, sdf_chunk in chunks.items():
             chunk_file_path: str = file_path_gen(fname=chunk_name)
@@ -405,43 +414,47 @@ class DataFrameWriter(Writer, ABC):
                 storage=storage,
                 **kwargs,
             )
-            written_chunks.append(dict(
-                future=fut,
-                chunk_name=chunk_name,
-                chunk_file_path=chunk_file_path,
-                chunk_len=len(sdf_chunk),
-            ))
+            written_chunks.append(
+                dict(
+                    future=fut,
+                    chunk_name=chunk_name,
+                    chunk_file_path=chunk_file_path,
+                    chunk_len=len(sdf_chunk),
+                )
+            )
 
         failed_chunk_paths: Set[str] = set()
         for file_i, sdf_chunk_write_d in enumerate(written_chunks):
-            chunk_file_path: str = sdf_chunk_write_d['chunk_file_path']
-            chunk_name: str = sdf_chunk_write_d['chunk_name']
-            chunk_len: int = sdf_chunk_write_d['chunk_len']
+            chunk_file_path: str = sdf_chunk_write_d["chunk_file_path"]
+            chunk_name: str = sdf_chunk_write_d["chunk_name"]
+            chunk_len: int = sdf_chunk_write_d["chunk_len"]
             try:
                 sdf_chunk_write_d: Dict = accumulate(sdf_chunk_write_d)
                 if pbar is not None:
                     pbar.update(chunk_len)
-                    pbar.set_description(f'Wrote {file_i + 1} of {len(chunks)} file(s)')
+                    pbar.set_description(f"Wrote {file_i + 1} of {len(chunks)} file(s)")
             except Exception as e:
                 Log.error(
                     f'Error {type(sdf)} to file "{chunk_file_path}":\n'
-                    f'{String.format_exception_msg(e, short=False)}\n'
-                    f'Kwargs used: {kwargs}'
+                    f"{String.format_exception_msg(e, short=False)}\n"
+                    f"Kwargs used: {kwargs}"
                 )
                 failed_chunk_paths.add(chunk_file_path)
         if pbar is not None:
             pbar.close()
         if len(failed_chunk_paths) > 0:
-            raise IOError(f'Could not write DataFrame chunks to following paths:\n{sorted(list(failed_chunk_paths))}')
-        return [sdf_chunk_write_d['chunk_file_path'] for sdf_chunk_write_d in written_chunks]
+            raise IOError(
+                f"Could not write DataFrame chunks to following paths:\n{sorted(list(failed_chunk_paths))}"
+            )
+        return [sdf_chunk_write_d["chunk_file_path"] for sdf_chunk_write_d in written_chunks]
 
     @abstractmethod
     def _write_sdf(
-            self,
-            destination: Union[io.IOBase, str],
-            sdf: ScalableDataFrame,
-            storage: Storage,
-            **kwargs,
+        self,
+        destination: Union[io.IOBase, str],
+        sdf: ScalableDataFrame,
+        storage: Storage,
+        **kwargs,
     ) -> NoReturn:
         """
         Writes to a stream/single file using layout-specific implementations of to_csv, to_parquet, etc.
@@ -455,13 +468,13 @@ class DataFrameWriter(Writer, ABC):
 
     @abstractmethod
     def _write_dask_sdf(
-            self,
-            destination: Union[io.IOBase, str],
-            sdf: DaskScalableDataFrame,
-            storage: Storage,
-            is_dir: bool,
-            name_function: Optional[Callable[[int], str]] = None,
-            **kwargs,
+        self,
+        destination: Union[io.IOBase, str],
+        sdf: DaskScalableDataFrame,
+        storage: Storage,
+        is_dir: bool,
+        name_function: Optional[Callable[[int], str]] = None,
+        **kwargs,
     ) -> NoReturn:
         """
         Writes to a stream/file/folder using Dask-specific implementations of to_csv, to_parquet, etc.

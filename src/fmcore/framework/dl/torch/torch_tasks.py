@@ -4,35 +4,43 @@ from typing import *
 import numpy as np
 from pydantic.typing import Literal
 
-from fmcore.constants import Task, Storage
+from fmcore.constants import Storage, Task
 from fmcore.data import FileMetadata
-from fmcore.framework.task import Embedder, \
-    EncodingRange, Classifier, ClassificationData, MultiLabelClassifier, MultiLabelClassificationData, \
-    Regressor
+from fmcore.framework.task import (
+    ClassificationData,
+    Classifier,
+    Embedder,
+    EncodingRange,
+    MultiLabelClassificationData,
+    MultiLabelClassifier,
+    Regressor,
+)
 from fmcore.framework.task_data import Dataset
 from fmcore.util import FileSystemUtil
 from fmcore.util.language._import import _IS_TORCH_INSTALLED
 
-PyTorchBaseModel = 'PyTorchBaseModel'
+PyTorchBaseModel = "PyTorchBaseModel"
 if _IS_TORCH_INSTALLED:
     import torch
     from torch import Tensor
     from torch.nn import Module as TorchModule
     from torch.nn.functional import softmax
 
-    from fmcore.framework.dl.torch.torch_base import PyTorch, Loss, is_accelerator
-
+    from fmcore.framework.dl.torch.torch_base import Loss, PyTorch, is_accelerator
 
     class PyTorchBaseModel(Embedder, PyTorch, ABC):
         @classmethod
         def _pre_registration_hook(cls):
             super(PyTorchBaseModel, cls)._pre_registration_hook()
-            if cls.embed_single == PyTorchBaseModel.embed_single and cls.embed_multi == PyTorchBaseModel.embed_multi:
+            if (
+                cls.embed_single == PyTorchBaseModel.embed_single
+                and cls.embed_multi == PyTorchBaseModel.embed_multi
+            ):
                 raise TypeError(
-                    f'Class {cls} is a subclass of {PyTorchBaseModel} and must implement either '
-                    f'.embed_single() or .embed_multi() functions to generate embeddings. '
-                    f'You can also optionally implement ._prepare_input() to change the input Tensor sent to these '
-                    f'function.'
+                    f"Class {cls} is a subclass of {PyTorchBaseModel} and must implement either "
+                    f".embed_single() or .embed_multi() functions to generate embeddings. "
+                    f"You can also optionally implement ._prepare_input() to change the input Tensor sent to these "
+                    f"function."
                 )
 
         def embed_single(self, input: Any, **kwargs) -> Tensor:
@@ -52,16 +60,16 @@ if _IS_TORCH_INSTALLED:
             pass
 
         def forward(
-                self,
-                input: Any,
-                *,
-                required_embeddings: Literal['single', 'multi'] = 'single',
-                **kwargs,
+            self,
+            input: Any,
+            *,
+            required_embeddings: Literal["single", "multi"] = "single",
+            **kwargs,
         ) -> Union[Tensor, List[Tensor]]:
-            if required_embeddings == 'single':
+            if required_embeddings == "single":
                 output: Tensor = self.embed_single(input, **kwargs)
             else:
-                assert required_embeddings == 'multi'
+                assert required_embeddings == "multi"
                 output: List[Tensor] = self.embed_multi(input, **kwargs)
             return output
 
@@ -69,23 +77,24 @@ if _IS_TORCH_INSTALLED:
             if isinstance(output, Tensor):
                 return list(output.cpu().detach().numpy())
             raise ValueError(
-                f'{Embedder} does not support storing multiple embeddings at the moment; '
-                f'found output of type {type(output)}'
+                f"{Embedder} does not support storing multiple embeddings at the moment; "
+                f"found output of type {type(output)}"
             )
-
 
     class BaseModelWithHead(TorchModule):
         def __init__(
-                self,
-                base_model: PyTorchBaseModel,
-                head: TorchModule,
-                required_embeddings: Literal['single', 'multi'],
+            self,
+            base_model: PyTorchBaseModel,
+            head: TorchModule,
+            required_embeddings: Literal["single", "multi"],
         ):
             super(BaseModelWithHead, self).__init__()
             self._base_model: PyTorchBaseModel = base_model
-            self.base: TorchModule = base_model.model  ## Expose the raw model for .to(device) calls and printing.
+            self.base: TorchModule = (
+                base_model.model
+            )  ## Expose the raw model for .to(device) calls and printing.
             self.head: TorchModule = head
-            self.required_embeddings: Literal['single', 'multi'] = required_embeddings
+            self.required_embeddings: Literal["single", "multi"] = required_embeddings
 
         def forward(self, input: Any, **kwargs) -> Any:
             embeddings: Union[Tensor, List[Tensor]] = self._base_model.forward(
@@ -97,11 +106,10 @@ if _IS_TORCH_INSTALLED:
             output: Tensor = self.head.forward(embeddings, **kwargs)
             return output
 
-
     class PyTorchTaskHead(PyTorch, ABC):
-        aliases = ['PyTorch']
+        aliases = ["PyTorch"]
 
-        required_embeddings: ClassVar[Literal['single', 'multi']]
+        required_embeddings: ClassVar[Literal["single", "multi"]]
         prepare_input_fn: Optional[Callable] = None
 
         class Hyperparameters(PyTorch.Hyperparameters):
@@ -117,7 +125,7 @@ if _IS_TORCH_INSTALLED:
                 post_init=False,
                 **{
                     **self.hyperparams.base_model,
-                    'task': Task.EMBEDDING,
+                    "task": Task.EMBEDDING,
                 },
             )
             ## Don't initialize optimizer, loss, etc for base_model...we will use those from the task-head class.
@@ -129,7 +137,7 @@ if _IS_TORCH_INSTALLED:
                 ## Load model from disk:
                 if model_dir.storage is not Storage.LOCAL_FILE_SYSTEM:
                     raise ValueError(
-                        f'Can only load models from local disk, not the following {model_dir.storage} path: '
+                        f"Can only load models from local disk, not the following {model_dir.storage} path: "
                         f'"{model_dir.path}"'
                     )
                 head: TorchModule = torch.load(self._task_head_save_path(model_dir), map_location=self.device)
@@ -171,9 +179,9 @@ if _IS_TORCH_INSTALLED:
             # self.model.head.eval()
 
         def prepare_input(
-                self,
-                batch: Dataset,
-                **kwargs,
+            self,
+            batch: Dataset,
+            **kwargs,
         ) -> Any:
             return self.prepare_input_fn(batch, **kwargs)
 
@@ -181,14 +189,13 @@ if _IS_TORCH_INSTALLED:
             output: Tensor = self.model.forward(input, **kwargs)
             return output
 
-
     class PyTorchClassifierMixin(Classifier, PyTorch, ABC):
         label_encoding_range = EncodingRange.ZERO_TO_N_MINUS_ONE
 
         def prepare_target(
-                self,
-                batch: ClassificationData,
-                **kwargs,
+            self,
+            batch: ClassificationData,
+            **kwargs,
         ) -> Tensor:
             target = batch.ground_truths().torch().squeeze()
             if len(target.shape) == 0:  ## We accidentally converted it into a Scalar.
@@ -198,12 +205,11 @@ if _IS_TORCH_INSTALLED:
         def prepare_predictions(self, output: Tensor, **kwargs) -> Dict[str, np.ndarray]:
             if not isinstance(output, Tensor) or not output.ndim == 2:
                 raise ValueError(
-                    f'The output of {self.hyperparams.base_model["name"]}.embed_single() should be a 2D tensor; '
-                    f'found tensor of shape: {output.shape}'
+                    f"The output of {self.hyperparams.base_model['name']}.embed_single() should be a 2D tensor; "
+                    f"found tensor of shape: {output.shape}"
                 )
             scores: np.ndarray = softmax(output, dim=1).detach().cpu().numpy()
-            return {'scores': scores, 'labels': self.encoded_labelspace}
-
+            return {"scores": scores, "labels": self.encoded_labelspace}
 
     class PyTorchClassifier(PyTorchClassifierMixin, PyTorchTaskHead):
         model_file_name = "classification_head.pt"
@@ -211,9 +217,9 @@ if _IS_TORCH_INSTALLED:
 
         class Hyperparameters(PyTorchTaskHead.Hyperparameters):
             dropout: float = 0.1
-            loss: Union[Loss, Dict, str] = 'CrossEntropyLoss'
+            loss: Union[Loss, Dict, str] = "CrossEntropyLoss"
             optimizer = dict(
-                name='AdamW',
+                name="AdamW",
                 lr=5e-5,
                 weight_decay=1e-7,
                 eps=1e-8,
@@ -221,11 +227,11 @@ if _IS_TORCH_INSTALLED:
 
         class ClassificationHead(TorchModule):
             def __init__(
-                    self,
-                    hyperparams: 'PyTorchClassifier.Hyperparameters',
-                    embedding_size: int,
-                    num_labels: int,
-                    labelspace: Tuple[str, ...],
+                self,
+                hyperparams: "PyTorchClassifier.Hyperparameters",
+                embedding_size: int,
+                num_labels: int,
+                labelspace: Tuple[str, ...],
             ):
                 super(self.__class__, self).__init__()
                 self.classifier = torch.nn.Sequential(
@@ -233,7 +239,7 @@ if _IS_TORCH_INSTALLED:
                     torch.nn.Linear(
                         in_features=embedding_size,
                         out_features=num_labels,
-                    )
+                    ),
                 )
                 self.num_labels: int = num_labels
                 self.labelspace: Tuple[str, ...] = labelspace
@@ -249,16 +255,15 @@ if _IS_TORCH_INSTALLED:
                 labelspace=self.labelspace,
             )
 
-
     class PyTorchMultiLabelClassifierMixin(MultiLabelClassifier, PyTorch, ABC):
         label_encoding_range = EncodingRange.ZERO_TO_N_MINUS_ONE
         output_dtype = torch.float32
         target_dtype = torch.float32
 
         def prepare_target(
-                self,
-                batch: MultiLabelClassificationData,
-                **kwargs,
+            self,
+            batch: MultiLabelClassificationData,
+            **kwargs,
         ) -> Tensor:
             return self._encode_multi_hot(batch)
 
@@ -273,23 +278,21 @@ if _IS_TORCH_INSTALLED:
         def prepare_predictions(self, output: Tensor, **kwargs) -> Dict[str, np.ndarray]:
             if not isinstance(output, Tensor) or not output.ndim == 2:
                 raise ValueError(
-                    f'The output of {self.hyperparams.base_model["name"]}.embed_single() should be a 2D tensor; '
-                    f'found tensor of shape: {output.shape}'
+                    f"The output of {self.hyperparams.base_model['name']}.embed_single() should be a 2D tensor; "
+                    f"found tensor of shape: {output.shape}"
                 )
             scores: np.ndarray = torch.sigmoid(output).detach().cpu().numpy()
-            return {'scores': scores, 'labels': self.encoded_labelspace}
-
+            return {"scores": scores, "labels": self.encoded_labelspace}
 
     class PyTorchMultiLabelClassifier(PyTorchMultiLabelClassifierMixin, PyTorchClassifier):
         class Hyperparameters(PyTorchClassifier.Hyperparameters):
-            loss: Union[Loss, Dict, str] = 'BCEWithLogitsLoss'
-
+            loss: Union[Loss, Dict, str] = "BCEWithLogitsLoss"
 
     class PyTorchRegressorMixin(Regressor, PyTorch, ABC):
         def prepare_target(
-                self,
-                batch: Dataset,
-                **kwargs,
+            self,
+            batch: Dataset,
+            **kwargs,
         ) -> Tensor:
             target: Tensor = batch.ground_truths().torch().squeeze()
             if len(target.shape) == 0:  ## We accidentally converted it into a Scalar.
@@ -299,12 +302,11 @@ if _IS_TORCH_INSTALLED:
         def prepare_predictions(self, output: Tensor, **kwargs) -> np.ndarray:
             if not isinstance(output, Tensor) or not output.ndim == 1:
                 raise ValueError(
-                    f'The output of {self.hyperparams.base_model["name"]}.embed_single() should be a 1D tensor; '
-                    f'found tensor of shape: {output.shape}'
+                    f"The output of {self.hyperparams.base_model['name']}.embed_single() should be a 1D tensor; "
+                    f"found tensor of shape: {output.shape}"
                 )
             scores: np.ndarray = torch.squeeze(output, dim=1).detach().cpu().numpy()
             return scores
-
 
     class PyTorchRegressor(PyTorchRegressorMixin, PyTorchTaskHead):
         output_dtype = torch.float32
@@ -314,9 +316,9 @@ if _IS_TORCH_INSTALLED:
 
         class Hyperparameters(PyTorchTaskHead.Hyperparameters):
             dropout: float = 0.1
-            loss = 'MSELoss'
+            loss = "MSELoss"
             optimizer = dict(
-                name='AdamW',
+                name="AdamW",
                 lr=5e-5,
                 weight_decay=1e-7,
                 eps=1e-8,
@@ -324,9 +326,9 @@ if _IS_TORCH_INSTALLED:
 
         class RegressionHead(TorchModule):
             def __init__(
-                    self,
-                    hyperparams: 'PyTorchRegressor.Hyperparameters',
-                    embedding_size: int,
+                self,
+                hyperparams: "PyTorchRegressor.Hyperparameters",
+                embedding_size: int,
             ):
                 super(self.__class__, self).__init__()
                 self.regressor = torch.nn.Sequential(
@@ -334,7 +336,7 @@ if _IS_TORCH_INSTALLED:
                     torch.nn.Linear(
                         in_features=embedding_size,
                         out_features=1,
-                    )
+                    ),
                 )
 
             def forward(self, input: Tensor, **kwargs) -> Tensor:

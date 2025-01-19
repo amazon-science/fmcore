@@ -1,9 +1,10 @@
-from typing import *
-import pandas as pd
 import re
+from typing import *
+
+from pydantic import constr, root_validator
+
 from fmcore.data.processor import SingleColumnProcessor, TextInputProcessor, TextOutputProcessor
 from fmcore.util import is_null
-from pydantic import root_validator, constr
 
 
 class RegexSubstitution(SingleColumnProcessor, TextInputProcessor, TextOutputProcessor):
@@ -31,14 +32,14 @@ class RegexSubstitution(SingleColumnProcessor, TextInputProcessor, TextOutputPro
         @root_validator(pre=False)
         def set_flags(cls, params):
             flags = 0
-            if params['ignorecase']:
+            if params["ignorecase"]:
                 flags |= re.IGNORECASE
-            if params['multiline']:
+            if params["multiline"]:
                 flags |= re.MULTILINE
-            params['flags'] = flags
-            params['match_patterns'] = {
+            params["flags"] = flags
+            params["match_patterns"] = {
                 regex_pattern: re.compile(regex_pattern, flags=flags)
-                for regex_pattern, _ in params['substitution_list']
+                for regex_pattern, _ in params["substitution_list"]
             }
             return params
 
@@ -47,6 +48,6 @@ class RegexSubstitution(SingleColumnProcessor, TextInputProcessor, TextOutputPro
             return None
         for regex_pattern, sub_str in self.params.substitution_list:
             match_pattern = self.params.match_patterns[regex_pattern]
-            sub_pattern = sub_str if not self.params.substitute_is_regex else r'%s' % (sub_str)
+            sub_pattern = sub_str if not self.params.substitute_is_regex else r"%s" % (sub_str)
             data: str = match_pattern.sub(sub_pattern, data)
         return data

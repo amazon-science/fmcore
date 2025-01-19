@@ -1,7 +1,6 @@
 import logging
 import time
 import traceback
-from concurrent.futures._base import Future
 from datetime import datetime
 from typing import *
 
@@ -68,12 +67,12 @@ def daemon(wait: float, exit_on_error: bool = False, sentinel: Optional[List] = 
 
         if sentinel is not None:
             if not isinstance(sentinel, list) or len(sentinel) != 1:
-                raise ValueError(f'When passing `sentinel`, it must be a list with exactly one item.')
-        completed: Future = executor.submit(run_function_forever, sentinel=sentinel)
+                raise ValueError("When passing `sentinel`, it must be a list with exactly one item.")
+        executor.submit(run_function_forever, sentinel=sentinel)
 
         ## The wrapper here should do nothing, since you cannot call the daemon explicitly.
         def wrapper(*args, **kwargs):
-            raise RuntimeError('Cannot call daemon function explicitly')
+            raise RuntimeError("Cannot call daemon function explicitly")
 
         return wrapper
 
@@ -85,11 +84,11 @@ _DAEMONS: Dict[str, List[bool]] = {}
 
 
 def start_daemon(
-        fn,
-        wait: float,
-        daemon_id: Optional[str] = None,
-        daemons: Dict[str, List[bool]] = _DAEMONS,
-        **kwargs,
+    fn,
+    wait: float,
+    daemon_id: Optional[str] = None,
+    daemons: Dict[str, List[bool]] = _DAEMONS,
+    **kwargs,
 ) -> str:
     assert isinstance(daemons, dict)
     assert isinstance(wait, (int, float)) and wait >= 0.0
@@ -97,9 +96,9 @@ def start_daemon(
         dt: datetime = datetime.now()
         dt: datetime = dt.replace(tzinfo=dt.astimezone().tzinfo)
         if dt.tzinfo is not None:
-            daemon_id: str = dt.strftime('%Y-%m-%d %H:%M:%S.%f UTC%z').strip()
+            daemon_id: str = dt.strftime("%Y-%m-%d %H:%M:%S.%f UTC%z").strip()
         else:
-            daemon_id: str = dt.strftime('%Y-%m-%d %H:%M:%S.%f').strip()
+            daemon_id: str = dt.strftime("%Y-%m-%d %H:%M:%S.%f").strip()
     assert isinstance(daemon_id, str) and len(daemon_id) > 0
     assert daemon_id not in daemons, f'Daemon with id "{daemon_id}" already exists.'
 

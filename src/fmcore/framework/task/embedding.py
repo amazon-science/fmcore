@@ -1,10 +1,12 @@
+from abc import ABC
 from typing import *
-from abc import ABC, abstractmethod
+
 import numpy as np
-from fmcore.util import is_list_like
-from fmcore.data import ScalableDataFrame, ScalableSeries, ScalableSeriesRawType, ScalableDataFrameRawType
+
+from fmcore.constants import MLType, Task
+from fmcore.data import ScalableSeries
 from fmcore.framework import Algorithm, Dataset, Predictions
-from fmcore.constants import Task, MLType, MLTypeSchema, DataLayout
+from fmcore.util import is_list_like
 
 
 class EmbeddingData(Dataset):
@@ -12,11 +14,11 @@ class EmbeddingData(Dataset):
     ground_truths_schema = {}  ## No ground-truths
 
 
-GENERATED_EMBEDDINGS_FORMAT_MSG: str = f"""
+GENERATED_EMBEDDINGS_FORMAT_MSG: str = """
  Embeddings returned by algorithm must be a column of vectors.
  """.strip()
 
-EMBEDDINGS_COL: str = 'embeddings'
+EMBEDDINGS_COL: str = "embeddings"
 
 
 class Embeddings(Predictions):
@@ -38,16 +40,9 @@ class Embedder(Algorithm, ABC):
     outputs = Embeddings
 
     def _create_predictions(
-            self,
-            batch: Dataset,
-            predictions: Union[List, np.ndarray],
-            **kwargs
+        self, batch: Dataset, predictions: Union[List, np.ndarray], **kwargs
     ) -> Embeddings:
         if not is_list_like(predictions):
             raise ValueError(GENERATED_EMBEDDINGS_FORMAT_MSG)
         embeddings: Dict = {EMBEDDINGS_COL: predictions}
-        return Embeddings.from_task_data(
-            data=batch,
-            predictions=embeddings,
-            **kwargs
-        )
+        return Embeddings.from_task_data(data=batch, predictions=embeddings, **kwargs)
