@@ -2,13 +2,12 @@
 import ctypes
 import logging
 import multiprocessing as mp
-## Jupyter-compatible asyncio usage:
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures._base import Future
 from concurrent.futures.thread import BrokenThreadPool
 from math import inf
-from threading import Semaphore, Lock
+from threading import Lock, Semaphore
 from typing import *
 
 
@@ -42,18 +41,77 @@ def suppress_ThreadKilledSystemException():
 
 def kill_thread(tid: int):
     """
-    Dirty hack to *actually* stop a thread: raises an exception in threads with this thread id.
-    How it works:
-    - kill_thread function uses ctypes.pythonapi.PyThreadState_SetAsyncExc to raise an exception in a thread.
-    - By passing exctype, it attempts to terminate the thread.
+    Forces termination of a thread by injecting a ThreadKilledSystemException into it. 
+    This is a last-resort mechanism that should only be used when normal thread 
+    termination methods have failed.
 
-    Risks and Considerations
-    - Resource Leaks: If the thread holds a lock or other resources, these may not be properly released.
-    - Data Corruption: If the thread is manipulating shared data, partial updates may lead to data corruption.
-    - Deadlocks: If the thread is killed while holding a lock that other threads are waiting on, it can cause a
-        deadlock.
-    - Undefined Behavior: The Python runtime does not expect threads to be killed in this manner, which may cause
-        undefined behavior.
+    Technical Implementation:
+        Uses the CPython C API (via ctypes) to inject an exception into the target thread's
+        execution context. When the exception is raised, it will terminate the thread's 
+        execution at its next Python instruction.
+
+    Example usage:
+        >>> def long_running_task():
+                while True:
+                    time.sleep(1)  ## Simulate work
+        
+        >>> thread = threading.Thread(target=long_running_task)
+        >>> thread.start()
+        >>> thread_id = thread.ident
+        >>> kill_thread(thread_id)  ## Thread will terminate on next instruction
+
+    Intended usage: 
+        1. When performing concurrent/parallel tasks that may need to be cancelled after submission to a ThreadPoolExecutor:
+            Example: Cancelling a task in an interactive Jupyter session:
+            >>> prompt_template = "Who is the head of state in: {country}"
+            >>> countries = ['USA', 'UK', 'India', 'China', 'Russia', ... ] ## Assume a large list
+            >>> prompts = [prompt_template.format(country=country) for country in countries]  
+            >>> def call_llm(prompt) -> str:
+                    return call_gpt(prompt)
+            >>> ## Create a ThreadPoolExecutor:
+                executor = ThreadPoolExecutor(max_workers=10)
+            >>> ## Submit tasks to ThreadPoolExecutor:
+                for gpt_generated_text in accumulate_iter([
+                    run_concurrent(call_llm, prompt) 
+                    for prompt in prompt
+                ]):  ## Waits for results as they complete and prints (may be out-of-order):
+                    print(gpt_generated_text)
+            >>> ## Now, suppose while printing the results, we realise the prompt is not good. 
+            >>> ## We want to cancel the pending tasks by pressing "stop" in Jupyter notebook.
+            >>> ## By default, this will raise a KeyboardInterrupt, but WILL NOT stop the running tasks!
+            >>> ## Instead, we can use kill_thread to stop the tasks:
+            >>> executor.shutdown(wait=False)  ## Cancels pending items
+            >>> for tid in worker_ids(executor):
+                    kill_thread(tid)  ## After calling this, you can still submit
+            >>> executor.shutdown(wait=False)  ## After calling this, you cannot submit
+
+    Warning! Critical Thread-Safety expecations may be violated:
+        1. Resource Cleanup:
+            - Locks, file handles, and network connections may remain locked/open
+            - Database transactions might be left uncommitted
+            Example: If thread holds a lock when killed:
+                >>> lock.acquire()
+                >>> kill_thread(tid)  ## Lock remains acquired forever
+        2. Data Integrity:
+            - Shared data structures may be left in inconsistent states
+            Example: During a multi-step update:
+                >>> data['step1'] = new_value
+                >>> kill_thread(tid)  ## 'step2' never happens, data is corrupt
+        3. System Stability:
+            - Python runtime isn't designed for forced thread termination
+            - May cause memory leaks or interpreter instability
+            Example: During critical system operations:
+                >>> sys.modules['critical_module'] = new_module
+                >>> kill_thread(tid)  ## System left in unknown state
+
+    Args:
+        tid: Thread ID (integer) of the thread to terminate. Obtain this from 
+             threading.Thread.ident
+
+    Raises:
+        ValueError: If tid is invalid
+        TypeError: If exctype is not derived from BaseException
+        SystemError: If thread termination fails
     """
     exctype: Type[BaseException] = ThreadKilledSystemException
     if not issubclass(exctype, BaseException):
@@ -158,7 +216,7 @@ class RestrictedConcurrencyThreadPoolExecutor(ThreadPoolExecutor):
     ):
         if max_workers is None:
             max_workers: int = min(32, (mp.cpu_count() or 1) + 4)
-        if not isinstance(max_workers, int) or max_workers < 1:
+        if (not isinstance(max_workers, int) or (max_workers < 1)):
             raise ValueError(f'Expected `max_workers`to be a non-negative integer.')
         kwargs['max_workers'] = max_workers
         super().__init__(*args, **kwargs)
@@ -177,13 +235,13 @@ class RestrictedConcurrencyThreadPoolExecutor(ThreadPoolExecutor):
         self._semaphore.acquire()
 
         # Rate limiting logic: Before starting a new call, ensure we wait long enough if needed
-        if self._min_time_interval_between_calls > 0.0:
+        if (self._min_time_interval_between_calls > 0.0):
             with self._lock:
                 time_elapsed_since_last_called = time.time() - self._time_last_called
                 time_to_wait = max(0.0, self._min_time_interval_between_calls - time_elapsed_since_last_called)
 
             # Wait the required time
-            if time_to_wait > 0:
+            if (time_to_wait > 0):
                 time.sleep(time_to_wait)
 
             # Update the last-called time after the wait
@@ -211,17 +269,17 @@ def run_concurrent(
         **kwargs,
 ):
     global _GLOBAL_THREAD_POOL_EXECUTOR
-    if _GLOBAL_THREAD_POOL_EXECUTOR is None:
+    if (_GLOBAL_THREAD_POOL_EXECUTOR is None):
         _GLOBAL_THREAD_POOL_EXECUTOR = RestrictedConcurrencyThreadPoolExecutor(
             max_workers=_GLOBAL_THREAD_POOL_EXECUTOR_MAX_WORKERS
         )
-    if executor is None:
+    if (executor is None):
         executor: ThreadPoolExecutor = _GLOBAL_THREAD_POOL_EXECUTOR
     try:
         # logging.debug(f'Running {fn_str(fn)} using {Parallelize.threads} with max_workers={executor._max_workers}')
         return executor.submit(fn, *args, **kwargs)  ## return a future
     except BrokenThreadPool as e:
-        if executor is _GLOBAL_THREAD_POOL_EXECUTOR:
+        if (executor is _GLOBAL_THREAD_POOL_EXECUTOR):
             executor = RestrictedConcurrencyThreadPoolExecutor(max_workers=_GLOBAL_THREAD_POOL_EXECUTOR_MAX_WORKERS)
             del _GLOBAL_THREAD_POOL_EXECUTOR
             _GLOBAL_THREAD_POOL_EXECUTOR = executor

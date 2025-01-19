@@ -1,5 +1,4 @@
-"""A collection of concurrency utilities to augment the Python language:"""
-## Jupyter-compatible asyncio usage:
+"""Jupyter-friendly asyncio usage:"""
 import asyncio
 import atexit
 import inspect
@@ -12,7 +11,7 @@ def _asyncio_start_event_loop(loop):
     loop.run_forever()
 
 
-## Async wrapper to run a synchronous function in the event loop
+## Async wrapper to run a synchronous or asynchronous function in the event loop
 async def __run_fn_async(fn, *args, run_sync_in_executor: bool = True, **kwargs):
     if inspect.iscoroutinefunction(fn):
         ## If fn is defined with `def async`, run this using asyncio mechanism,
@@ -20,7 +19,7 @@ async def __run_fn_async(fn, *args, run_sync_in_executor: bool = True, **kwargs)
         ## be run asynchronously. Note that "await"-marked lines must call other functions defined using "def async".
         result = await fn(*args, **kwargs)
     else:
-        ## The function is a sync function.
+        ## The function is a regular synchronous function.
         if run_sync_in_executor:
             ## Run in the default executor (thread pool) for the event loop, otherwise it blocks the event loop
             ## until the function execution completes.
@@ -29,7 +28,9 @@ async def __run_fn_async(fn, *args, run_sync_in_executor: bool = True, **kwargs)
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(None, partial(fn, *args, **kwargs))
         else:
-            ## Run the sync function synchronously. This will block the event loop until the function completes.
+            ## Run the synchronous function directly in the event loop.
+            ## This will block the event loop until the function execution is complete,
+            ## preventing other tasks from running during this time.
             result = fn(*args, **kwargs)
     return result
 

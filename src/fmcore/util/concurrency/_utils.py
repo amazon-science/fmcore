@@ -1,4 +1,3 @@
-"""A collection of concurrency utilities to augment the Python language:"""
 import time
 from concurrent.futures import wait as wait_future
 from concurrent.futures._base import Future
@@ -7,7 +6,7 @@ from typing import *
 import numpy as np
 
 from fmcore.constants.DataProcessingConstants import Status
-from fmcore.util.language import ProgressBar, type_str, get_default, first_item, String, AutoEnum, auto, Alias
+from fmcore.util.language import Alias, AutoEnum, ProgressBar, String, auto, first_item, get_default, type_str
 from fmcore.util.language._import import _IS_RAY_INSTALLED
 
 if _IS_RAY_INSTALLED:
@@ -231,7 +230,63 @@ def accumulate(
         succeeded_only: bool = False,
         **kwargs,
 ) -> Union[List, Tuple, Set, Dict, Any]:
-    """Join operation on a single future or a collection of futures."""
+    """
+    Description:
+        Recursively collects results from nested futures, supporting both concurrent.futures.Future and ray.ObjectRef.
+        Unlike the standard .result() calls which block until completion, this function provides progress tracking
+        and supports nested structures of futures.
+
+    Args:
+        futures: Single future or collection of futures to accumulate
+        check_done: Whether to verify completion before collecting. Set False to force immediate collection
+        item_wait: Time to wait between checking individual futures (auto-selected based on future type)
+        iter_wait: Time to wait between iterations over all futures (auto-selected based on future type)
+        succeeded_only: If True, only return results from successfully completed futures
+        **kwargs: Additional arguments like configuration for "progress_bar"
+
+    Returns:
+        Collection of results matching the structure of input futures
+
+    Technical Implementation:
+        1. For lists/tuples/sets: Recursively accumulates each future while maintaining original container type
+        2. For dicts: Accumulates both keys and values, supporting futures in either position
+        3. Uses different wait times for Ray vs concurrent.futures to account for their performance characteristics
+
+    Example usage (with a list of futures from ThreadPoolExecutor; similar for ProcessPoolExecutor):
+        >>> executor = ThreadPoolExecutor(max_workers=4)
+        >>> futures = [
+                executor.submit(time.sleep, i) 
+                for i in range(5)
+            ]  ## Create 5 futures that sleep for 0,1,2,3,4 seconds
+        >>> results = accumulate(
+                futures,
+                progress_bar=dict(desc="Processing")
+            )  ## Shows progress bar while collecting results
+        >>> print(results)  ## [None, None, None, None, None]
+
+    Example usage (with Ray):
+        >>> @ray.remote
+            def slow_add(a, b):
+                time.sleep(random.random())  ## Simulate varying compute times
+                return a + b
+        >>> futures = [
+                slow_add.remote(i, i) 
+                for i in range(10)
+            ]  ## Submit 10 parallel additions
+        >>> results = accumulate(
+                futures,
+                progress_bar=dict(desc="Adding numbers")
+            )  ## Shows progress while collecting
+        >>> print(results)  ## [0, 2, 4, 6, 8, 10, 12, 14, 16, 18]
+
+    Example (usage with futures in dict):
+        >>> futures_dict = {
+                k: executor.submit(float, k) ## Converts int to float
+                for k in range(3)
+            }  ## Values are futures, but both keys and values could be futures
+        >>> results = accumulate(futures_dict)
+        >>> print(results)  ## {'0': 0.0, '1': 1.0, '2': 2.0}
+    """
     progress_bar: Optional[Dict] = Alias.get_progress_bar(kwargs)
     if isinstance(futures, (list, set, tuple)) and len(futures) > 0:
         if isinstance(first_item(futures), Future):
