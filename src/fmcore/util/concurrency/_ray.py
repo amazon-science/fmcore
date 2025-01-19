@@ -1,5 +1,3 @@
-"""A collection of concurrency utilities to augment the Python language:"""
-## Jupyter-compatible asyncio usage:
 import asyncio
 import math
 import threading
@@ -10,11 +8,29 @@ from contextlib import contextmanager
 from math import inf
 from typing import *
 
-from pydantic import Extra, conint, confloat
+from pydantic import Extra, confloat, conint
 
-from fmcore.util.language import Parameters, UserEnteredParameters, String, ProgressBar, as_list, Alias
-from fmcore.util.language._import import _IS_RAY_INSTALLED, _IS_DASK_INSTALLED, _check_is_ray_installed
-from ._utils import is_done, wait, get_result, _RAY_ACCUMULATE_ITER_WAIT, _RAY_ACCUMULATE_ITEM_WAIT
+from fmcore.util.language import (
+    Alias,
+    Parameters,
+    ProgressBar,
+    String,
+    UserEnteredParameters,
+    as_list,
+)
+from fmcore.util.language._import import (
+    _IS_DASK_INSTALLED,
+    _IS_RAY_INSTALLED,
+    _check_is_ray_installed,
+)
+
+from ._utils import (
+    _RAY_ACCUMULATE_ITEM_WAIT,
+    _RAY_ACCUMULATE_ITER_WAIT,
+    get_result,
+    is_done,
+    wait,
+)
 
 RayRuntimeEnv = dict
 RequestCounter = 'RequestCounter'
@@ -59,16 +75,41 @@ def _ray_asyncio_start_event_loop(loop):
 
 
 class RayPoolExecutor(Executor, Parameters):
+    """
+    An executor that limits the number of concurrent Ray tasks by maintaining a pool of running tasks.
+    Unlike ThreadPoolExecutor which pre-allocates threads, this executor dynamically manages Ray tasks
+    using asyncio to control concurrency.
+
+    Example usage:
+        >>> executor = RayPoolExecutor(max_workers=4)  ## Must have ray installed
+        >>> future = executor.submit(
+                my_function, 
+                arg1, 
+                arg2,
+                num_cpus=2  ## Allocate 2 CPUs for this task
+            )
+        >>> result = ray.get(future)  ## Wait for and retrieve the result
+
+    Attributes:
+        max_workers: Maximum number of concurrent Ray tasks. Pass float('inf') for unlimited tasks.
+        iter_wait: Time to wait between iterations when checking task completion.
+        item_wait: Time to wait between checking individual tasks.
+    """
+
     max_workers: Union[int, Literal[inf]]
     iter_wait: float = _RAY_ACCUMULATE_ITER_WAIT
     item_wait: float = _RAY_ACCUMULATE_ITEM_WAIT
     _asyncio_event_loop: Optional = None
     _asyncio_event_loop_thread: Optional = None
     _submission_executor: Optional[ThreadPoolExecutor] = None
-    _running_tasks: Dict = {}
+    _running_tasks: Dict[str, Any] = {}  ## Maps task_uid to Ray ObjectRef
     _latest_submit: Optional[int] = None
 
     def _set_asyncio(self):
+        """
+        Lazily initializes the asyncio event loop and its thread. This is done on-demand to avoid
+        creating resources when the executor is not used with a worker limit.
+        """
         # Create a new loop and a thread running this loop
         if self._asyncio_event_loop is None:
             self._asyncio_event_loop = asyncio.new_event_loop()
@@ -83,7 +124,7 @@ class RayPoolExecutor(Executor, Parameters):
 
     def submit(
             self,
-            fn,
+            fn: Callable,
             *args,
             scheduling_strategy: str = "SPREAD",
             num_cpus: int = 1,
@@ -92,6 +133,23 @@ class RayPoolExecutor(Executor, Parameters):
             retry_exceptions: Union[List, bool] = True,
             **kwargs,
     ):
+        """
+        Submits a function for execution using Ray. When max_workers is infinite, tasks are submitted 
+        directly to Ray. Otherwise, uses asyncio to limit concurrent tasks.
+
+        Args:
+            fn: Function to execute as a task
+            scheduling_strategy: Ray's scheduling strategy ("SPREAD" distributes tasks evenly across nodes).
+            num_cpus: Number of CPUs required per task
+            num_gpus: Number of GPUs required per task
+            max_retries: Number of times to retry failed tasks
+            retry_exceptions: Which exceptions should trigger retries
+            *args, **kwargs: Arguments passed to fn
+
+        Returns:
+            If max_workers is inf: Ray ObjectRef
+            Otherwise: asyncio.Future that resolves to a Ray ObjectRef
+        """
         # print(f'Running {fn_str(fn)} using {Parallelize.ray} with num_cpus={num_cpus}, num_gpus={num_gpus}')
         _check_is_ray_installed()
 
@@ -117,8 +175,6 @@ class RayPoolExecutor(Executor, Parameters):
 
         ## Schedule the coroutine to execute on the event loop (which is running on thread _asyncio_event_loop).
         fut = asyncio.run_coroutine_threadsafe(coroutine, self._asyncio_event_loop)
-        # while _task_uid not in self._running_tasks:  ## Ensure task has started scheduling
-        #     time.sleep(self.item_wait)
         return fut
 
     async def _ray_run_fn_async(
@@ -126,18 +182,37 @@ class RayPoolExecutor(Executor, Parameters):
             submit_task: Callable,
             task_uid: str,
     ):
+        """
+        Coroutine that manages task submission while respecting max_workers limit.
+        Waits for task slots to become available by checking completion of existing tasks.
+
+        Example of how tasks are managed:
+            If max_workers=2 and 2 tasks are running:
+            1. New task arrives, waits in while loop
+            2. Loop checks existing tasks, finds completed task
+            3. Completed task is removed, new task starts
+            4. Process repeats for subsequent tasks
+
+        Args:
+            submit_task: Callback that creates and submits the Ray task
+            task_uid: Unique identifier for tracking this task
+        """
         # self._running_tasks[task_uid] = None
+        ## Wait until we have capacity to run another task:
         while len(self._running_tasks) >= self.max_workers:
+            ## Polling step: remove completed tasks until we have capacity:
             for _task_uid in sorted(self._running_tasks.keys()):
                 if is_done(self._running_tasks[_task_uid]):
-                    self._running_tasks.pop(_task_uid, None)
-                    # print(f'Popped {_task_uid}')
+                    self._running_tasks.pop(_task_uid, None)  ## Task has completed, forget about it
                     if len(self._running_tasks) < self.max_workers:
-                        break
+                        break  ## Move onto next step to submit the task.
                 time.sleep(self.item_wait)
             if len(self._running_tasks) < self.max_workers:
-                break
-            time.sleep(self.iter_wait)
+                break  ## Break the outer loop to submit the task.
+            ## There is not enough capacity, keep waiting:
+            time.sleep(self.iter_wait)  
+            
+        ## Now that we have capacity, submit the task and track it:
         fut = submit_task()
         self._running_tasks[task_uid] = fut
         # print(f'Started {task_uid}. Num running: {len(self._running_tasks)}')

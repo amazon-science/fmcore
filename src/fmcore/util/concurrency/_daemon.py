@@ -1,6 +1,4 @@
-"""A collection of concurrency utilities to augment the Python language:"""
 import logging
-## Jupyter-compatible asyncio usage:
 import time
 import traceback
 from concurrent.futures._base import Future
