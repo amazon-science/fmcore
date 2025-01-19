@@ -1,18 +1,27 @@
+import copy
 from typing import *
-import math, copy
+
 import numpy as np
 import pandas as pd
-from pandas.core.frame import Series as PandasSeries, DataFrame as PandasDataFrame
-from fmcore.util import filter_kwargs, as_set, any_are_not_none, multiple_are_not_none, all_are_none, is_scalar, \
-    get_default, safe_validate_arguments, as_list, String, type_str
-from fmcore.constants import DataLayout, Parallelize
-from fmcore.data.sdf.ScalableSeries import ScalableSeries
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameOrRaw
-from fmcore.data.sdf.NumpyArrayScalableSeries import NumpyArrayScalableSeries
-from fmcore.data.sdf.TensorScalableSeries import TensorScalableSeries
-from pydantic import conint
+from pandas.core.frame import DataFrame as PandasDataFrame
 from pydantic.typing import Literal
-from collections import deque
+
+from fmcore.constants import DataLayout
+from fmcore.data.sdf.NumpyArrayScalableSeries import NumpyArrayScalableSeries
+from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame
+from fmcore.data.sdf.ScalableSeries import ScalableSeries
+from fmcore.data.sdf.TensorScalableSeries import TensorScalableSeries
+from fmcore.util import (
+    all_are_none,
+    any_are_not_none,
+    as_list,
+    as_set,
+    filter_kwargs,
+    get_default,
+    is_scalar,
+    safe_validate_arguments,
+    type_str,
+)
 
 DictScalableDataFrame = "DictScalableDataFrame"
 
@@ -23,10 +32,10 @@ class DictScalableDataFrame(ScalableDataFrame):
     ScalableSeriesClass = NumpyArrayScalableSeries
 
     def __init__(
-            self,
-            data: Union[Dict, ScalableDataFrame],
-            name: Optional[str] = None,
-            **kwargs,
+        self,
+        data: Union[Dict, ScalableDataFrame],
+        name: Optional[str] = None,
+        **kwargs,
     ):
         super(self.__class__, self).__init__(**kwargs)
         if isinstance(data, ScalableDataFrame):
@@ -37,8 +46,8 @@ class DictScalableDataFrame(ScalableDataFrame):
         self.column_lengths(check=True)
         if name is not None and not isinstance(name, (str, int, float)):
             raise ValueError(
-                f'`name` used to construct {self.__class__} can only be int, str or float; '
-                f'found object of type: {type_str(name)} with value: {name}'
+                f"`name` used to construct {self.__class__} can only be int, str or float; "
+                f"found object of type: {type_str(name)} with value: {name}"
             )
         self._name: Optional[str] = name
 
@@ -72,7 +81,7 @@ class DictScalableDataFrame(ScalableDataFrame):
     def column_lengths(self, check: bool = True) -> Dict[Any, int]:
         col_lens: Dict[Any, int] = {col: col_arr.shape[0] for col, col_arr in self._data.items()}
         if check and len(set(col_lens.values())) > 1:
-            raise ValueError(f'Columns are not of equal length; found following lengths: {col_lens}')
+            raise ValueError(f"Columns are not of equal length; found following lengths: {col_lens}")
         return col_lens
 
     def column_dtypes(self) -> Dict[Any, np.dtype]:
@@ -83,35 +92,34 @@ class DictScalableDataFrame(ScalableDataFrame):
         return next(iter(col_lens.values()))
 
     def __str__(self):
-        name_str: str = '' if self._name is None else f'"{self._name}": '
+        name_str: str = "" if self._name is None else f'"{self._name}": '
         columns: List = self.columns
         length: int = len(self)
         out = f"{name_str}Dict with {len(columns)} column(s) and {length} items in each column."
         width = len(out)
-        out += f'\nColumns: {list(columns)}'
-        out += '\n' + '-' * width + '\n'
-        data_sample = ''
+        out += f"\nColumns: {list(columns)}"
+        out += "\n" + "-" * width + "\n"
+        data_sample = ""
         for col in columns:
             with np.printoptions(threshold=self.display.max_rows + 1, edgeitems=self.display.max_rows // 2):
-                data_sample += f'{repr(self._data[col])}\n\n'
+                data_sample += f"{repr(self._data[col])}\n\n"
         out += data_sample.strip()
         return out
 
     def _repr_html_(self):
-        name_str: str = '' if self._name is None else f'"{self._name}": '
+        name_str: str = "" if self._name is None else f'"{self._name}": '
         columns: List = self.columns
         length: int = len(self)
         out = f"<b>{name_str}Dict with <code>{len(columns)}</code> column(s) and <code>{length}</code> elements in each column</b>"
-        width = len(out)
-        out += '<hr>'
-        out += f'<b>Columns:</b><pre>{list(columns)}</pre>'
-        out += '<hr><b>Data:</b>'
-        data_sample = ''
+        out += "<hr>"
+        out += f"<b>Columns:</b><pre>{list(columns)}</pre>"
+        out += "<hr><b>Data:</b>"
+        data_sample = ""
         for col in columns:
             with np.printoptions(threshold=self.display.max_rows + 1, edgeitems=self.display.max_rows // 2):
-                data_sample += f'<pre>{str(self._data[col])}</pre><br>'
-        out += f'{data_sample}'
-        return f'<div>{out}</div>'
+                data_sample += f"<pre>{str(self._data[col])}</pre><br>"
+        out += f"{data_sample}"
+        return f"<div>{out}</div>"
 
     def _repr_latex_(self):
         return self._repr_html_()
@@ -126,25 +134,23 @@ class DictScalableDataFrame(ScalableDataFrame):
         return self.as_dict(col_type=None)
 
     def as_dict(
-            self,
-            col_type: Optional[Literal['list', 'numpy', list, np.ndarray, 'record']] = None,
-            **kwargs
+        self, col_type: Optional[Literal["list", "numpy", list, np.ndarray, "record"]] = None, **kwargs
     ) -> Dict[str, Union[List, np.ndarray, Any]]:
         if col_type is None:
             return {
                 col: data_col.raw() if isinstance(data_col, TensorScalableSeries) else data_col.numpy()
                 for col, data_col in self._data.items()
             }
-        if col_type == 'record':
+        if col_type == "record":
             length: int = len(self)
             if length > 1:
-                raise ValueError(f'Cannot convert {self.__class__} of length {length} into record')
+                raise ValueError(f"Cannot convert {self.__class__} of length {length} into record")
             return {col: data_col[0] for col, data_col in self._data.items()}
-        if col_type in {'numpy', np.ndarray}:
+        if col_type in {"numpy", np.ndarray}:
             return {col: data_col.numpy() for col, data_col in self._data.items()}
-        if col_type in {'list', list}:
+        if col_type in {"list", list}:
             return {col: data_col.to_list() for col, data_col in self._data.items()}
-        raise NotImplementedError(f'Unsupported `col_type`: {col_type}')
+        raise NotImplementedError(f"Unsupported `col_type`: {col_type}")
 
     def as_list_of_dict(self, **kwargs) -> List[Dict]:
         length = len(self)
@@ -179,27 +185,29 @@ class DictScalableDataFrame(ScalableDataFrame):
         for col in cols:
             data_col: np.ndarray = self._data[col].numpy()
             if not isinstance(data_col, np.ndarray):
-                raise ValueError(f'Expected data column `{col}` to be NumPy array; found type {type_str(data_col)}')
+                raise ValueError(
+                    f"Expected data column `{col}` to be NumPy array; found type {type_str(data_col)}"
+                )
             data[col] = data_col
         return data
 
     @safe_validate_arguments
     def rename(
-            self,
-            mapper: Optional[Union[Dict, Callable]] = None,
-            *,
-            index: Optional[Union[Dict, Callable]] = None,
-            columns: Optional[Union[Dict, Callable]] = None,
-            axis: Literal[1, 'columns'] = 1,
-            copy: bool = True,
-            inplace: bool = False,
-            level: Optional[Union[int, str]] = None,
-            errors: Literal['ignore', 'raise'] = 'ignore',
+        self,
+        mapper: Optional[Union[Dict, Callable]] = None,
+        *,
+        index: Optional[Union[Dict, Callable]] = None,
+        columns: Optional[Union[Dict, Callable]] = None,
+        axis: Literal[1, "columns"] = 1,
+        copy: bool = True,
+        inplace: bool = False,
+        level: Optional[Union[int, str]] = None,
+        errors: Literal["ignore", "raise"] = "ignore",
     ) -> Optional[ScalableDataFrame]:
-        if axis not in {1, 'columns'}:
-            raise AttributeError(f'{self.__class__} only supports column-renaming i.e. axis=1.')
+        if axis not in {1, "columns"}:
+            raise AttributeError(f"{self.__class__} only supports column-renaming i.e. axis=1.")
         if all_are_none(mapper, columns):
-            raise AttributeError(f'{self.__class__} only supports passing `columns` or `mapper` with axis=1')
+            raise AttributeError(f"{self.__class__} only supports passing `columns` or `mapper` with axis=1")
         mapper: Union[Dict, Callable] = get_default(mapper, columns)
         renamed_data: Dict = self._rename_single_dict(self._data, mapper=mapper)
         if inplace:
@@ -243,7 +251,7 @@ class DictScalableDataFrame(ScalableDataFrame):
         return self
 
     @property
-    def iloc(self) -> 'ILocIndexer':
+    def iloc(self) -> "ILocIndexer":
         return self.ILocIndexer(self)
 
     def __getitem__(self, key) -> Union[Any, DictScalableDataFrame, NumpyArrayScalableSeries]:
@@ -253,31 +261,27 @@ class DictScalableDataFrame(ScalableDataFrame):
         if isinstance(key, (int, slice)):
             ## E.g. key is `4` or `slice(1,10,3)`.
             ## Note that for slices, list(range(10))[slice(1,10,3)] returns [1,4,7]
-            d: Dict[str, Union[Any, np.array]] = {
-                col: l[key]
-                for col, l in self._data.items()
-            }
+            d: Dict[str, Union[Any, np.array]] = {col: l[key] for col, l in self._data.items()}
             return self._constructor(d, name=self.name)
 
         if isinstance(key, np.ndarray):
             if key.ndim > 1:
-                raise TypeError(f'Can only index with 1-D NumPy array; found array with shape {key.shape}')
+                raise TypeError(f"Can only index with 1-D NumPy array; found array with shape {key.shape}")
             ## Ref: https://stackoverflow.com/a/37727662
             if np.issubdtype(key.dtype, int) or np.issubdtype(key.dtype, bool):
-                d: Dict[str, Union[Any, np.ndarray]] = {
-                    col: l[key]
-                    for col, l in self._data.items()
-                }
+                d: Dict[str, Union[Any, np.ndarray]] = {col: l[key] for col, l in self._data.items()}
                 return self._constructor(d, name=self.name)
-            raise TypeError(f'Indexing with Numpy arrays must be done with integer or bool arrays; '
-                            f'found array with dtype: {key.dtype}')
+            raise TypeError(
+                f"Indexing with Numpy arrays must be done with integer or bool arrays; "
+                f"found array with dtype: {key.dtype}"
+            )
 
         if isinstance(key, str):
             ## Access columns:
             cols: Set = as_set(key)
             missing_cols: Set = cols - self.columns_set
             if len(missing_cols) > 0:
-                raise KeyError(f'Following columns could not be found in Dataframe: {missing_cols}')
+                raise KeyError(f"Following columns could not be found in Dataframe: {missing_cols}")
             col = key
             if isinstance(self._data[col], TensorScalableSeries):
                 return self._data[col].__class__(self._data[col], name=col)
@@ -289,26 +293,26 @@ class DictScalableDataFrame(ScalableDataFrame):
             cols: Set = as_set(key)
             missing_cols: Set = cols - self.columns_set
             if len(missing_cols) > 0:
-                raise KeyError(f'Following columns could not be found in Dataframe: {missing_cols}')
+                raise KeyError(f"Following columns could not be found in Dataframe: {missing_cols}")
             return self._constructor({col: self._data[col] for col in key}, name=self.name)
 
         if isinstance(key, tuple):
             if len(key) != 2:
-                raise NotImplementedError(f'Unsupported indexing with tuple having <2 or >2 entries.')
+                raise NotImplementedError("Unsupported indexing with tuple having <2 or >2 entries.")
             i, cols = key
             if isinstance(i, tuple):
-                raise IndexError(f'Cannot use tuples for indexing')
+                raise IndexError("Cannot use tuples for indexing")
             out_df = self[i]
             if isinstance(cols, slice):
                 if any_are_not_none(cols.start, cols.stop, cols.step):
                     raise IndexError(
-                        f'When indexing, the second argument (i.e. columns argument) '
-                        f'should be a list of columns or an empty slice'
+                        "When indexing, the second argument (i.e. columns argument) "
+                        "should be a list of columns or an empty slice"
                     )
                 return out_df
             else:
                 return out_df[cols]
-        raise IndexError(f'Unsupported indexing using: {type_str(key)} with value: {key}')
+        raise IndexError(f"Unsupported indexing using: {type_str(key)} with value: {key}")
 
     def __setitem__(self, key: Any, value: Any):
         length: int = len(self)
@@ -323,20 +327,24 @@ class DictScalableDataFrame(ScalableDataFrame):
                 data_col: NumpyArrayScalableSeries = NumpyArrayScalableSeries(value)
             data_col_length: int = len(data_col)
             if data_col_length != length:
-                raise ValueError(f'Expected input value to have same length {length}; found length {data_col_length}')
+                raise ValueError(
+                    f"Expected input value to have same length {length}; found length {data_col_length}"
+                )
             self._data[key]: Union[NumpyArrayScalableSeries, TensorScalableSeries] = data_col
         elif isinstance(key, tuple):
             ## Supports assignment like: sdf[:, 'colA'] = 123
             if not len(key) == 2:
-                raise ValueError(f'Can only set using a tuple of two elements; found {len(key)} elements:\n{key}')
+                raise ValueError(
+                    f"Can only set using a tuple of two elements; found {len(key)} elements:\n{key}"
+                )
             first = key[0]
             second = key[1]
             if isinstance(first, slice) and first.start is first.step is first.stop is None:
                 self[second] = value  ## Call __setitem__ recursively
             else:
-                raise NotImplementedError(f'Sliced assignment not supported at the moment')
+                raise NotImplementedError("Sliced assignment not supported at the moment")
         else:
-            raise NotImplementedError(f'Cannot set using key of type {type_str(key)}.')
+            raise NotImplementedError(f"Cannot set using key of type {type_str(key)}.")
 
     def _stream_in_memory_sdf_convert_to_streaming_layout(self, stream_as: DataLayout) -> ScalableDataFrame:
         ## First select the chunks (as dicts), and then convert it to the target data layout only just before
@@ -348,12 +356,12 @@ class DictScalableDataFrame(ScalableDataFrame):
             self._sdf: DictScalableDataFrame = sdf
 
         def __setitem__(self, key, value):
-            raise NotImplementedError(f'Can only use for retrieving.')
+            raise NotImplementedError("Can only use for retrieving.")
 
         def __getitem__(self, key) -> DictScalableDataFrame:
             return self._sdf[key]
 
-    def applymap(self, func, na_action: Optional[Literal['ignore']] = None, **kwargs) -> ScalableDataFrame:
+    def applymap(self, func, na_action: Optional[Literal["ignore"]] = None, **kwargs) -> ScalableDataFrame:
         return self._constructor(
             {
                 col: col_arr.map(lambda x: func(x, **kwargs), na_action=na_action)
@@ -364,6 +372,7 @@ class DictScalableDataFrame(ScalableDataFrame):
 
     def apply(self, *args, **kwargs):
         return self.to_layout(layout=DataLayout.LIST_OF_DICT).apply(*args, **kwargs)
+
 
 #
 #     def __getattr__(self, attr_name: str):

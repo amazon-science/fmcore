@@ -1,34 +1,27 @@
+import os
 from typing import *
-from abc import abstractmethod, ABC
-import os, time, logging, sys, shutil, numpy as np, pandas as pd, gc, warnings
-from contextlib import contextmanager
-from fmcore.util import optional_dependency, set_param_from_alias, Parameters, get_default, safe_validate_arguments, \
-    ignore_warnings, EnvUtil, MappedParameters, retry, Log
-from fmcore.framework import Dataset
-from fmcore.framework.task.text_generation import GenerativeLM, Prompts, GENERATED_TEXTS_COL
-from fmcore.data import FileMetadata
-from fmcore.data import ScalableDataFrame, ScalableSeries
-from fmcore.constants import MLType, Storage
-from collections import OrderedDict
-from pydantic import root_validator, Extra, conint, confloat
+
+from pydantic import confloat, conint, root_validator
 from pydantic.typing import Literal
 
-with optional_dependency('langchain'):
-    from langchain import PromptTemplate, LLMChain, OpenAI, Anthropic, HuggingFaceHub
+from fmcore.data import FileMetadata
+from fmcore.framework.task.text_generation import GENERATED_TEXTS_COL, GenerativeLM, Prompts
+from fmcore.util import Log, MappedParameters, optional_dependency, retry
+
+with optional_dependency("langchain"):
+    from langchain import Anthropic, HuggingFaceHub, LLMChain, OpenAI, PromptTemplate
     from langchain.chat_models import ChatOpenAI
     from langchain.llms.base import BaseLLM
 
-
     class LangChainLLM(MappedParameters):
         _mapping = {
-            'OpenAI': OpenAI,
-            'ChatOpenAI': ChatOpenAI,
-            'Anthropic': Anthropic,
+            "OpenAI": OpenAI,
+            "ChatOpenAI": ChatOpenAI,
+            "Anthropic": Anthropic,
         }
 
-
     class LangChainPrompter(GenerativeLM):
-        aliases = ['LangChain']
+        aliases = ["LangChain"]
 
         llm: Optional[BaseLLM] = None
 
@@ -42,8 +35,8 @@ with optional_dependency('langchain'):
 
             @root_validator(pre=True)
             def set_langchain_params(cls, params: Dict) -> Dict:
-                params['batch_size'] = 1
-                params['llm']: LangChainLLM = LangChainLLM.of(params['llm'])
+                params["batch_size"] = 1
+                params["llm"]: LangChainLLM = LangChainLLM.of(params["llm"])
                 return params
 
         @property
@@ -53,27 +46,24 @@ with optional_dependency('langchain'):
             elif isinstance(self.llm, Anthropic):
                 return self.llm.max_tokens_to_sample
             elif isinstance(self.llm, HuggingFaceHub):
-                return self.llm.model_kwargs['max_new_tokens']
-            raise NotImplementedError(f'Unsupported LangChain LLM:\n{self.hyperparams.llm}')
+                return self.llm.model_kwargs["max_new_tokens"]
+            raise NotImplementedError(f"Unsupported LangChain LLM:\n{self.hyperparams.llm}")
 
         def initialize(self, model_dir: Optional[FileMetadata] = None):
             ## Ignore the model_dir.
             if self.hyperparams.llm.mapped_callable() in {OpenAI, ChatOpenAI}:
-                os.environ['OPENAI_API_KEY'] = self.hyperparams.api_key
+                os.environ["OPENAI_API_KEY"] = self.hyperparams.api_key
             if self.hyperparams.llm.mapped_callable() == HuggingFaceHub:
-                os.environ['HUGGINGFACEHUB_API_TOKEN'] = self.hyperparams.api_key
+                os.environ["HUGGINGFACEHUB_API_TOKEN"] = self.hyperparams.api_key
             self.llm: BaseLLM = self.hyperparams.llm.initialize()
 
         def predict_step(self, batch: Prompts, **kwargs) -> Any:
             prompt_template: PromptTemplate = PromptTemplate(
                 template=batch.prompt_template,
                 input_variables=String.str_format_args(batch.prompt_template),
-                template_format='f-string',
+                template_format="f-string",
             )
-            llm_chain: LLMChain = LLMChain(
-                prompt=prompt_template,
-                llm=self.llm
-            )
+            llm_chain: LLMChain = LLMChain(prompt=prompt_template, llm=self.llm)
             generated_texts: List = []
             for d in batch.data.to_list_of_dict():
                 try:
@@ -87,8 +77,6 @@ with optional_dependency('langchain'):
                     )
                 except Exception as e:
                     Log.error(String.format_exception_msg(e))
-                    generated_text: str = ''
+                    generated_text: str = ""
                 generated_texts.append(generated_text)
-            return {
-                GENERATED_TEXTS_COL: generated_texts
-            }
+            return {GENERATED_TEXTS_COL: generated_texts}

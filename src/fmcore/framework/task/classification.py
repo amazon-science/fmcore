@@ -1,19 +1,16 @@
-from typing import *
 from abc import ABC, abstractmethod
+from functools import partial
+from typing import *
+
 import numpy as np
 import pandas as pd
-from pandas.core.frame import DataFrame as PandasDataFrame
-from fmcore.util import as_list, as_tuple, safe_validate_arguments, is_not_null, is_list_or_set_like, flatten1d
-from fmcore.util import all_are_np_subtypes
-from fmcore.data import ScalableSeries, ScalableSeriesRawType, ScalableDataFrame
-from fmcore.constants import MLType, DataSplit, Task, MLTypeSchema, DataLayout
-from fmcore.framework import Algorithm, Dataset, Predictions, Metric, Metrics
-from fmcore.data import FileMetadata
-from fmcore.data.processor import LabelEncoding, EncodingRange
-from collections import defaultdict
-from functools import partial
 from pydantic import constr
-from pydantic.typing import Literal
+
+from fmcore.constants import DataLayout, DataSplit, MLType, MLTypeSchema, Task
+from fmcore.data import ScalableDataFrame, ScalableSeries
+from fmcore.data.processor import EncodingRange, LabelEncoding
+from fmcore.framework import Algorithm, Dataset, Metric, Metrics, Predictions
+from fmcore.util import all_are_np_subtypes, as_list, as_tuple, is_list_or_set_like, safe_validate_arguments
 
 
 class ClassificationData(Dataset):
@@ -22,13 +19,13 @@ class ClassificationData(Dataset):
         Task.MULTI_CLASS_CLASSIFICATION,
     )
     ground_truths_schema = {
-        '{ground_truth_col}': MLType.CATEGORICAL,
+        "{ground_truth_col}": MLType.CATEGORICAL,
     }
 
     @property
     def ground_truth_label_col_name(self) -> str:
         if len(self.data_schema.ground_truths_schema) == 0:
-            raise ValueError(f'No ground-truth column found in {self}')
+            raise ValueError(f"No ground-truth column found in {self}")
         return next(iter(self.data_schema.ground_truths_schema.keys()))
 
     @classmethod
@@ -36,7 +33,7 @@ class ClassificationData(Dataset):
         pass
 
 
-CLASSIFICATION_PREDICTIONS_FORMAT_MSG: str = f"""
+CLASSIFICATION_PREDICTIONS_FORMAT_MSG: str = """
 Classifier predictions returned by algorithm must be a dict in one of the following formats:
 1. Top-k: 
 Provides labels and probability scores for each example.
@@ -96,9 +93,9 @@ ClassificationPredictions = "ClassificationPredictions"
 TopKClassificationPredictions = "TopKClassificationPredictions"
 LabelwiseClassificationPredictions = "LabelwiseClassificationPredictions"
 
-TOP_PREDICTED_LABEL_TEMPLATE: str = 'top_{predicted_label_col_num}_predicted_label'
+TOP_PREDICTED_LABEL_TEMPLATE: str = "top_{predicted_label_col_num}_predicted_label"
 TOP_1_PREDICTED_LABEL: str = TOP_PREDICTED_LABEL_TEMPLATE.format(predicted_label_col_num=1)
-TOP_PREDICTED_SCORE_TEMPLATE: str = 'top_{predicted_score_col_num}_predicted_score'
+TOP_PREDICTED_SCORE_TEMPLATE: str = "top_{predicted_score_col_num}_predicted_score"
 TOP_1_PREDICTED_SCORE: str = TOP_PREDICTED_SCORE_TEMPLATE.format(predicted_score_col_num=1)
 
 
@@ -118,7 +115,7 @@ class ClassificationPredictions(Predictions, ABC):
     positive_label: Optional[str] = None
 
     ground_truths_schema = {
-        '{ground_truth_col}': MLType.CATEGORICAL,
+        "{ground_truth_col}": MLType.CATEGORICAL,
     }
 
     def top_1_predicted_label(self) -> ScalableSeries:
@@ -130,18 +127,17 @@ class ClassificationPredictions(Predictions, ABC):
         return top_k_predictions.data[TOP_1_PREDICTED_SCORE]
 
     def predictions(
-            self,
-            *,
-            multilabel: bool = False,
-            score_threshold: float = 0.5,
-            **kwargs,
+        self,
+        *,
+        multilabel: bool = False,
+        score_threshold: float = 0.5,
+        **kwargs,
     ) -> Union[ScalableDataFrame, ScalableSeries]:
         if multilabel:
             labelwise_predictions: LabelwiseClassificationPredictions = self.to_labelwise()
             return ScalableSeries.of(
                 labelwise_predictions.predictions().apply(
-                    lambda row: tuple(lb for lb in self.labelspace if row[lb] >= score_threshold),
-                    axis=1
+                    lambda row: tuple(lb for lb in self.labelspace if row[lb] >= score_threshold), axis=1
                 )
             )
         return super(ClassificationPredictions, self).predictions(**kwargs)
@@ -156,11 +152,12 @@ class ClassificationPredictions(Predictions, ABC):
 
     def ground_truths_multihot(self, **kwargs) -> ScalableDataFrame:
         if self.task is not Task.MULTI_LABEL_CLASSIFICATION:
-            raise ValueError(f'Cannot get multihot ground-truths for {self.class_name} with task "{self.task}"')
+            raise ValueError(
+                f'Cannot get multihot ground-truths for {self.class_name} with task "{self.task}"'
+            )
         labels: ScalableSeries = self.ground_truths().apply(as_tuple)
         multi_hot_df: pd.DataFrame = pd.DataFrame(
-            np.zeros((len(self), self.num_labels), dtype=bool),
-            columns=self.labelspace
+            np.zeros((len(self), self.num_labels), dtype=bool), columns=self.labelspace
         )
         for i, lb_list in enumerate(labels):
             multi_hot_df.loc[i, lb_list]: bool = True
@@ -169,7 +166,7 @@ class ClassificationPredictions(Predictions, ABC):
     @property
     def ground_truth_label_col_name(self) -> str:
         if len(self.data_schema.ground_truths_schema) == 0:
-            raise ValueError(f'No ground-truth column found in {self}')
+            raise ValueError(f"No ground-truth column found in {self}")
         return next(iter(self.data_schema.ground_truths_schema.keys()))
 
     @abstractmethod
@@ -190,10 +187,10 @@ class ClassificationPredictions(Predictions, ABC):
 
     @classmethod
     def _decode_and_normalize_ground_truth_labels(
-            cls,
-            predictions: ClassificationPredictions,
-            label_encoder: Optional[LabelEncoding],
-            predicted_label_cols: Union[Tuple, Set, List],
+        cls,
+        predictions: ClassificationPredictions,
+        label_encoder: Optional[LabelEncoding],
+        predicted_label_cols: Union[Tuple, Set, List],
     ) -> ClassificationPredictions:
         if label_encoder is not None and predictions.has_ground_truths(raise_error=False):
             ## If we set encoding_range in Classifier, then we will create a label_encoder, and additionally we will
@@ -205,14 +202,18 @@ class ClassificationPredictions(Predictions, ABC):
             ## that case, we do not need to take any action here, as ClassificationPredictions already contains
             ## normalized ground-truths which had never been encoded.
             if predictions.task is Task.MULTI_LABEL_CLASSIFICATION:
-                predictions.data[predictions.ground_truth_label_col_name]: ScalableSeries = \
-                    predictions.data[predictions.ground_truth_label_col_name].apply(
-                        decode_multilabel,
-                        label_encoder=label_encoder,
-                    )
+                predictions.data[predictions.ground_truth_label_col_name]: ScalableSeries = predictions.data[
+                    predictions.ground_truth_label_col_name
+                ].apply(
+                    decode_multilabel,
+                    label_encoder=label_encoder,
+                )
             else:
-                predictions.data[predictions.ground_truth_label_col_name]: ScalableSeries = \
-                    label_encoder.inverse_transform_series(predictions.data[predictions.ground_truth_label_col_name])
+                predictions.data[
+                    predictions.ground_truth_label_col_name
+                ]: ScalableSeries = label_encoder.inverse_transform_series(
+                    predictions.data[predictions.ground_truth_label_col_name]
+                )
         return predictions
 
 
@@ -233,36 +234,40 @@ class TopKClassificationPredictions(ClassificationPredictions):
         return self._labelwise_predictions
 
     @classmethod
-    def _top_k_to_labelwise(cls, top_k: TopKClassificationPredictions, **kwargs) -> LabelwiseClassificationPredictions:
+    def _top_k_to_labelwise(
+        cls, top_k: TopKClassificationPredictions, **kwargs
+    ) -> LabelwiseClassificationPredictions:
         raise NotImplementedError()
 
     @classmethod
     @safe_validate_arguments
     def from_top_k(
-            cls,
-            data: ClassificationData,
-            labels: Union[np.ndarray, List, Tuple],
-            scores: Union[np.ndarray, List, Tuple],
-            labelspace: Tuple[str, ...],
-            label_encoder: Optional[LabelEncoding],
-            ascending: bool = False,
-            **kwargs
+        cls,
+        data: ClassificationData,
+        labels: Union[np.ndarray, List, Tuple],
+        scores: Union[np.ndarray, List, Tuple],
+        labelspace: Tuple[str, ...],
+        label_encoder: Optional[LabelEncoding],
+        ascending: bool = False,
+        **kwargs,
     ) -> ClassificationPredictions:
         if isinstance(labels, (list, tuple)):
             labels: np.ndarray = np.array(labels)
         if isinstance(scores, (list, tuple)):
             scores: np.ndarray = np.array(scores)
         if not all_are_np_subtypes(scores.dtype, {np.bool_, np.integer, np.floating}):
-            raise ValueError(f'Expected scores array to have dtype as bool, int or float; found: {scores.dtype}')
+            raise ValueError(
+                f"Expected scores array to have dtype as bool, int or float; found: {scores.dtype}"
+            )
         if labels.ndim == 1:
             labels: np.ndarray = labels[..., np.newaxis]  ## stackoverflow.com/a/25755697/4900327
         if scores.ndim == 1:
             scores: np.ndarray = scores[..., np.newaxis]  ## stackoverflow.com/a/25755697/4900327
         if labels.shape != scores.shape or labels.ndim != 2 or scores.ndim != 2:
             raise ValueError(
-                f'Predicted labels and scores must both be 2-dimensional numpy arrays of the same shape; '
-                f'predicted labels has shape {labels.shape}, '
-                f'but Predicted scores has length {scores.shape}'
+                f"Predicted labels and scores must both be 2-dimensional numpy arrays of the same shape; "
+                f"predicted labels has shape {labels.shape}, "
+                f"but Predicted scores has length {scores.shape}"
             )
 
         ncols: int = labels.shape[1]
@@ -287,10 +292,7 @@ class TopKClassificationPredictions(ClassificationPredictions):
             predictions[predicted_score_col] = scores[:, i]
 
         predictions: ClassificationPredictions = cls.from_task_data(
-            data=data,
-            predictions=predictions,
-            labelspace=labelspace,
-            **kwargs
+            data=data, predictions=predictions, labelspace=labelspace, **kwargs
         )
         predictions: ClassificationPredictions = cls._decode_and_normalize_ground_truth_labels(
             predictions,
@@ -303,15 +305,18 @@ class TopKClassificationPredictions(ClassificationPredictions):
             ## (this is done in Classifier._task_preprocess). Thus, the model will learn to predict encoded values, and
             ## we must decode & normalize the predicted labels here.
             for predicted_label_col in predicted_label_cols:
-                predictions.data[predicted_label_col]: ScalableSeries = \
-                    label_encoder.inverse_transform_series(predictions.data[predicted_label_col])
+                predictions.data[
+                    predicted_label_col
+                ]: ScalableSeries = label_encoder.inverse_transform_series(
+                    predictions.data[predicted_label_col]
+                )
         return predictions
 
 
 class LabelwiseClassificationPredictions(ClassificationPredictions):
     ## Columns names are labels.
     predictions_schema = {
-        '{label_name}': MLType.FLOAT,
+        "{label_name}": MLType.FLOAT,
     }
 
     def to_top_k(self, **kwargs) -> TopKClassificationPredictions:
@@ -326,9 +331,7 @@ class LabelwiseClassificationPredictions(ClassificationPredictions):
 
     @classmethod
     def _labelwise_to_top_k(
-            cls,
-            labelwise: LabelwiseClassificationPredictions,
-            **kwargs
+        cls, labelwise: LabelwiseClassificationPredictions, **kwargs
     ) -> ClassificationPredictions:
         ## TODO: figure out how to perform the following steps efficiently for all SDF implementations.
         if labelwise.data.layout is DataLayout.DASK:
@@ -354,13 +357,13 @@ class LabelwiseClassificationPredictions(ClassificationPredictions):
     @classmethod
     @safe_validate_arguments
     def from_scores(
-            cls,
-            data: ClassificationData,
-            labels: Union[np.ndarray, List, Tuple],
-            scores: Union[np.ndarray, List, Tuple],
-            labelspace: Tuple[str, ...],
-            label_encoder: Optional[LabelEncoding],
-            **kwargs
+        cls,
+        data: ClassificationData,
+        labels: Union[np.ndarray, List, Tuple],
+        scores: Union[np.ndarray, List, Tuple],
+        labelspace: Tuple[str, ...],
+        label_encoder: Optional[LabelEncoding],
+        **kwargs,
     ) -> ClassificationPredictions:
         labels: List = as_list(labels)
         if label_encoder is not None:
@@ -369,10 +372,10 @@ class LabelwiseClassificationPredictions(ClassificationPredictions):
             labels: List[str] = list(label_encoder.inverse_transform_series(labels))
         if set(labels) != set(labelspace):
             raise ValueError(
-                f'When creating predictions from scores, `labels` should be the set of labels which, if decoded and '
-                f'normalized, exactly matches the `labelspace`.'
-                f'\nFound `labels` (length={len(labels)}): {labels}'
-                f'\nExpected `labelspace` (length={len(labelspace)}): {labelspace}'
+                f"When creating predictions from scores, `labels` should be the set of labels which, if decoded and "
+                f"normalized, exactly matches the `labelspace`."
+                f"\nFound `labels` (length={len(labels)}): {labels}"
+                f"\nExpected `labelspace` (length={len(labelspace)}): {labelspace}"
             )
         if isinstance(scores, (list, tuple)):
             scores: np.ndarray = np.array(scores)
@@ -388,14 +391,15 @@ class LabelwiseClassificationPredictions(ClassificationPredictions):
                     f'When passing "scores" as a single column, we consider it a binary classification problem, '
                     f'with "scores" as the positive class scores. '
                     f'It is this expected that "labels" will have exactly two elements, with syntax: '
-                    f'(negative_label, positive_label); however, found following `labels`: {labels}'
+                    f"(negative_label, positive_label); however, found following `labels`: {labels}"
                 )
-            label_cols: List[str] = sorted(list(cls.schema_template.populate(
-                allow_unfilled=True,
-                features=False,
-                ground_truths=False,
-                label_name=labels
-            ).predictions_schema.keys()))
+            label_cols: List[str] = sorted(
+                list(
+                    cls.schema_template.populate(
+                        allow_unfilled=True, features=False, ground_truths=False, label_name=labels
+                    ).predictions_schema.keys()
+                )
+            )
             predictions: Dict[str, np.ndarray] = {}
             ## As per contract, first label should be negative and second should be positive.
             negative_label: str = label_cols[0]
@@ -409,21 +413,24 @@ class LabelwiseClassificationPredictions(ClassificationPredictions):
             ## Binary/multi-class/multi-label classification:
             if len(labels) != ncols:
                 raise ValueError(
-                    f'Different number of labels and scores: found {len(labels)} labels, '
-                    f'but scores has shape {scores.shape}'
+                    f"Different number of labels and scores: found {len(labels)} labels, "
+                    f"but scores has shape {scores.shape}"
                 )
-            label_cols: List[str] = sorted(list(cls.schema_template.populate(
-                allow_unfilled=True,
-                features=False,
-                ground_truths=False,
-                label_name=labels
-            ).predictions_schema.keys()))
+            label_cols: List[str] = sorted(
+                list(
+                    cls.schema_template.populate(
+                        allow_unfilled=True, features=False, ground_truths=False, label_name=labels
+                    ).predictions_schema.keys()
+                )
+            )
             if len(label_cols) == 2:
                 ## As per contract, first label should be negative and second should be positive.
                 negative_label: str = label_cols[0]
                 positive_label: str = label_cols[1]
 
-            predictions: Dict[str, np.ndarray] = {}  ## TODO: see if this slows down RECORD and DATUM performance
+            predictions: Dict[
+                str, np.ndarray
+            ] = {}  ## TODO: see if this slows down RECORD and DATUM performance
             for i, label_col in enumerate(label_cols):
                 predictions[label_col] = scores[:, i]
 
@@ -433,7 +440,7 @@ class LabelwiseClassificationPredictions(ClassificationPredictions):
             labelspace=labelspace,
             negative_label=negative_label,
             positive_label=positive_label,
-            **kwargs
+            **kwargs,
         )
         ## This should only affect ground-truths column:
         predictions: ClassificationPredictions = cls._decode_and_normalize_ground_truth_labels(
@@ -446,20 +453,20 @@ class LabelwiseClassificationPredictions(ClassificationPredictions):
 
 
 class Labelspace(Metric):
-    aliases = ['labelspace']
+    aliases = ["labelspace"]
     labelspace: Set = set()
 
     def update(self, data: Union[Dataset, Predictions]):
         data.check_in_memory()
         if not isinstance(data, (ClassificationData, ClassificationPredictions)):
             raise ValueError(
-                f'Can only calculate number of labels for {ClassificationData} and {ClassificationPredictions}; '
-                f'found input data of type `{type(data)}`'
+                f"Can only calculate number of labels for {ClassificationData} and {ClassificationPredictions}; "
+                f"found input data of type `{type(data)}`"
             )
         ground_truths: ScalableSeries = data.ground_truths()
         if ground_truths.hasnans:
             nan_indexes: List = list(data.index()[ground_truths.isna()])
-            raise ValueError(f'Found Nan or None labels in rows with following indexes:\n{nan_indexes}')
+            raise ValueError(f"Found Nan or None labels in rows with following indexes:\n{nan_indexes}")
         if isinstance(data, MultiLabelClassificationData):
             ground_truths: List[Tuple] = ground_truths.apply(
                 split_normalize_encode_multilabel,
@@ -529,16 +536,13 @@ def _normalize_label(x: Any, minimal: bool = False) -> str:
     ##  >>> %timeit [_normalize_label(y) for y in x]
     ##  3.71 µs ± 48.6 ns per loop (mean ± std. dev. of 7 runs, 100,000 loops each)
     x: str = str(x).strip()
-    if x == '.0':
-        x = '0'
-    if x.endswith('.0'):
+    if x == ".0":
+        x = "0"
+    if x.endswith(".0"):
         x = x[:-2]
     if minimal:
         return x
-    return x.replace(' ', '_') \
-        .replace('-', '_') \
-        .replace('__', '_').replace('__', '_') \
-        .upper()
+    return x.replace(" ", "_").replace("-", "_").replace("__", "_").replace("__", "_").upper()
 
 
 class Classifier(Algorithm, ABC):
@@ -548,7 +552,7 @@ class Classifier(Algorithm, ABC):
     )
     inputs = ClassificationData
     outputs = ClassificationPredictions
-    dataset_statistics = ('labelspace',)
+    dataset_statistics = ("labelspace",)
 
     label_encoding_range: ClassVar[Optional[EncodingRange]] = None  ## Only used to create `label_encoder`
     label_normalizer: Optional[Callable[[Any], str]]
@@ -556,12 +560,12 @@ class Classifier(Algorithm, ABC):
     label_encoder: Optional[LabelEncoding]
 
     def __init__(
-            self,
-            *,
-            stats: Optional[Metrics] = None,
-            normalize_labels: bool = True,
-            label_normalizer: Optional[Callable[[Any], str]] = None,
-            **kwargs
+        self,
+        *,
+        stats: Optional[Metrics] = None,
+        normalize_labels: bool = True,
+        label_normalizer: Optional[Callable[[Any], str]] = None,
+        **kwargs,
     ):
         super(Classifier, self).__init__(stats=stats, **kwargs)
         if label_normalizer is not None:
@@ -580,9 +584,7 @@ class Classifier(Algorithm, ABC):
             )
         if self.label_encoder is None:
             self.label_encoder: Optional[LabelEncoding] = self._create_label_encoder(
-                labelspace=self.labelspace,
-                label_normalizer=self.label_normalizer,
-                **kwargs
+                labelspace=self.labelspace, label_normalizer=self.label_normalizer, **kwargs
             )
 
     @property
@@ -601,36 +603,33 @@ class Classifier(Algorithm, ABC):
     def encoded_labelspace(self) -> Tuple[int, ...]:
         if self.label_encoder is None:
             raise ValueError(
-                f'Label encoding is not done; please specify `label_encoding_range` as a class member variable in the '
+                f"Label encoding is not done; please specify `label_encoding_range` as a class member variable in the "
                 f'definition of "{self.class_name}"'
             )
         return tuple(sorted(self.label_encoder.label_encoding_dict.values()))
 
     @classmethod
     def _create_labelspace(
-            cls,
-            stats: Metrics,
-            label_normalizer: Callable[[Any], str],
-            **kwargs
+        cls, stats: Metrics, label_normalizer: Callable[[Any], str], **kwargs
     ) -> Tuple[str, ...]:
         if stats is None:
-            raise ValueError(f'Required to either pass a custom labelspace, or calculate stats.')
-        labelspace: Labelspace = stats.find(data_split=DataSplit.TRAIN, select='labelspace')
+            raise ValueError("Required to either pass a custom labelspace, or calculate stats.")
+        labelspace: Labelspace = stats.find(data_split=DataSplit.TRAIN, select="labelspace")
         labelspace: Tuple[str, ...] = tuple(sorted({label_normalizer(lb) for lb in labelspace.value}))
         if len(labelspace) < 2:
             raise ValueError(
-                f'Post normalization, there are {len(labelspace)} labels: {labelspace}; at least 2 unique labels are '
-                f'needed. Please update your data, or pass a custom `label_normalizer` method while invoking '
+                f"Post normalization, there are {len(labelspace)} labels: {labelspace}; at least 2 unique labels are "
+                f"needed. Please update your data, or pass a custom `label_normalizer` method while invoking "
                 f'"{Classifier.class_name}".'
             )
         return labelspace
 
     @classmethod
     def _create_label_encoder(
-            cls,
-            labelspace: Tuple[str, ...],
-            label_normalizer: Callable[[Any], str],
-            **kwargs,
+        cls,
+        labelspace: Tuple[str, ...],
+        label_normalizer: Callable[[Any], str],
+        **kwargs,
     ) -> Optional[LabelEncoding]:
         if cls.label_encoding_range is None:
             return None
@@ -652,8 +651,9 @@ class Classifier(Algorithm, ABC):
         return batch
 
     def _normalize_batch_labels(self, batch: ClassificationData) -> ClassificationData:
-        batch.data[batch.ground_truth_label_col_name]: ScalableSeries = \
-            batch.data[batch.ground_truth_label_col_name].map(self.label_normalizer)
+        batch.data[batch.ground_truth_label_col_name]: ScalableSeries = batch.data[
+            batch.ground_truth_label_col_name
+        ].map(self.label_normalizer)
         return batch
 
     def _encode_batch_labels(self, batch: ClassificationData) -> ClassificationData:
@@ -663,31 +663,27 @@ class Classifier(Algorithm, ABC):
         return batch
 
     def _create_predictions(
-            self,
-            batch: ClassificationData,
-            predictions: Dict,
-            top_k: Optional[bool] = None,
-            **kwargs
+        self, batch: ClassificationData, predictions: Dict, top_k: Optional[bool] = None, **kwargs
     ) -> ClassificationPredictions:
         if not isinstance(predictions, dict):
             raise ValueError(CLASSIFICATION_PREDICTIONS_FORMAT_MSG)
-        if 'top_k_labels' in predictions and 'top_k_scores' in predictions:
+        if "top_k_labels" in predictions and "top_k_scores" in predictions:
             predictions: ClassificationPredictions = TopKClassificationPredictions.from_top_k(
                 data=batch,
-                labels=predictions['top_k_labels'],
-                scores=predictions['top_k_scores'],
+                labels=predictions["top_k_labels"],
+                scores=predictions["top_k_scores"],
                 labelspace=self.labelspace,
                 label_encoder=self.label_encoder,
-                **kwargs
+                **kwargs,
             )
-        elif 'scores' in predictions and 'labels' in predictions:
+        elif "scores" in predictions and "labels" in predictions:
             predictions: ClassificationPredictions = LabelwiseClassificationPredictions.from_scores(
                 data=batch,
-                labels=predictions['labels'],
-                scores=predictions['scores'],
+                labels=predictions["labels"],
+                scores=predictions["scores"],
                 labelspace=self.labelspace,
                 label_encoder=self.label_encoder,
-                **kwargs
+                **kwargs,
             )
         else:
             raise ValueError(CLASSIFICATION_PREDICTIONS_FORMAT_MSG)
@@ -702,10 +698,10 @@ class Classifier(Algorithm, ABC):
 class MultiLabelClassificationData(ClassificationData):
     tasks = Task.MULTI_LABEL_CLASSIFICATION
     ground_truths_schema = {
-        '{ground_truth_col}': MLType.VECTOR,
+        "{ground_truth_col}": MLType.VECTOR,
     }
 
-    label_sep: constr(min_length=1, max_length=3) = ','
+    label_sep: constr(min_length=1, max_length=3) = ","
 
     @classmethod
     def validate_data(cls, data_schema: MLTypeSchema, data: ScalableDataFrame) -> bool:
@@ -717,31 +713,33 @@ class MultiLabelClassifier(Classifier, ABC):
     inputs = MultiLabelClassificationData
 
     def _normalize_batch_labels(self, batch: MultiLabelClassificationData) -> MultiLabelClassificationData:
-        batch.data[batch.ground_truth_label_col_name]: ScalableSeries = \
-            batch.data[batch.ground_truth_label_col_name].apply(
-                split_normalize_encode_multilabel,
-                label_sep=batch.label_sep,
-                label_normalizer=self.label_normalizer,
-                label_encoder=None,
-            )
+        batch.data[batch.ground_truth_label_col_name]: ScalableSeries = batch.data[
+            batch.ground_truth_label_col_name
+        ].apply(
+            split_normalize_encode_multilabel,
+            label_sep=batch.label_sep,
+            label_normalizer=self.label_normalizer,
+            label_encoder=None,
+        )
         return batch
 
     def _encode_batch_labels(self, batch: MultiLabelClassificationData) -> MultiLabelClassificationData:
-        batch.data[batch.ground_truth_label_col_name]: ScalableSeries = \
-            batch.data[batch.ground_truth_label_col_name].apply(
-                split_normalize_encode_multilabel,
-                label_sep=batch.label_sep,
-                label_normalizer=self.label_normalizer,
-                label_encoder=self.label_encoder,
-            )
+        batch.data[batch.ground_truth_label_col_name]: ScalableSeries = batch.data[
+            batch.ground_truth_label_col_name
+        ].apply(
+            split_normalize_encode_multilabel,
+            label_sep=batch.label_sep,
+            label_normalizer=self.label_normalizer,
+            label_encoder=self.label_encoder,
+        )
         return batch
 
 
 def split_normalize_encode_multilabel(
-        labels_list: Union[List, Tuple, Set, np.ndarray, str],
-        label_sep: str,
-        label_normalizer: Optional[Callable],
-        label_encoder: Optional[LabelEncoding],
+    labels_list: Union[List, Tuple, Set, np.ndarray, str],
+    label_sep: str,
+    label_normalizer: Optional[Callable],
+    label_encoder: Optional[LabelEncoding],
 ) -> Union[Tuple[int, ...], Tuple[str, ...]]:
     lb_list: Union[List, Tuple, Set, np.ndarray, str] = labels_list
     if isinstance(lb_list, int):
@@ -749,24 +747,23 @@ def split_normalize_encode_multilabel(
     if isinstance(lb_list, str):
         # print(f'Labels is a string with value: {repr(lb_list)}')
         lb_list: str = lb_list.strip()
-        if lb_list.startswith('[') and lb_list.endswith(']'):
-            lb_list: str = lb_list.removeprefix('[').removesuffix(']')
-        elif lb_list.startswith('(') and lb_list.endswith(')'):
-            lb_list: str = lb_list.removeprefix('(').removesuffix(')')
-        elif lb_list.startswith('{') and lb_list.endswith('}'):
-            lb_list: str = lb_list.removeprefix('{').removesuffix('}')
-        lb_list: str = lb_list.replace('"', '').replace("'", '')  ## Remove quotes
+        if lb_list.startswith("[") and lb_list.endswith("]"):
+            lb_list: str = lb_list.removeprefix("[").removesuffix("]")
+        elif lb_list.startswith("(") and lb_list.endswith(")"):
+            lb_list: str = lb_list.removeprefix("(").removesuffix(")")
+        elif lb_list.startswith("{") and lb_list.endswith("}"):
+            lb_list: str = lb_list.removeprefix("{").removesuffix("}")
+        lb_list: str = lb_list.replace('"', "").replace("'", "")  ## Remove quotes
         lb_list: List[str] = [lb.strip() for lb in lb_list.split(label_sep)]
     if not is_list_or_set_like(lb_list):
         raise ValueError(
-            f'Expected each label to be a list, tuple, set, etc, or string equivalent; '
-            f'found: {type(labels_list)} with value: {labels_list}'
+            f"Expected each label to be a list, tuple, set, etc, or string equivalent; "
+            f"found: {type(labels_list)} with value: {labels_list}"
         )
     lb_list: List = as_list(lb_list)
     if label_encoder is not None:
         split_normalized_encoded_labels: Tuple[int, ...] = tuple(
-            label_encoder.transform_single(label_encoder.params.label_normalizer(lb))
-            for lb in lb_list
+            label_encoder.transform_single(label_encoder.params.label_normalizer(lb)) for lb in lb_list
         )
         return split_normalized_encoded_labels
     elif label_normalizer is not None:
@@ -778,16 +775,13 @@ def split_normalize_encode_multilabel(
 
 
 def decode_multilabel(
-        encoded_labels_list: Union[List, Tuple, Set, np.ndarray, str],
-        label_encoder: LabelEncoding,
+    encoded_labels_list: Union[List, Tuple, Set, np.ndarray, str],
+    label_encoder: LabelEncoding,
 ) -> Tuple[str, ...]:
     enc_lb_list: List = as_list(encoded_labels_list)
     if not is_list_or_set_like(encoded_labels_list):
         raise ValueError(
-            f'Expected each label to be a list, tuple, set, etc; '
-            f'found: {type(encoded_labels_list)} with value: {encoded_labels_list}'
+            f"Expected each label to be a list, tuple, set, etc; "
+            f"found: {type(encoded_labels_list)} with value: {encoded_labels_list}"
         )
-    return tuple(
-        label_encoder.inverse_transform_single(enc_lb)
-        for enc_lb in enc_lb_list
-    )
+    return tuple(label_encoder.inverse_transform_single(enc_lb) for enc_lb in enc_lb_list)

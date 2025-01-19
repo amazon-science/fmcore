@@ -1,12 +1,12 @@
+import io
+import pickle
 from typing import *
-from abc import abstractmethod, ABC
-import io, requests, pickle
-from requests import Response
+
 from fmcore.constants import FileContents, FileFormat, MLTypeSchema
-from fmcore.util.language import is_list_like, as_list, optional_dependency
-from fmcore.util import AutoEnum, auto, String, FileSystemUtil, StructuredBlob, safe_validate_arguments
 from fmcore.data.reader.Reader import Reader
+from fmcore.util import FileSystemUtil, String, StructuredBlob, safe_validate_arguments
 from fmcore.util.aws import S3Util
+from fmcore.util.language import is_list_like
 
 
 class PickleReader(Reader):
@@ -18,11 +18,11 @@ class PickleReader(Reader):
 
     @safe_validate_arguments
     def _read_stream(
-            self,
-            stream: io.BytesIO,
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            **kwargs,
+        self,
+        stream: io.BytesIO,
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        **kwargs,
     ) -> StructuredBlob:
         error_to_raise: Optional[Exception] = None
         for _ in range(self.retry):
@@ -35,21 +35,21 @@ class PickleReader(Reader):
 
     @safe_validate_arguments
     def _read_url(
-            self,
-            url: Union[str, List[str]],
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            **kwargs,
+        self,
+        url: Union[str, List[str]],
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        **kwargs,
     ) -> StructuredBlob:
         raise NotImplementedError()
 
     @safe_validate_arguments
     def _read_local(
-            self,
-            local_path: Union[str, List[str]],
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            **kwargs,
+        self,
+        local_path: Union[str, List[str]],
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        **kwargs,
     ) -> StructuredBlob:
         error_to_raise: Optional[Exception] = None
         for _ in range(self.retry):
@@ -67,12 +67,12 @@ class PickleReader(Reader):
 
     @safe_validate_arguments
     def _read_s3(
-            self,
-            s3_path: Union[str, List[str]],
-            file_contents: Optional[FileContents] = None,
-            data_schema: Optional[MLTypeSchema] = None,
-            files_to_ignore: List[str] = String.FILES_TO_IGNORE,
-            **kwargs,
+        self,
+        s3_path: Union[str, List[str]],
+        file_contents: Optional[FileContents] = None,
+        data_schema: Optional[MLTypeSchema] = None,
+        files_to_ignore: List[str] = String.FILES_TO_IGNORE,
+        **kwargs,
     ) -> StructuredBlob:
         error_to_raise: Optional[Exception] = None
         for _ in range(self.retry):

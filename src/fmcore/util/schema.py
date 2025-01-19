@@ -1,22 +1,39 @@
-import copy
-from typing import *
 import re
+from typing import *
+
 import numpy as np
+from pydantic import conint, constr, root_validator
+
+from fmcore.constants.MLConstants import (
+    DATA_ML_TYPES,
+    GROUND_TRUTH_ML_TYPES,
+    PREDICTED_ML_TYPES,
+    MLType,
+    MLTypeSchema,
+)
+
 ## These must be imported separately from the file since we are in the same dir.
-from fmcore.util.language import AutoEnum, as_list, auto, as_set, is_list_like, Parameters, get_default, \
-    safe_validate_arguments, String, keep_keys, is_empty_list_like, assert_not_empty_dict, remove_keys
-from fmcore.constants.MLConstants import MLType, MLTypeSchema, PREDICTED_ML_TYPES, GROUND_TRUTH_ML_TYPES, \
-    DATA_ML_TYPES
-from fmcore.constants.FileConstants import FileContents
-from pydantic import conint, constr, validator, root_validator, Field
+from fmcore.util.language import (
+    Parameters,
+    String,
+    as_list,
+    as_set,
+    assert_not_empty_dict,
+    get_default,
+    is_empty_list_like,
+    is_list_like,
+    keep_keys,
+    remove_keys,
+    safe_validate_arguments,
+)
 
 ColTemplate = "ColTemplate"
 SchemaTemplate = "Schema"
 Schema = "Schema"
 
-INDEX_COL_TEMPLATE_KEY: str = 'index_col'
-INDEX_COL_NAME_TEMPLATE: str = '{' + INDEX_COL_TEMPLATE_KEY + '}'
-INDEX_COL_DEFAULT_NAME: str = 'id'
+INDEX_COL_TEMPLATE_KEY: str = "index_col"
+INDEX_COL_NAME_TEMPLATE: str = "{" + INDEX_COL_TEMPLATE_KEY + "}"
+INDEX_COL_DEFAULT_NAME: str = "id"
 
 
 class ColTemplate(Parameters):
@@ -31,7 +48,7 @@ class ColTemplate(Parameters):
         return str(self.template)
 
     @classmethod
-    def of(cls, template: str, regex_fill: str = '.+?', regex_flags: int = re.IGNORECASE) -> ColTemplate:
+    def of(cls, template: str, regex_fill: str = ".+?", regex_flags: int = re.IGNORECASE) -> ColTemplate:
         return ColTemplate(
             template=template,
             args=tuple(String.str_format_args(template)),
@@ -40,17 +57,19 @@ class ColTemplate(Parameters):
 
     @classmethod
     def template_is_unfilled(cls, template: str) -> bool:
-        return template.find('{') != -1 and template.find('}') != -1 and template.find('{') < template.find('}')
+        return (
+            template.find("{") != -1 and template.find("}") != -1 and template.find("{") < template.find("}")
+        )
 
     @classmethod
-    def as_regex(cls, template: str, fill: str = '.+?') -> str:
+    def as_regex(cls, template: str, fill: str = ".+?") -> str:
         return template.format(**{arg: fill for arg in String.str_format_args(template)})
 
     def populate(
-            self,
-            *,
-            allow_unfilled: bool = False,
-            **kwargs,
+        self,
+        *,
+        allow_unfilled: bool = False,
+        **kwargs,
     ) -> Optional[Union[List[str], str]]:
         kwargs: Dict[str, Any] = keep_keys(kwargs, self.args)
         iterable_args: Set = set()
@@ -65,20 +84,19 @@ class ColTemplate(Parameters):
             if self.template_is_unfilled(col):
                 if not allow_unfilled:
                     raise ValueError(
-                        f'Column is templatized even after populating arguments. '
+                        f"Column is templatized even after populating arguments. "
                         f'Column template: "{self.template}"; '
                         f'column after populating: "{col}"; '
-                        f'detected args: {String.str_format_args(col)}; '
-                        f'kwargs: {kwargs}'
+                        f"detected args: {String.str_format_args(col)}; "
+                        f"kwargs: {kwargs}"
                     )
                 return None
             return col
         else:
             if len(non_iterable_args) > 0:
-                partial_template: str = self.template.format(**{
-                    arg: val for arg, val in kwargs
-                    if arg in non_iterable_args
-                })
+                partial_template: str = self.template.format(
+                    **{arg: val for arg, val in kwargs if arg in non_iterable_args}
+                )
             else:
                 partial_template: str = self.template
             cols: List[str] = [partial_template]
@@ -94,11 +112,11 @@ class ColTemplate(Parameters):
                 if self.template_is_unfilled(col):
                     if not allow_unfilled:
                         raise ValueError(
-                            f'Column is templatized even after populating arguments. '
+                            f"Column is templatized even after populating arguments. "
                             f'Column template: "{self.template}"; '
                             f'column after populating: "{col}"; '
-                            f'detected args: {String.str_format_args(col)}; '
-                            f'kwargs: {kwargs}'
+                            f"detected args: {String.str_format_args(col)}; "
+                            f"kwargs: {kwargs}"
                         )
                 else:
                     filtered_cols.append(col)
@@ -130,17 +148,19 @@ class SchemaTemplate(Parameters):
 
     @classmethod
     def from_parts(
-            cls,
-            index_col_template: Optional[str] = None,
-            ground_truths_schema_template: Optional[MLTypeSchema] = None,
-            predictions_schema_template: Optional[MLTypeSchema] = None,
-            features_schema_template: Optional[MLTypeSchema] = None,
+        cls,
+        index_col_template: Optional[str] = None,
+        ground_truths_schema_template: Optional[MLTypeSchema] = None,
+        predictions_schema_template: Optional[MLTypeSchema] = None,
+        features_schema_template: Optional[MLTypeSchema] = None,
     ) -> Optional[SchemaTemplate]:
         def _to_schema_template(schema: MLTypeSchema) -> Dict[ColTemplate, MLType]:
             schema_template_part: Dict[ColTemplate, MLType] = {}
             for col, mltype in schema.items():
                 if mltype in set.union(GROUND_TRUTH_ML_TYPES, PREDICTED_ML_TYPES).union({MLType.INDEX}):
-                    raise ValueError(f'Schema template should have MLTypes like {DATA_ML_TYPES}, not {mltype}')
+                    raise ValueError(
+                        f"Schema template should have MLTypes like {DATA_ML_TYPES}, not {mltype}"
+                    )
                 schema_template_part[ColTemplate.of(col)] = mltype
             return schema_template_part
 
@@ -169,23 +189,23 @@ class SchemaTemplate(Parameters):
 
     @safe_validate_arguments
     def infer_from_mltype_schema(
-            self,
-            schema: Union[Dict, Any],
-            *,
-            index_col: Optional[constr(min_length=1)] = None,
-            infer_features: bool = True,
-            infer_ground_truths: bool = True,
-            infer_predictions: bool = True,
-            has_features: bool = False,
-            has_ground_truths: bool = False,
-            has_predictions: bool = False,
+        self,
+        schema: Union[Dict, Any],
+        *,
+        index_col: Optional[constr(min_length=1)] = None,
+        infer_features: bool = True,
+        infer_ground_truths: bool = True,
+        infer_predictions: bool = True,
+        has_features: bool = False,
+        has_ground_truths: bool = False,
+        has_predictions: bool = False,
     ) -> Schema:
         if isinstance(schema, Schema):
-            raise ValueError(f'Please call {Schema.class_name}.of(...)')
+            raise ValueError(f"Please call {Schema.class_name}.of(...)")
         if not isinstance(schema, dict):
             raise ValueError(
-                f'Expected schema to be a dict of MLTypes; '
-                f'found schema of type {type(schema)} with value: {schema}'
+                f"Expected schema to be a dict of MLTypes; "
+                f"found schema of type {type(schema)} with value: {schema}"
             )
 
         ## Might have MLType.GROUND_TRUTH, MLType.PREDICTED:
@@ -196,11 +216,13 @@ class SchemaTemplate(Parameters):
             ## index_col must either be passed explicitly, or be present in the schema.
             index_col: Optional[str] = Schema.filter_index(schema, allow_missing=True)
             if index_col is None:
-                raise ValueError(f'Passed schema must have exactly one index column, but None found. Schema:\n{schema}')
+                raise ValueError(
+                    f"Passed schema must have exactly one index column, but None found. Schema:\n{schema}"
+                )
             if len(self.index_col_template.matches({index_col})) == 0:
                 raise ValueError(
                     f'Passed schema has index column "{index_col}", '
-                    f'which does not match index_col_template: {self.index_col_template}'
+                    f"which does not match index_col_template: {self.index_col_template}"
                 )
 
         if infer_ground_truths is False:
@@ -231,12 +253,11 @@ class SchemaTemplate(Parameters):
             ground_truths_schema: MLTypeSchema = inferred_schema_from_cols.ground_truths_schema
             if has_ground_truths and len(ground_truths_schema) == 0:
                 raise ValueError(
-                    f'Expected at least one ground-truth column (having MLType in {GROUND_TRUTH_ML_TYPES}), '
-                    f'but none were found in schema: {schema}'
+                    f"Expected at least one ground-truth column (having MLType in {GROUND_TRUTH_ML_TYPES}), "
+                    f"but none were found in schema: {schema}"
                 )
         ground_truths_schema: MLTypeSchema = {
-            col: inferred_col_mltypes.get(col, schema[col])
-            for col, mltype in ground_truths_schema.items()
+            col: inferred_col_mltypes.get(col, schema[col]) for col, mltype in ground_truths_schema.items()
         }
 
         ## Set predictions:
@@ -248,40 +269,31 @@ class SchemaTemplate(Parameters):
             predictions_schema: MLTypeSchema = inferred_schema_from_cols.predictions_schema
             if has_predictions and len(predictions_schema) == 0:
                 raise ValueError(
-                    f'Expected at least one predicted column (having MLType in {PREDICTED_ML_TYPES}), '
-                    f'but none were found in schema: {schema}'
+                    f"Expected at least one predicted column (having MLType in {PREDICTED_ML_TYPES}), "
+                    f"but none were found in schema: {schema}"
                 )
         predictions_schema: MLTypeSchema = {
-            col: inferred_col_mltypes.get(col, schema[col])
-            for col, mltype in predictions_schema.items()
+            col: inferred_col_mltypes.get(col, schema[col]) for col, mltype in predictions_schema.items()
         }
 
         ## Set features:
         features_schema: MLTypeSchema = inferred_schema_from_cols.features_schema
         if has_features and len(features_schema) == 0:
-            raise ValueError(
-                f'Expected at least one feature column, '
-                f'but none were found in schema: {schema}'
-            )
+            raise ValueError(f"Expected at least one feature column, but none were found in schema: {schema}")
         features_schema: MLTypeSchema = {
-            col: inferred_col_mltypes.get(col, schema[col])
-            for col, mltype in features_schema.items()
+            col: inferred_col_mltypes.get(col, schema[col]) for col, mltype in features_schema.items()
         }
 
         ## Merge remaining columns into features schema:
-        cols_so_far: Set[str] = {index_col} \
-            .union(set(features_schema.keys())) \
-            .union(set(predictions_schema.keys())) \
+        cols_so_far: Set[str] = (
+            {index_col}.union(set(features_schema.keys()))
+            .union(set(predictions_schema.keys()))
             .union(set(ground_truths_schema.keys()))
+        )
         remaining_schema: MLTypeSchema = {
-            col: mltype
-            for col, mltype in schema.items()
-            if col not in cols_so_far
+            col: mltype for col, mltype in schema.items() if col not in cols_so_far
         }
-        features_schema: MLTypeSchema = {
-            **remaining_schema,
-            **features_schema
-        }
+        features_schema: MLTypeSchema = {**remaining_schema, **features_schema}
 
         inferred_schema: Schema = Schema(
             index_col=index_col,
@@ -294,16 +306,16 @@ class SchemaTemplate(Parameters):
 
     @safe_validate_arguments
     def infer_from_columns(
-            self,
-            columns: Union[List, Tuple, Set],
-            *,
-            index_col: Optional[constr(min_length=1)] = None,
-            infer_features: bool = True,
-            infer_ground_truths: bool = True,
-            infer_predictions: bool = True,
-            has_features: bool = False,
-            has_ground_truths: bool = False,
-            has_predictions: bool = False,
+        self,
+        columns: Union[List, Tuple, Set],
+        *,
+        index_col: Optional[constr(min_length=1)] = None,
+        infer_features: bool = True,
+        infer_ground_truths: bool = True,
+        infer_predictions: bool = True,
+        has_features: bool = False,
+        has_ground_truths: bool = False,
+        has_predictions: bool = False,
     ) -> Schema:
         ## Note: it might not be possible to infer schema for all columns based on their name alone.
         columns_set: Set = as_set(columns)
@@ -317,11 +329,11 @@ class SchemaTemplate(Parameters):
         schema_template_parts = []
         ## This ordering is important:
         if infer_predictions:
-            schema_template_parts.append(('predictions_schema', self.predictions_schema_template))
+            schema_template_parts.append(("predictions_schema", self.predictions_schema_template))
         if infer_ground_truths:
-            schema_template_parts.append(('ground_truths_schema', self.ground_truths_schema_template))
+            schema_template_parts.append(("ground_truths_schema", self.ground_truths_schema_template))
         if infer_features:
-            schema_template_parts.append(('features_schema', self.features_schema_template))
+            schema_template_parts.append(("features_schema", self.features_schema_template))
 
         for schema_key, schema_template_part in schema_template_parts:
             schema_key_schema: MLTypeSchema = {}
@@ -332,93 +344,97 @@ class SchemaTemplate(Parameters):
                     if flat_schema.get(col, mltype) != mltype:
                         raise ValueError(
                             f'Conflict during schema inference; column "{col}" is assigned to MLType {flat_schema[col]}, '
-                            f'but it also matches pattern {col_template.regex}, which is assigned to MLType {mltype} '
-                            f'as per the following schema template:\n{schema_template_part}'
+                            f"but it also matches pattern {col_template.regex}, which is assigned to MLType {mltype} "
+                            f"as per the following schema template:\n{schema_template_part}"
                         )
                     flat_schema[col] = mltype
                     schema_key_schema[col] = mltype
-            if schema_key == 'features_schema' \
-                    and has_features \
-                    and len(schema_key_schema) == 0 \
-                    and len(schema_template_part) > 0:
+            if (
+                schema_key == "features_schema"
+                and has_features
+                and len(schema_key_schema) == 0
+                and len(schema_template_part) > 0
+            ):
                 raise ValueError(
-                    f'Input columns {columns_set} did not match any feature column templates: '
-                    f'{self.features_schema_template}'
+                    f"Input columns {columns_set} did not match any feature column templates: "
+                    f"{self.features_schema_template}"
                 )
-            if schema_key == 'ground_truths_schema' \
-                    and has_ground_truths \
-                    and len(schema_key_schema) == 0 \
-                    and len(schema_template_part) > 0:
+            if (
+                schema_key == "ground_truths_schema"
+                and has_ground_truths
+                and len(schema_key_schema) == 0
+                and len(schema_template_part) > 0
+            ):
                 raise ValueError(
-                    f'Input columns {columns_set} did not match any ground-truth column templates: '
-                    f'{self.ground_truths_schema_template}'
+                    f"Input columns {columns_set} did not match any ground-truth column templates: "
+                    f"{self.ground_truths_schema_template}"
                 )
-            if schema_key == 'predictions_schema' \
-                    and has_predictions \
-                    and len(schema_key_schema) == 0 \
-                    and len(schema_template_part) > 0:
+            if (
+                schema_key == "predictions_schema"
+                and has_predictions
+                and len(schema_key_schema) == 0
+                and len(schema_template_part) > 0
+            ):
                 raise ValueError(
-                    f'Input columns {columns_set} did not match any predicted column templates: '
-                    f'{self.predictions_schema_template}'
+                    f"Input columns {columns_set} did not match any predicted column templates: "
+                    f"{self.predictions_schema_template}"
                 )
             schema[schema_key] = schema_key_schema
 
         if index_col is None:
             ## index_col must either be passed explicitly, or matchable.
             index_col: Set[str] = set(
-                col for col in self.index_col_template.matches(columns_set)  ## Select matching columns...
+                col
+                for col in self.index_col_template.matches(columns_set)  ## Select matching columns...
                 if col not in flat_schema  ## ...except those in "flat_schema".
             )
             if len(index_col) == 0:
                 raise ValueError(
-                    f'Did not match any index columns from {columns_set}; please explicitly pass `index_col`'
+                    f"Did not match any index columns from {columns_set}; please explicitly pass `index_col`"
                 )
             if len(index_col) > 1:
                 raise ValueError(
-                    f'Expected only one in {columns_set} to match index pattern {self.index_col_template.regex}; '
-                    f'found {len(index_col)} matching index columns: {index_col}'
+                    f"Expected only one in {columns_set} to match index pattern {self.index_col_template.regex}; "
+                    f"found {len(index_col)} matching index columns: {index_col}"
                 )
             index_col: str = next(iter(index_col))
             flat_schema[index_col] = MLType.INDEX
-        schema['index_col'] = index_col
+        schema["index_col"] = index_col
         inferred_schema: Schema = Schema(**schema)
         assert inferred_schema.columns_set <= columns_set
         return inferred_schema
 
     def populate(
-            self,
-            allow_unfilled: bool = False,
-            features: bool = True,
-            ground_truths: bool = True,
-            predictions: bool = True,
-            **kwargs
+        self,
+        allow_unfilled: bool = False,
+        features: bool = True,
+        ground_truths: bool = True,
+        predictions: bool = True,
+        **kwargs,
     ) -> Schema:
         ## Populate index col:
-        if self.index_col_template.template == INDEX_COL_NAME_TEMPLATE and INDEX_COL_TEMPLATE_KEY not in kwargs:
+        if (
+            self.index_col_template.template == INDEX_COL_NAME_TEMPLATE
+            and INDEX_COL_TEMPLATE_KEY not in kwargs
+        ):
             kwargs[INDEX_COL_TEMPLATE_KEY] = INDEX_COL_DEFAULT_NAME
         index_col: str = self.index_col_template.populate(allow_unfilled=False, **kwargs)
 
         features_schema: MLTypeSchema = {}
         if features:
             features_schema: MLTypeSchema = self._populate_templates_dict(
-                self.features_schema_template,
-                allow_unfilled=allow_unfilled,
-                **kwargs
+                self.features_schema_template, allow_unfilled=allow_unfilled, **kwargs
             )
         ground_truths_schema: MLTypeSchema = {}
         if ground_truths:
             ground_truths_schema: MLTypeSchema = self._populate_templates_dict(
-                self.ground_truths_schema_template,
-                allow_unfilled=allow_unfilled,
-                **kwargs
+                self.ground_truths_schema_template, allow_unfilled=allow_unfilled, **kwargs
             )
 
         predictions_schema: MLTypeSchema = {}
         if predictions:
             predictions_schema: MLTypeSchema = self._populate_templates_dict(
-                self.predictions_schema_template,
-                allow_unfilled=allow_unfilled,
-                **kwargs
+                self.predictions_schema_template, allow_unfilled=allow_unfilled, **kwargs
             )
         return Schema(
             index_col=index_col,
@@ -429,16 +445,12 @@ class SchemaTemplate(Parameters):
 
     @classmethod
     def _populate_templates_dict(
-            cls,
-            templates_dict: Dict[ColTemplate, MLType],
-            allow_unfilled: bool,
-            **kwargs
+        cls, templates_dict: Dict[ColTemplate, MLType], allow_unfilled: bool, **kwargs
     ) -> MLTypeSchema:
         schema: MLTypeSchema = {}
         for col_template, mltype in templates_dict.items():
             col: Optional[Union[List[str], str]] = col_template.populate(
-                allow_unfilled=allow_unfilled,
-                **kwargs
+                allow_unfilled=allow_unfilled, **kwargs
             )
             if col is None or is_empty_list_like(col):
                 continue
@@ -459,25 +471,25 @@ class Schema(Parameters):
     @root_validator(pre=True)
     def _set_schema_params(cls, params: Dict) -> Dict:
         try:
-            ground_truths_schema: MLTypeSchema = MLType.convert_values(params.get('ground_truths_schema', {}))
+            ground_truths_schema: MLTypeSchema = MLType.convert_values(params.get("ground_truths_schema", {}))
             if len(set(ground_truths_schema.values()).intersection(GROUND_TRUTH_ML_TYPES)) > 0:
                 raise ValueError(
-                    f'Cannot have any of the following MLTypes in `ground_truths_schema`: {GROUND_TRUTH_ML_TYPES}; '
-                    f'found following: {Schema.filter_schema(data_schema=ground_truths_schema, mltypes=GROUND_TRUTH_ML_TYPES)}. '
+                    f"Cannot have any of the following MLTypes in `ground_truths_schema`: {GROUND_TRUTH_ML_TYPES}; "
+                    f"found following: {Schema.filter_schema(data_schema=ground_truths_schema, mltypes=GROUND_TRUTH_ML_TYPES)}. "
                     f'Please instead use the "data" MLTypes: {DATA_ML_TYPES}'
                 )
-            params['ground_truths_schema'] = ground_truths_schema
+            params["ground_truths_schema"] = ground_truths_schema
 
-            predictions_schema: MLTypeSchema = MLType.convert_values(params.get('predictions_schema', {}))
+            predictions_schema: MLTypeSchema = MLType.convert_values(params.get("predictions_schema", {}))
             if len(set(predictions_schema.values()).intersection(PREDICTED_ML_TYPES)) > 0:
                 raise ValueError(
-                    f'Cannot have any of the following MLTypes in `predictions_schema`: {PREDICTED_ML_TYPES}; '
-                    f'found following: {Schema.filter_schema(data_schema=predictions_schema, mltypes=PREDICTED_ML_TYPES)}. '
+                    f"Cannot have any of the following MLTypes in `predictions_schema`: {PREDICTED_ML_TYPES}; "
+                    f"found following: {Schema.filter_schema(data_schema=predictions_schema, mltypes=PREDICTED_ML_TYPES)}. "
                     f'Please instead use the "data" MLTypes: {DATA_ML_TYPES}'
                 )
-            params['predictions_schema'] = predictions_schema
+            params["predictions_schema"] = predictions_schema
 
-            params['features_schema'] = MLType.convert_values(params.get('features_schema', {}))
+            params["features_schema"] = MLType.convert_values(params.get("features_schema", {}))
             return params
         except Exception as e:
             raise ValueError(String.format_exception_msg(e))
@@ -529,36 +541,29 @@ class Schema(Parameters):
             col_mapper: Callable = columns
         return Schema(
             index_col=col_mapper(self.index_col),
-            features_schema={
-                col_mapper(col): mltype
-                for col, mltype in self.features_schema.items()
-            },
-            predictions_schema={
-                col_mapper(col): mltype
-                for col, mltype in self.predictions_schema.items()
-            },
+            features_schema={col_mapper(col): mltype for col, mltype in self.features_schema.items()},
+            predictions_schema={col_mapper(col): mltype for col, mltype in self.predictions_schema.items()},
             ground_truths_schema={
-                col_mapper(col): mltype
-                for col, mltype in self.ground_truths_schema.items()
-            }
+                col_mapper(col): mltype for col, mltype in self.ground_truths_schema.items()
+            },
         )
 
     @staticmethod
     def of(
-            schema: Union[Schema, MLTypeSchema],
-            schema_template: SchemaTemplate,
-            *,
-            index_col: Optional[constr(min_length=1)] = None,
-            infer_features: bool = True,
-            infer_ground_truths: bool = True,
-            infer_predictions: bool = True,
-            has_features: bool = False,
-            has_ground_truths: bool = False,
-            has_predictions: bool = False,
+        schema: Union[Schema, MLTypeSchema],
+        schema_template: SchemaTemplate,
+        *,
+        index_col: Optional[constr(min_length=1)] = None,
+        infer_features: bool = True,
+        infer_ground_truths: bool = True,
+        infer_predictions: bool = True,
+        has_features: bool = False,
+        has_ground_truths: bool = False,
+        has_predictions: bool = False,
     ) -> Optional[Schema]:
         if isinstance(schema, SchemaTemplate):
             raise ValueError(
-                f'Cannot instantiate `{Schema.class_name} from an instance of `{SchemaTemplate.class_name}`.'
+                f"Cannot instantiate `{Schema.class_name} from an instance of `{SchemaTemplate.class_name}`."
             )
         if isinstance(schema, Schema):
             return schema
@@ -566,7 +571,7 @@ class Schema(Parameters):
             ## All keys from schema_template are match variable names in Schema class
             return Schema(**schema)
         if not isinstance(schema, dict):
-            raise ValueError(f'Unsupported creation of {Schema.class_name} from data: {schema}')
+            raise ValueError(f"Unsupported creation of {Schema.class_name} from data: {schema}")
 
         ## We have an MLTypeSchema dict:
         return schema_template.infer_from_mltype_schema(
@@ -583,24 +588,24 @@ class Schema(Parameters):
     def set_features(self, features_schema: MLTypeSchema, override: bool = False) -> Schema:
         if self.has_features and override is False:
             raise ValueError(
-                f'`features_schema` already set and cannot be overridden on {self.class_name}. '
-                f'Current schema: \n{self}'
+                f"`features_schema` already set and cannot be overridden on {self.class_name}. "
+                f"Current schema: \n{self}"
             )
-        return Schema(**{**self.dict(), 'features_schema': features_schema})
+        return Schema(**{**self.dict(), "features_schema": features_schema})
 
     def drop_features(self) -> Schema:
-        return Schema(**self.dict(exclude={'features_schema'}))
+        return Schema(**self.dict(exclude={"features_schema"}))
 
     def set_predictions(self, predictions_schema: MLTypeSchema, override: bool = False) -> Schema:
         if self.has_predictions and override is False:
             raise ValueError(
-                f'`predictions_schema` already set and cannot be overridden on {self.class_name}. '
-                f'Current schema: \n{self}'
+                f"`predictions_schema` already set and cannot be overridden on {self.class_name}. "
+                f"Current schema: \n{self}"
             )
-        return Schema(**{**self.dict(), 'predictions_schema': predictions_schema})
+        return Schema(**{**self.dict(), "predictions_schema": predictions_schema})
 
     def drop_predictions(self) -> Schema:
-        return Schema(**self.dict(exclude={'predictions_schema'}))
+        return Schema(**self.dict(exclude={"predictions_schema"}))
 
     def predictions_to_features(self) -> Schema:
         return self.drop_predictions().set_features(
@@ -611,13 +616,13 @@ class Schema(Parameters):
     def set_ground_truths(self, ground_truths_schema: MLTypeSchema, override: bool = False) -> Schema:
         if self.has_ground_truths and override is False:
             raise ValueError(
-                f'`ground_truths_schema` already set and cannot be overridden on {self.class_name}. '
-                f'Current schema: \n{self}'
+                f"`ground_truths_schema` already set and cannot be overridden on {self.class_name}. "
+                f"Current schema: \n{self}"
             )
-        return Schema(**{**self.dict(), 'ground_truths_schema': ground_truths_schema})
+        return Schema(**{**self.dict(), "ground_truths_schema": ground_truths_schema})
 
     def drop_ground_truths(self) -> Schema:
-        return Schema(**self.dict(exclude={'ground_truths_schema'}))
+        return Schema(**self.dict(exclude={"ground_truths_schema"}))
 
     def ground_truths_to_features(self) -> Schema:
         return self.drop_ground_truths().set_features(
@@ -647,12 +652,12 @@ class Schema(Parameters):
     @staticmethod
     @safe_validate_arguments
     def filter_df(
-            df: Any,
-            data_schema: Optional[Union[MLTypeSchema, List[str]]] = None,
-            allow_missing: bool = False,
-            return_series: bool = True,
-            sort_columns: bool = True,
-            **kwargs
+        df: Any,
+        data_schema: Optional[Union[MLTypeSchema, List[str]]] = None,
+        allow_missing: bool = False,
+        return_series: bool = True,
+        sort_columns: bool = True,
+        **kwargs,
     ) -> Optional[Any]:
         if data_schema is None:
             return df[sorted(list(df.columns))]
@@ -661,10 +666,7 @@ class Schema(Parameters):
         else:
             cols_set: Set = as_set(data_schema)
         if allow_missing:
-            cols: List = [
-                col for col in df.columns
-                if col in cols_set
-            ]
+            cols: List = [col for col in df.columns if col in cols_set]
         else:
             cols: List = [col for col in data_schema]
         if sort_columns:
@@ -693,10 +695,10 @@ class Schema(Parameters):
     @classmethod
     @safe_validate_arguments
     def filter_single_column(
-            cls,
-            data_schema: MLTypeSchema,
-            mltype: Union[Set[MLType], MLType],
-            allow_missing: bool = False,
+        cls,
+        data_schema: MLTypeSchema,
+        mltype: Union[Set[MLType], MLType],
+        allow_missing: bool = False,
     ) -> Optional[str]:
         cols: MLTypeSchema = cls.filter_schema(
             data_schema=data_schema,
@@ -707,44 +709,45 @@ class Schema(Parameters):
             return None
         if len(cols) != 1:
             raise ValueError(
-                f'Only expected one column with the following MLType(s): {mltype}; '
-                f'found {len(cols)} columns: {cols}'
+                f"Only expected one column with the following MLType(s): {mltype}; "
+                f"found {len(cols)} columns: {cols}"
             )
         return next(iter(cols))
 
     @classmethod
     @safe_validate_arguments
     def filter_schema_columns(
-            cls,
-            data_schema: MLTypeSchema,
-            mltypes: Union[Set[MLType], MLType],
-            expected_num_cols: Optional[conint(ge=1)] = None,
+        cls,
+        data_schema: MLTypeSchema,
+        mltypes: Union[Set[MLType], MLType],
+        expected_num_cols: Optional[conint(ge=1)] = None,
     ) -> List[str]:
-        cols: List[str] = list(cls.filter_schema(
-            data_schema=data_schema,
-            mltypes=mltypes,
-            expected_num_cols=expected_num_cols
-        ).keys())
+        cols: List[str] = list(
+            cls.filter_schema(
+                data_schema=data_schema, mltypes=mltypes, expected_num_cols=expected_num_cols
+            ).keys()
+        )
         cols: List[str] = sorted(cols)
         return cols
 
     @classmethod
     @safe_validate_arguments
     def filter_schema(
-            cls,
-            data_schema: MLTypeSchema,
-            mltypes: Union[Set[MLType], Tuple[MLType], List[MLType], MLType],
-            expected_num_cols: Optional[conint(ge=1)] = None,
-            **kwargs
+        cls,
+        data_schema: MLTypeSchema,
+        mltypes: Union[Set[MLType], Tuple[MLType], List[MLType], MLType],
+        expected_num_cols: Optional[conint(ge=1)] = None,
+        **kwargs,
     ) -> MLTypeSchema:
         assert_not_empty_dict(data_schema)
         mltypes: List[MLType] = as_list(mltypes)
-        filtered_schema: MLTypeSchema = {col: mltype for col, mltype in data_schema.items() if mltype in mltypes}
+        filtered_schema: MLTypeSchema = {
+            col: mltype for col, mltype in data_schema.items() if mltype in mltypes
+        }
         if expected_num_cols is not None:
             if len(filtered_schema) != expected_num_cols:
                 raise ValueError(
-                    f'Only expected {expected_num_cols} column(s) with the following MLType(s): {mltypes}; '
-                    f'found {len(filtered_schema)} columns: {sorted(list(filtered_schema.keys()))}'
+                    f"Only expected {expected_num_cols} column(s) with the following MLType(s): {mltypes}; "
+                    f"found {len(filtered_schema)} columns: {sorted(list(filtered_schema.keys()))}"
                 )
         return filtered_schema
-    

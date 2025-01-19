@@ -1,6 +1,6 @@
 from typing import *
+
 from fmcore.data.processor import SingleColumnProcessor, TextInputProcessor, TextOutputProcessor
-import pandas as pd
 from fmcore.util import AutoEnum, auto, is_null
 
 
@@ -27,4 +27,4 @@ class CaseTransformation(SingleColumnProcessor, TextInputProcessor, TextOutputPr
             return data.lower()
         elif self.params.case is Case.UPPER:
             return data.upper()
-        raise NotImplementedError(f'Unsupported case: {self.params.case}')
+        raise NotImplementedError(f"Unsupported case: {self.params.case}")

@@ -1,17 +1,12 @@
-from typing import *
 from abc import ABC, abstractmethod
-import random, copy, math
-import numpy as np
-from scipy import stats
+from typing import *
+
 import pandas as pd
 from pandas.core.frame import Series as PandasSeries
-from fmcore.util import wrap_fn_output, is_function, get_default
-from fmcore.constants import DataLayout
-from fmcore.data.sdf.ScalableSeries import ScalableSeries, SS_DEFAULT_NAME
-from fmcore.data.sdf.NumpyArrayScalableSeries import NumpyArrayScalableSeries
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame
-from pydantic import conint
 from pydantic.typing import Literal
+
+from fmcore.data.sdf.ScalableSeries import SS_DEFAULT_NAME, ScalableSeries
+from fmcore.util import get_default, is_function, wrap_fn_output
 
 TensorScalableSeries = "TensorScalableSeries"
 
@@ -34,7 +29,7 @@ class TensorScalableSeries(ScalableSeries, ABC):
         return pd.Series(self.numpy(**kwargs), name=get_default(self._name, SS_DEFAULT_NAME))
 
     def _to_frame_raw(self, **kwargs):
-        kwargs['name'] = get_default(self._name, SS_DEFAULT_NAME)
+        kwargs["name"] = get_default(self._name, SS_DEFAULT_NAME)
         return self.pandas(**kwargs).to_frame(**kwargs)
 
     @property
@@ -58,8 +53,8 @@ class TensorScalableSeries(ScalableSeries, ABC):
     """
 
     def map(
-            self,
-            arg: Union[Callable, Dict, ScalableSeries],
-            na_action: Optional[Literal['ignore']] = None,
+        self,
+        arg: Union[Callable, Dict, ScalableSeries],
+        na_action: Optional[Literal["ignore"]] = None,
     ) -> ScalableSeries:
-        raise NotImplementedError('Cannot execute .map() over a Tensor series')
+        raise NotImplementedError("Cannot execute .map() over a Tensor series")

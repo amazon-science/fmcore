@@ -1,38 +1,50 @@
-import io
-import pathlib
-from typing import *
-import time, json, math, numpy as np, pandas as pd, os, logging
-from abc import abstractmethod, ABC
+import logging
+from abc import ABC, abstractmethod
 from functools import partial
-from fmcore.data import FileMetadata
-from fmcore.util import Parameters, MutableParameters, Registry, FractionalBool, safe_validate_arguments, String, \
-    all_are_true, all_are_false, any_are_not_none, any_are_none, Log, as_list, get_default, as_set, \
-    set_param_from_alias, random_sample, String, optional_dependency, FileSystemUtil, Alias
-from pydantic import root_validator, Extra, conint, constr
+from typing import *
+
+from pydantic import Extra, constr, root_validator
+
 from fmcore.constants import _LIBRARY_NAME
+from fmcore.data import FileMetadata
+from fmcore.util import (
+    Alias,
+    FileSystemUtil,
+    Log,
+    MutableParameters,
+    Parameters,
+    Registry,
+    String,
+    as_list,
+    as_set,
+    get_default,
+    optional_dependency,
+    random_sample,
+    set_param_from_alias,
+)
 
 Tracker = "Tracker"
 
 _TRACKERS_CACHE: Dict[Tuple[str, str, str, str], Any] = {}
 
-DEFAULT_TRACKER_PARAMS: Dict = dict(tracker='noop')
-with optional_dependency('aim'):
-    import aim
-
-    DEFAULT_TRACKER_PARAMS: Dict = dict(tracker='aim')
+DEFAULT_TRACKER_PARAMS: Dict = dict(tracker="noop")
+with optional_dependency("aim"):
+    DEFAULT_TRACKER_PARAMS: Dict = dict(tracker="aim")
 
 
 class Tracker(MutableParameters, Registry, ABC):
-    _allow_multiple_subclasses: ClassVar[bool] = False  ## Rejects multiple subclasses registered to the same name.
+    _allow_multiple_subclasses: ClassVar[bool] = (
+        False  ## Rejects multiple subclasses registered to the same name.
+    )
     _allow_subclass_override: ClassVar[bool] = True  ## Allows replacement of subclass with same name.
 
     class Config(Parameters.Config):
         extra = Extra.ignore
 
     tracker_name: ClassVar[str]
-    DEFAULT_PROJECTS_BASE_DIR: ClassVar[str] = FileSystemUtil.expand_dir(f'~/{_LIBRARY_NAME}/tracker/')
-    DEFAULT_PROJECT: ClassVar[str] = 'default'
-    DEFAULT_EXPERIMENT: ClassVar[str] = 'logs'
+    DEFAULT_PROJECTS_BASE_DIR: ClassVar[str] = FileSystemUtil.expand_dir(f"~/{_LIBRARY_NAME}/tracker/")
+    DEFAULT_PROJECT: ClassVar[str] = "default"
+    DEFAULT_EXPERIMENT: ClassVar[str] = "logs"
 
     silent: bool = False
     projects_base_dir: constr(min_length=1)
@@ -41,9 +53,9 @@ class Tracker(MutableParameters, Registry, ABC):
 
     @classmethod
     def of(
-            cls,
-            tracker: Optional[Union[Tracker, Dict, str]] = None,
-            **kwargs,
+        cls,
+        tracker: Optional[Union[Tracker, Dict, str]] = None,
+        **kwargs,
     ) -> Tracker:
         if isinstance(tracker, Tracker):
             return tracker
@@ -51,20 +63,16 @@ class Tracker(MutableParameters, Registry, ABC):
             return cls.of(**tracker, **kwargs)
         if tracker is not None:
             TrackerClass: Type[Tracker] = Tracker.get_subclass(tracker)
-        elif 'name' in kwargs:
-            TrackerClass: Type[Tracker] = Tracker.get_subclass(kwargs.pop('name'))
+        elif "name" in kwargs:
+            TrackerClass: Type[Tracker] = Tracker.get_subclass(kwargs.pop("name"))
         else:
             TrackerClass: Type[Tracker] = cls
         if TrackerClass == Tracker:
-            subclasses: List[str] = random_sample(
-                as_list(Tracker.subclasses),
-                n=3,
-                replacement=False
-            )
+            subclasses: List[str] = random_sample(as_list(Tracker.subclasses), n=3, replacement=False)
             raise ValueError(
                 f'"{Tracker.class_name}" is an abstract class. '
-                f'To create an instance, please either pass `tracker`, '
-                f'or call .of(...) on a subclass of {Tracker.class_name}, e.g. {", ".join(subclasses)}'
+                f"To create an instance, please either pass `tracker`, "
+                f"or call .of(...) on a subclass of {Tracker.class_name}, e.g. {', '.join(subclasses)}"
             )
 
         tracker: Tracker = TrackerClass(**kwargs)
@@ -73,22 +81,46 @@ class Tracker(MutableParameters, Registry, ABC):
 
     @root_validator(pre=True)
     def tracker_params(cls, params: Dict):
-        set_param_from_alias(params, param='projects_base_dir', alias=[
-            'projects_dir', 'projects_base_folder', 'projects_folder',
-        ], default=cls.DEFAULT_PROJECTS_BASE_DIR)
-        set_param_from_alias(params, param='project', alias=[
-            'project_name', 'project_path', 'repo', 'repo_name', 'repository', 'repository_name',
-        ], default=cls.DEFAULT_PROJECT)
-        set_param_from_alias(params, param='experiment', alias=[
-            'experiment_name', 'trial', 'trial_name',
-        ], default=cls.DEFAULT_EXPERIMENT)
+        set_param_from_alias(
+            params,
+            param="projects_base_dir",
+            alias=[
+                "projects_dir",
+                "projects_base_folder",
+                "projects_folder",
+            ],
+            default=cls.DEFAULT_PROJECTS_BASE_DIR,
+        )
+        set_param_from_alias(
+            params,
+            param="project",
+            alias=[
+                "project_name",
+                "project_path",
+                "repo",
+                "repo_name",
+                "repository",
+                "repository_name",
+            ],
+            default=cls.DEFAULT_PROJECT,
+        )
+        set_param_from_alias(
+            params,
+            param="experiment",
+            alias=[
+                "experiment_name",
+                "trial",
+                "trial_name",
+            ],
+            default=cls.DEFAULT_EXPERIMENT,
+        )
         Alias.set_silent(params, default=False)
 
-        params['projects_base_dir']: str = FileMetadata.of(
-            FileSystemUtil.expand_dir(params['projects_base_dir'])
+        params["projects_base_dir"]: str = FileMetadata.of(
+            FileSystemUtil.expand_dir(params["projects_base_dir"])
         ).mkdir(return_metadata=False)  ## Create the directory
-        params['project']: str = cls._normalize_name(params['project'])
-        params['experiment']: str = cls._normalize_name(params['experiment'])
+        params["project"]: str = cls._normalize_name(params["project"])
+        params["experiment"]: str = cls._normalize_name(params["experiment"])
 
         return params
 
@@ -111,15 +143,22 @@ class Tracker(MutableParameters, Registry, ABC):
 
     @classmethod
     def _normalize_name(cls, experiment: str) -> str:
-        return str(experiment) \
-            .replace('  ', ' ').replace('  ', ' ').strip() \
-            .replace(' ', '-').replace('_', '-').replace('--', '-').replace('--', '-') \
+        return (
+            str(experiment)
+            .replace("  ", " ")
+            .replace("  ", " ")
+            .strip()
+            .replace(" ", "-")
+            .replace("_", "-")
+            .replace("--", "-")
+            .replace("--", "-")
             .lower()
+        )
 
     def dict(self, *args, exclude: Optional[Any] = None, **kwargs) -> Dict:
         exclude: Set[str] = as_set(get_default(exclude, [])).union(as_set(self.dict_exclude))
         dict: Dict = super(Tracker, self).dict(*args, exclude=exclude, **kwargs)
-        dict['tracker'] = self.tracker_name
+        dict["tracker"] = self.tracker_name
         return dict
 
     def log(self, *data, level: int, silent: Optional[bool] = None, **kwargs):
@@ -167,12 +206,12 @@ class Tracker(MutableParameters, Registry, ABC):
         pass
 
     def _log_at_level(
-            self,
-            *data,
-            sysout_fn: Optional[Callable],
-            tracker_fn: Optional[Callable],
-            silent: Optional[bool] = None,
-            **kwargs,
+        self,
+        *data,
+        sysout_fn: Optional[Callable],
+        tracker_fn: Optional[Callable],
+        silent: Optional[bool] = None,
+        **kwargs,
     ):
         ## Log to sysout:
         if (sysout_fn is not None) and (self.silent is not True) and (silent is not True):
@@ -185,14 +224,14 @@ class Tracker(MutableParameters, Registry, ABC):
     def _to_tracker_str(cls, *data, level: int, prefix: Optional[str] = None, **kwargs):
         if prefix is None:
             prefix: str = {
-                logging.FATAL: '[FATAL] ',
-                logging.ERROR: '[ERROR] ',
-                logging.WARNING: '[ERROR] ',
-                logging.WARN: '[WARN] ',
-                logging.INFO: '',
-                logging.DEBUG: '[DEBUG] ',
+                logging.FATAL: "[FATAL] ",
+                logging.ERROR: "[ERROR] ",
+                logging.WARNING: "[ERROR] ",
+                logging.WARN: "[WARN] ",
+                logging.INFO: "",
+                logging.DEBUG: "[DEBUG] ",
             }[level]
-        data_str: str = prefix + ' '.join([Log.to_log_str(x) for x in data])
+        data_str: str = prefix + " ".join([Log.to_log_str(x) for x in data])
         return data_str
 
     @abstractmethod
@@ -205,22 +244,23 @@ class Tracker(MutableParameters, Registry, ABC):
 
     @classmethod
     def noop_tracker(cls) -> Tracker:
-        return cls.of(tracker='noop')
+        return cls.of(tracker="noop")
 
 
 class NoopTracker(Tracker):
     """Tracker which does nothing."""
-    aliases = ['noop']
 
-    tracker_name = 'noop'
+    aliases = ["noop"]
+
+    tracker_name = "noop"
 
     def initialize(self, init_msg: bool = False, **kwargs):
         if init_msg:
-            self.info(f'Created sysout logger at: {String.now()}')
+            self.info(f"Created sysout logger at: {String.now()}")
 
     @property
     def id(self) -> str:
-        return 'None'
+        return "None"
 
     @property
     def log_dir(self) -> Optional[str]:

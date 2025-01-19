@@ -4,19 +4,19 @@ import numpy as np
 import pandas as pd
 
 from ._alias import Alias
-from ._structs import is_set_like, is_dict_like
 from ._math import is_int_in_floats_clothing
 from ._pbar import ProgressBar
+from ._structs import is_dict_like, is_set_like
 
 
 def irange(low: Union[float, int], high: Union[float, int], step: Union[float, int] = 1):
     """Inclusive range, useful for coding up math notation."""
     if not (isinstance(low, int) or (isinstance(low, float) and low.is_integer())):
-        raise ValueError(f'low={low} is not a valid integer.')
+        raise ValueError(f"low={low} is not a valid integer.")
     if not (isinstance(high, int) or (isinstance(high, float) and high.is_integer())):
-        raise ValueError(f'high={high} is not a valid integer.')
+        raise ValueError(f"high={high} is not a valid integer.")
     if not (isinstance(step, int) or (isinstance(step, float) and step.is_integer())):
-        raise ValueError(f'step={step} is not a valid integer.')
+        raise ValueError(f"step={step} is not a valid integer.")
     return range(int(low), int(high) + 1, int(step))
 
 
@@ -24,7 +24,8 @@ def frange(low: float, high: float, step: float, *, limits: bool = True) -> List
     """Inclusive range, useful for coding up math notation."""
     assert isinstance(low, (int, float)) and isinstance(high, (int, float)) and isinstance(step, (int, float))
     out: List[float] = [
-        x for x in [round(float(x) / step, 0) * step for x in np.arange(low, high + step, step)]
+        x
+        for x in [round(float(x) / step, 0) * step for x in np.arange(low, high + step, step)]
         if low <= x <= high
     ]
     if limits:
@@ -33,23 +34,22 @@ def frange(low: float, high: float, step: float, *, limits: bool = True) -> List
 
 
 def is_valid_idx(
-        l: Union[List, Tuple, np.ndarray, pd.Series, pd.DataFrame],
-        idx: int,
-        *,
-        raise_error: bool = True,
+    l: Union[List, Tuple, np.ndarray, pd.Series, pd.DataFrame],
+    idx: int,
+    *,
+    raise_error: bool = True,
 ) -> bool:
     assert isinstance(l, (list, tuple, np.ndarray, pd.Series, pd.DataFrame))
-    assert idx >= 0, f'Can only check validity of non-negative indexes'
+    assert idx >= 0, "Can only check validity of non-negative indexes"
     if len(l) == 0:
         if raise_error:
-            raise ValueError(f'Cannot check validity of index for empty {str(type(l))}')
+            raise ValueError(f"Cannot check validity of index for empty {str(type(l))}")
         return False  ## No index is valid
     return idx in range(0, len(l))
 
+
 def iter_batches(
-        struct: Union[List, Tuple, Set, Dict, np.ndarray, pd.Series, pd.DataFrame, int],
-        batch_size: int,
-        **kwargs
+    struct: Union[List, Tuple, Set, Dict, np.ndarray, pd.Series, pd.DataFrame, int], batch_size: int, **kwargs
 ) -> Generator[List[Any], None, None]:
     assert isinstance(batch_size, int) and batch_size > 0
     progress_bar: Optional[Dict] = Alias.get_progress_bar(kwargs)
@@ -67,9 +67,9 @@ def iter_batches(
         progress_bar,
         total=struct_len,
         initial=0,
-        desc='Iterating',
+        desc="Iterating",
         prefer_kwargs=False,
-        unit='item',
+        unit="item",
     )
     try:
         if struct_type is not None:
@@ -90,9 +90,9 @@ def iter_batches(
         else:
             for i in range(0, struct_len, batch_size):
                 if isinstance(struct, (pd.Series, pd.DataFrame)):
-                    out = struct.iloc[i: min(i + batch_size, struct_len)]
+                    out = struct.iloc[i : min(i + batch_size, struct_len)]
                 else:
-                    out = struct[i: min(i + batch_size, struct_len)]
+                    out = struct[i : min(i + batch_size, struct_len)]
                 yield out
                 pbar.update(len(out))
         pbar.success()

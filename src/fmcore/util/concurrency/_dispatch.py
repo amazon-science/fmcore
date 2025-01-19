@@ -39,11 +39,13 @@ from ._utils import (
 )
 
 
-def worker_ids(executor: Optional[Union[ThreadPoolExecutor, ProcessPoolExecutor, ActorPoolExecutor]]) -> Set[int]:
+def worker_ids(
+    executor: Optional[Union[ThreadPoolExecutor, ProcessPoolExecutor, ActorPoolExecutor]],
+) -> Set[int]:
     ## Returns a set of unique identifiers for all workers in the given executor
     ## Input: executor - any supported pool executor (Thread, Process, or Actor)
     ## Output: Set of thread IDs or process IDs depending on executor type
-    
+
     if isinstance(executor, ThreadPoolExecutor):
         ## For thread pools, return set of thread identifiers
         return {th.ident for th in executor._threads}
@@ -53,9 +55,9 @@ def worker_ids(executor: Optional[Union[ThreadPoolExecutor, ProcessPoolExecutor,
     elif isinstance(executor, ActorPoolExecutor):
         ## For actor pools, return set of actor process IDs
         return {_actor._process.pid for _actor in executor._actors}
-    
+
     ## Raise error if executor type is not supported
-    raise NotImplementedError(f'Cannot get worker ids for executor of type: {executor}')
+    raise NotImplementedError(f"Cannot get worker ids for executor of type: {executor}")
 
 
 class ExecutorConfig(Parameters):
@@ -75,19 +77,20 @@ class ExecutorConfig(Parameters):
                 max_calls_per_second=100.0
             )
         >>> executor = dispatch_executor(config=config)
-        
+
         # Using with num_workers alias
         >>> config = ExecutorConfig(
                 parallelize='processes',
                 num_workers=8  # alias for max_workers
             )
     """
+
     class Config(Parameters.Config):
         extra = Extra.ignore  ## Silently ignore any extra parameters for flexibility
 
     parallelize: Parallelize
     max_workers: Optional[int] = None  ## None lets the executor use system-appropriate defaults
-    max_calls_per_second: float = float('inf')  ## No rate limiting by default
+    max_calls_per_second: float = float("inf")  ## No rate limiting by default
 
     @root_validator(pre=True)
     def _set_params(cls, params: Dict) -> Dict:
@@ -95,22 +98,22 @@ class ExecutorConfig(Parameters):
         Pre-processes configuration parameters to support alternate parameter names.
         Allows 'num_workers' as an alias for 'max_workers' for compatibility.
         """
-        set_param_from_alias(params, param='max_workers', alias=['num_workers'], default=None)
+        set_param_from_alias(params, param="max_workers", alias=["num_workers"], default=None)
         return params
 
 
 def dispatch(
-        fn: Callable,
-        *args,
-        parallelize: Parallelize,
-        forward_parallelize: bool = False,
-        delay: float = 0.0,
-        executor: Optional[Executor] = None,
-        **kwargs
+    fn: Callable,
+    *args,
+    parallelize: Parallelize,
+    forward_parallelize: bool = False,
+    delay: float = 0.0,
+    executor: Optional[Executor] = None,
+    **kwargs,
 ) -> Any:
     parallelize: Parallelize = Parallelize.from_str(parallelize)
     if forward_parallelize:
-        kwargs['parallelize'] = parallelize
+        kwargs["parallelize"] = parallelize
     time.sleep(delay)
     if parallelize is Parallelize.sync:
         return fn(*args, **kwargs)
@@ -122,18 +125,16 @@ def dispatch(
         return run_parallel(fn, *args, executor=executor, **kwargs)
     elif parallelize is Parallelize.ray:
         return run_parallel_ray(fn, *args, executor=executor, **kwargs)
-    raise NotImplementedError(f'Unsupported parallelization: {parallelize}')
+    raise NotImplementedError(f"Unsupported parallelization: {parallelize}")
 
 
 def dispatch_executor(
-        *,
-        config: Optional[Union[ExecutorConfig, Dict]] = None,
-        **kwargs
+    *, config: Optional[Union[ExecutorConfig, Dict]] = None, **kwargs
 ) -> Optional[Executor]:
     """
     Creates and configures an executor based on the provided configuration settings.
     Returns None for synchronous execution or when using default system executors.
-    
+
     The executor handles parallel task execution with configurable constraints like
     maximum workers and rate limiting for thread-based execution.
 
@@ -151,7 +152,7 @@ def dispatch_executor(
                 max_calls_per_second=100.0
             )
         >>> executor = dispatch_executor(config=config)
-        
+
         >>> executor = dispatch_executor(
                 config=dict(parallelize='processes', max_workers=8)
             )
@@ -161,7 +162,7 @@ def dispatch_executor(
     else:
         assert isinstance(config, ExecutorConfig)
         config: Dict = config.dict(exclude=True)
-    
+
     ## Merge passed kwargs with config dict to allow parameter overrides
     config: ExecutorConfig = ExecutorConfig(**{**config, **kwargs})
 
@@ -188,19 +189,21 @@ def dispatch_executor(
             max_workers=config.max_workers,
         )
     else:
-        raise NotImplementedError(f'Unsupported: you cannot create an executor with {config.parallelize} parallelization.')
+        raise NotImplementedError(
+            f"Unsupported: you cannot create an executor with {config.parallelize} parallelization."
+        )
 
 
 def dispatch_apply(
-        struct: Union[List, Tuple, np.ndarray, PandasSeries, Set, frozenset, Dict],
-        *args,
-        fn: Callable,
-        parallelize: Parallelize,
-        forward_parallelize: bool = False,
-        item_wait: Optional[float] = None,
-        iter_wait: Optional[float] = None,
-        iter: bool = False,
-        **kwargs
+    struct: Union[List, Tuple, np.ndarray, PandasSeries, Set, frozenset, Dict],
+    *args,
+    fn: Callable,
+    parallelize: Parallelize,
+    forward_parallelize: bool = False,
+    item_wait: Optional[float] = None,
+    iter_wait: Optional[float] = None,
+    iter: bool = False,
+    **kwargs,
 ) -> Any:
     """
     Applies a function to each element in a data structure in parallel using the specified execution strategy.
@@ -228,11 +231,11 @@ def dispatch_apply(
         >>> data = [1, 2, 3, 4, 5]
         >>> def square(x):
                 return x * x
-        
+
         >>> ## Process items in parallel using threads
         >>> results = dispatch_apply(
                 data,
-                fn=square, 
+                fn=square,
                 parallelize='threads',
                 max_workers=4
             )
@@ -261,7 +264,7 @@ def dispatch_apply(
             Parallelize.threads: _LOCAL_ACCUMULATE_ITEM_WAIT,
             Parallelize.asyncio: 0.0,
             Parallelize.sync: 0.0,
-        }[parallelize]
+        }[parallelize],
     )
     iter_wait: float = get_default(
         iter_wait,
@@ -271,12 +274,12 @@ def dispatch_apply(
             Parallelize.threads: _LOCAL_ACCUMULATE_ITER_WAIT,
             Parallelize.asyncio: 0.0,
             Parallelize.sync: 0.0,
-        }[parallelize]
+        }[parallelize],
     )
 
     ## Forward parallelization strategy to child function if requested:
     if forward_parallelize:
-        kwargs['parallelize'] = parallelize
+        kwargs["parallelize"] = parallelize
 
     ## Create appropriate executor based on parallelization strategy:
     executor: Optional = dispatch_executor(
@@ -291,16 +294,16 @@ def dispatch_apply(
         submit_pbar: ProgressBar = ProgressBar.of(
             progress_bar,
             total=len(struct),
-            desc='Submitting',
+            desc="Submitting",
             prefer_kwargs=False,
-            unit='item',
+            unit="item",
         )
         collect_pbar: ProgressBar = ProgressBar.of(
             progress_bar,
             total=len(struct),
-            desc='Collecting',
+            desc="Collecting",
             prefer_kwargs=False,
-            unit='item',
+            unit="item",
         )
 
         ## Handle list-like structures (lists, tuples, sets, arrays):
@@ -328,6 +331,7 @@ def dispatch_apply(
         elif is_dict_like(struct):
             futs = {}
             for k, v in struct.items():
+
                 def submit_task(item, **dispatch_kwargs):
                     return fn(item, **dispatch_kwargs)
 
@@ -343,26 +347,18 @@ def dispatch_apply(
                 )
                 submit_pbar.update(1)
         else:
-            raise NotImplementedError(f'Unsupported type: {type_str(struct)}')
+            raise NotImplementedError(f"Unsupported type: {type_str(struct)}")
 
         submit_pbar.success()
 
         ## Return results either as iterator or all-at-once (afer accumulating all futures):
         if iter:
             return accumulate_iter(
-                futs,
-                item_wait=item_wait,
-                iter_wait=iter_wait,
-                progress_bar=collect_pbar,
-                **kwargs
+                futs, item_wait=item_wait, iter_wait=iter_wait, progress_bar=collect_pbar, **kwargs
             )
         else:
             return accumulate(
-                futs,
-                item_wait=item_wait,
-                iter_wait=iter_wait,
-                progress_bar=collect_pbar,
-                **kwargs
+                futs, item_wait=item_wait, iter_wait=iter_wait, progress_bar=collect_pbar, **kwargs
             )
     finally:
         ## Ensure executor is properly cleaned up even if processing fails:
@@ -370,8 +366,8 @@ def dispatch_apply(
 
 
 def stop_executor(
-        executor: Optional[Executor],
-        force: bool = True,  ## Forcefully terminate, might lead to work being lost.
+    executor: Optional[Executor],
+    force: bool = True,  ## Forcefully terminate, might lead to work being lost.
 ):
     if executor is not None:
         if isinstance(executor, ThreadPoolExecutor):

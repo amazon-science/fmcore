@@ -1,24 +1,43 @@
 from abc import ABC
-from typing import *
-import pandas as pd
 from copy import deepcopy
-from fmcore.util import Registry, as_list, Schema, SchemaTemplate, equal, safe_validate_arguments, get_default, \
-    String, accumulate, run_concurrent, any_are_none, remove_keys, String
-from fmcore.data.FileMetadata import FileMetadata
-from fmcore.data.sdf import ScalableDataFrame, ScalableSeries, ScalableSeriesOrRaw, ScalableOrRaw, is_scalable
-from fmcore.constants import MLTypeSchema, DataLayout, TaskOrStr, Task, DataSplit, FILE_FORMAT_TO_FILE_ENDING_MAP, \
-    FileFormat
-from fmcore.framework.mixins import InputOutputDataMixin, SchemaValidationError
-from fmcore.framework.task_data import Dataset
+from typing import *
+
+import pandas as pd
 from pydantic import root_validator
 from pydantic.typing import Literal
 
+from fmcore.constants import (
+    FILE_FORMAT_TO_FILE_ENDING_MAP,
+    DataLayout,
+    DataSplit,
+    FileFormat,
+    MLTypeSchema,
+    TaskOrStr,
+)
+from fmcore.data.FileMetadata import FileMetadata
+from fmcore.data.sdf import ScalableDataFrame, ScalableOrRaw, ScalableSeries, ScalableSeriesOrRaw, is_scalable
+from fmcore.framework.mixins import InputOutputDataMixin, SchemaValidationError
+from fmcore.framework.task_data import Dataset
+from fmcore.util import (
+    Registry,
+    Schema,
+    SchemaTemplate,
+    String,
+    accumulate,
+    any_are_none,
+    as_list,
+    get_default,
+    remove_keys,
+    run_concurrent,
+    safe_validate_arguments,
+)
+
 Predictions = "Predictions"
 Visualization = "Visualization"
-PredictionsSubclass = TypeVar('PredictionsSubclass', bound=Predictions)
+PredictionsSubclass = TypeVar("PredictionsSubclass", bound=Predictions)
 
-PREDICTIONS_PARAMS_SAVE_FILE_NAME: str = 'predictions-metadata'
-PREDICTIONS_PARAMS_SAVE_FILE_ENDING: str = '.predictions-params.json'
+PREDICTIONS_PARAMS_SAVE_FILE_NAME: str = "predictions-metadata"
+PREDICTIONS_PARAMS_SAVE_FILE_ENDING: str = ".predictions-params.json"
 
 
 class Predictions(InputOutputDataMixin, Registry, ABC):
@@ -42,7 +61,7 @@ class Predictions(InputOutputDataMixin, Registry, ABC):
 
     @root_validator(pre=True)
     def _set_predictions_params(cls, params: Dict) -> Dict:
-        params['data_schema']: Schema = Schema.of(params['data_schema'], schema_template=cls.schema_template)
+        params["data_schema"]: Schema = Schema.of(params["data_schema"], schema_template=cls.schema_template)
         # data_schema: Union[Schema, MLTypeSchema] = params['data_schema']
         # if isinstance(data_schema, dict):
         #     ## We need to infer the schema:
@@ -90,13 +109,13 @@ class Predictions(InputOutputDataMixin, Registry, ABC):
 
     @classmethod
     def of(
-            cls,
-            data: Union[PredictionsSubclass, ScalableDataFrame, ScalableOrRaw, FileMetadata, Dict, str],
-            **kwargs,
+        cls,
+        data: Union[PredictionsSubclass, ScalableDataFrame, ScalableOrRaw, FileMetadata, Dict, str],
+        **kwargs,
     ) -> PredictionsSubclass:
         if isinstance(data, Predictions):
             return data
-        if isinstance(data, dict) and 'data' in data:
+        if isinstance(data, dict) and "data" in data:
             return cls.of(**{**data, **kwargs})
         return cls._of(data=data, IOMixinBaseSubclass=Predictions, **kwargs)
 
@@ -104,31 +123,35 @@ class Predictions(InputOutputDataMixin, Registry, ABC):
     @safe_validate_arguments
     def validate_schema(cls, data_schema: Schema):
         if data_schema.has_predictions is False:
-            raise SchemaValidationError(f'Cannot have empty predictions schema in instance of class "{cls.class_name}"')
+            raise SchemaValidationError(
+                f'Cannot have empty predictions schema in instance of class "{cls.class_name}"'
+            )
         inferred_schema: Schema = cls.schema_template.infer_from_columns(
             data_schema.columns_set,
             index_col=data_schema.index_col,
             has_predictions=True,
         )
-        if data_schema.index_col != inferred_schema.index_col or \
-                data_schema.predictions_schema != inferred_schema.predictions_schema:
+        if (
+            data_schema.index_col != inferred_schema.index_col
+            or data_schema.predictions_schema != inferred_schema.predictions_schema
+        ):
             raise SchemaValidationError(
-                f'Passed and inferred data schemas are different:\n'
-                f'Passed:\n{data_schema}\n'
-                f'Inferred:\n{inferred_schema}'
+                f"Passed and inferred data schemas are different:\n"
+                f"Passed:\n{data_schema}\n"
+                f"Inferred:\n{inferred_schema}"
             )
 
     @classmethod
     @safe_validate_arguments
     def from_task_data(
-            cls,
-            data: Dataset,
-            predictions: ScalableOrRaw,
-            layout: Optional[DataLayout] = None,
-            validated: bool = False,
-            drop_features: bool = False,
-            allow_non_unique_index: bool = False,
-            **kwargs
+        cls,
+        data: Dataset,
+        predictions: ScalableOrRaw,
+        layout: Optional[DataLayout] = None,
+        validated: bool = False,
+        drop_features: bool = False,
+        allow_non_unique_index: bool = False,
+        **kwargs,
     ) -> PredictionsSubclass:
         data.check_in_memory()
         input_sdf: ScalableDataFrame = data.data.to_frame(**kwargs)
@@ -139,8 +162,8 @@ class Predictions(InputOutputDataMixin, Registry, ABC):
         index_col_data: ScalableSeries = input_sdf[index_col]
         if allow_non_unique_index is False and index_col_data.nunique() != len(index_col_data):
             raise ValueError(
-                f'Index column must be unique while calling {cls.class_name}.from_task_data(...); '
-                f'found index with {len(index_col_data)} elements but only {index_col_data.nunique()} unique values.'
+                f"Index column must be unique while calling {cls.class_name}.from_task_data(...); "
+                f"found index with {len(index_col_data)} elements but only {index_col_data.nunique()} unique values."
             )
         predictions: ScalableDataFrame = cls._create_predictions(
             predictions,
@@ -159,10 +182,10 @@ class Predictions(InputOutputDataMixin, Registry, ABC):
         )
         if inferred_pred_schema.columns_set < set(pred_cols):
             raise ValueError(
-                f'Could not infer how predictions dataframe columns map to MLTypes:\n'
-                f'Predictions columns: {pred_cols}\n'
-                f'Inferred MLTypes for predictions columns: {inferred_pred_schema.predictions_schema}\n'
-                f'All inferred MLTypes: {inferred_pred_schema}'
+                f"Could not infer how predictions dataframe columns map to MLTypes:\n"
+                f"Predictions columns: {pred_cols}\n"
+                f"Inferred MLTypes for predictions columns: {inferred_pred_schema.predictions_schema}\n"
+                f"All inferred MLTypes: {inferred_pred_schema}"
             )
         predictions_schema: MLTypeSchema = inferred_pred_schema.predictions_schema
 
@@ -174,7 +197,7 @@ class Predictions(InputOutputDataMixin, Registry, ABC):
                 right_on=index_col,
             ),
             layout=layout,
-            **kwargs
+            **kwargs,
         )
 
         merged_data_schema: Schema = data.data_schema.set_predictions(predictions_schema)
@@ -182,10 +205,10 @@ class Predictions(InputOutputDataMixin, Registry, ABC):
             remaining_columns: Set = merged_sdf.columns_set - set(merged_data_schema.features_schema.keys())
             merged_sdf: ScalableDataFrame = merged_sdf[sorted(list(remaining_columns))]
             merged_data_schema: Schema = merged_data_schema.drop_features()
-        kwargs.pop('task', None)
-        kwargs.pop('data_schema', None)
-        kwargs['data_split'] = get_default(
-            kwargs.get('data_split', None),
+        kwargs.pop("task", None)
+        kwargs.pop("data_schema", None)
+        kwargs["data_split"] = get_default(
+            kwargs.get("data_split", None),
             data.data_split,
             DataSplit.PREDICT,
         )
@@ -196,43 +219,42 @@ class Predictions(InputOutputDataMixin, Registry, ABC):
             data_position=data.data_position,
             data_schema=merged_data_schema,
             validated=validated,
-            **kwargs
+            **kwargs,
         )
 
     @classmethod
     @safe_validate_arguments
     def from_dataframe(
-            cls,
-            data: ScalableOrRaw,
-            data_schema: Optional[Union[Schema, MLTypeSchema]] = None,
-            validated: bool = False,
-            layout: Optional[DataLayout] = None,
-            **kwargs
+        cls,
+        data: ScalableOrRaw,
+        data_schema: Optional[Union[Schema, MLTypeSchema]] = None,
+        validated: bool = False,
+        layout: Optional[DataLayout] = None,
+        **kwargs,
     ) -> PredictionsSubclass:
         data: ScalableDataFrame = ScalableDataFrame.of(data, layout=layout, **kwargs)
         if data_schema is None:
-            data_schema: Schema = cls.schema_template.infer_from_columns(data.columns_set, has_predictions=True)
+            data_schema: Schema = cls.schema_template.infer_from_columns(
+                data.columns_set, has_predictions=True
+            )
         else:
-            data_schema: Schema = Schema.of(data_schema, schema_template=cls.schema_template, has_predictions=True)
-        return cls(
-            data=data,
-            data_schema=data_schema,
-            validated=validated,
-            **kwargs
-        )
+            data_schema: Schema = Schema.of(
+                data_schema, schema_template=cls.schema_template, has_predictions=True
+            )
+        return cls(data=data, data_schema=data_schema, validated=validated, **kwargs)
 
     @classmethod
     @safe_validate_arguments
     def from_parts(
-            cls,
-            index_col: str,
-            index: ScalableSeriesOrRaw,
-            predictions: ScalableOrRaw,
-            features: Optional[ScalableOrRaw] = None,
-            ground_truths: Optional[ScalableOrRaw] = None,
-            layout: Optional[DataLayout] = None,
-            validated: bool = False,
-            **kwargs
+        cls,
+        index_col: str,
+        index: ScalableSeriesOrRaw,
+        predictions: ScalableOrRaw,
+        features: Optional[ScalableOrRaw] = None,
+        ground_truths: Optional[ScalableOrRaw] = None,
+        layout: Optional[DataLayout] = None,
+        validated: bool = False,
+        **kwargs,
     ) -> PredictionsSubclass:
         """
         Initializes Predictions instance that has data and data_schema
@@ -250,33 +272,19 @@ class Predictions(InputOutputDataMixin, Registry, ABC):
         """
         ## TODO: remove the conversion to Pandas after supporting ScalableDataFrame.merge_multi
         index: ScalableSeries = cls._create_index(index, name=index_col, layout=layout, **kwargs)
-        sdfs_to_merge: List[ScalableDataFrame] = [
-            index.to_frame().as_layout(DataLayout.PANDAS)
-        ]
+        sdfs_to_merge: List[ScalableDataFrame] = [index.to_frame().as_layout(DataLayout.PANDAS)]
         predictions: ScalableDataFrame = cls._create_predictions(
-            predictions,
-            index=index,
-            index_col=index_col,
-            layout=layout,
-            **kwargs
+            predictions, index=index, index_col=index_col, layout=layout, **kwargs
         )
         sdfs_to_merge.append(predictions)
         if features is not None:
             features: ScalableDataFrame = cls._create_features(
-                features,
-                index=index,
-                index_col=index_col,
-                layout=layout,
-                **kwargs
+                features, index=index, index_col=index_col, layout=layout, **kwargs
             )
             sdfs_to_merge.append(features)
         if ground_truths is not None:
             ground_truths: ScalableDataFrame = cls._create_ground_truths(
-                ground_truths,
-                index=index,
-                index_col=index_col,
-                layout=layout,
-                **kwargs
+                ground_truths, index=index, index_col=index_col, layout=layout, **kwargs
             )
             sdfs_to_merge.append(ground_truths)
         ## TODO: remove conversion to Pandas after supporting ScalableDataFrame.merge_multi
@@ -289,32 +297,27 @@ class Predictions(InputOutputDataMixin, Registry, ABC):
             merged_cols,
             index_col=index_col,
         )
-        return cls(
-            data=merged_sdf,
-            data_schema=merged_data_schema,
-            validated=validated,
-            **kwargs
-        )
+        return cls(data=merged_sdf, data_schema=merged_data_schema, validated=validated, **kwargs)
 
     @classmethod
     def _create_predictions(
-            cls,
-            predictions: ScalableOrRaw,
-            index: ScalableSeries,
-            index_col: str,
-            layout: DataLayout,
-            **kwargs,
+        cls,
+        predictions: ScalableOrRaw,
+        index: ScalableSeries,
+        index_col: str,
+        layout: DataLayout,
+        **kwargs,
     ) -> ScalableDataFrame:
         if not is_scalable(predictions):
             if ScalableDataFrame.detect_layout(predictions, raise_error=False) is None:
                 raise ValueError(
-                    f'Cannot detect columns for predictions of type {type(predictions)}; '
-                    f'please ensure you set column names for predictions in '
-                    f'the .predict_step(...) function.\n'
-                    f'If you have a list of predicted values/objects, an easy fix is to return a dict '
-                    f'with a single column, named according to the SchemaTemplate: {cls.schema_template}.\n'
-                    f'E.g. if are predicting a list of regression scores, then '
-                    f'.predict_step(...) should return a dict like this:\n'
+                    f"Cannot detect columns for predictions of type {type(predictions)}; "
+                    f"please ensure you set column names for predictions in "
+                    f"the .predict_step(...) function.\n"
+                    f"If you have a list of predicted values/objects, an easy fix is to return a dict "
+                    f"with a single column, named according to the SchemaTemplate: {cls.schema_template}.\n"
+                    f"E.g. if are predicting a list of regression scores, then "
+                    f".predict_step(...) should return a dict like this:\n"
                     '{"predicted_score": [123.1, 64.2, 420.69, ...]}'
                 )
         predictions: ScalableDataFrame = ScalableDataFrame.of(predictions, layout=layout, **kwargs)
@@ -370,9 +373,9 @@ class Predictions(InputOutputDataMixin, Registry, ABC):
 
     @classmethod
     def concat(
-            cls,
-            data_list: Optional[Union[List[PredictionsSubclass], PredictionsSubclass]],
-            **kwargs,
+        cls,
+        data_list: Optional[Union[List[PredictionsSubclass], PredictionsSubclass]],
+        **kwargs,
     ) -> Optional[PredictionsSubclass]:
         return cls._concat(io_data_list=data_list, IOMixinBaseSubclass=Predictions, **kwargs)
 
@@ -382,26 +385,27 @@ class Predictions(InputOutputDataMixin, Registry, ABC):
 
     @safe_validate_arguments
     def visualize(
-            self,
-            name: Optional[str] = None,
-            **kwargs,
+        self,
+        name: Optional[str] = None,
+        **kwargs,
     ) -> Visualization:
         from fmcore.framework.visualize import Visualization
+
         ## Should show an interactive plot.
         return Visualization.plot(data=self, name=name, **kwargs)
 
     @safe_validate_arguments
     def as_task_data(
-            self,
-            task: Optional[TaskOrStr] = None,
-            deep: bool = False,
-            schema_action: Literal['drop_predictions', 'predictions_to_features'] = 'drop_predictions',
+        self,
+        task: Optional[TaskOrStr] = None,
+        deep: bool = False,
+        schema_action: Literal["drop_predictions", "predictions_to_features"] = "drop_predictions",
     ) -> Dataset:
         task: Optional[TaskOrStr] = get_default(task, self.task)
         data_schema: Schema = deepcopy(self.data_schema)
-        if schema_action == 'drop_predictions':
+        if schema_action == "drop_predictions":
             data_schema: Schema = data_schema.drop_predictions()
-        elif schema_action == 'predictions_to_features':
+        elif schema_action == "predictions_to_features":
             data_schema: Schema = data_schema.predictions_to_features()
         return Dataset.of(
             data_split=self.data_split,
@@ -413,16 +417,17 @@ class Predictions(InputOutputDataMixin, Registry, ABC):
 
 
 def load_predictions(
-        predictions_source: Optional[Union[FileMetadata, str]],
-        file_ending: Optional[str] = None,
-        *,
-        task: Optional[TaskOrStr] = None,
-        **kwargs
+    predictions_source: Optional[Union[FileMetadata, str]],
+    file_ending: Optional[str] = None,
+    *,
+    task: Optional[TaskOrStr] = None,
+    **kwargs,
 ) -> Optional[PredictionsSubclass]:
     if predictions_source is None:
         return
     ## Don't want to mistake with similar params used for prediction:
     from fmcore.data.reader import DataFrameReader, JsonReader
+
     predictions_source: FileMetadata = FileMetadata.of(predictions_source)
     reader: DataFrameReader = DataFrameReader.of(
         predictions_source.format,
@@ -430,10 +435,7 @@ def load_predictions(
     )
     json_reader: JsonReader = JsonReader()
     if not predictions_source.is_path_valid_dir():
-        data: ScalableDataFrame = reader.read_metadata(
-            file=predictions_source,
-            **kwargs
-        )
+        data: ScalableDataFrame = reader.read_metadata(file=predictions_source, **kwargs)
         file_endings: List[str] = as_list(FILE_FORMAT_TO_FILE_ENDING_MAP[predictions_source.format])
         if file_ending is None:
             for file_ending in file_endings:
@@ -445,58 +447,59 @@ def load_predictions(
         if file_ending is None:
             raise ValueError(f'Cannot detect file ending from path: "{predictions_source.path}"')
         predictions_params_file: FileMetadata = FileMetadata.of(
-            String.remove_suffix(
-                predictions_source.path,
-                suffix=file_ending
-            ) + PREDICTIONS_PARAMS_SAVE_FILE_ENDING,
+            String.remove_suffix(predictions_source.path, suffix=file_ending)
+            + PREDICTIONS_PARAMS_SAVE_FILE_ENDING,
             format=FileFormat.JSON,
         )
         predictions_params: Dict = json_reader.read_metadata(predictions_params_file)
-        task: TaskOrStr = get_default(task, predictions_params.get('task'))
-        return Predictions.of(**{
-            **predictions_params,
-            **dict(
-                task=task,
-                data=data,
-            ),
-        })
+        task: TaskOrStr = get_default(task, predictions_params.get("task"))
+        return Predictions.of(
+            **{
+                **predictions_params,
+                **dict(
+                    task=task,
+                    data=data,
+                ),
+            }
+        )
     else:
         ## There should be at least one .predictions-params.json file
         predictions_params_fpaths: List[str] = predictions_source.list(
-            file_glob=f'*{PREDICTIONS_PARAMS_SAVE_FILE_ENDING}'
+            file_glob=f"*{PREDICTIONS_PARAMS_SAVE_FILE_ENDING}"
         )
         if len(predictions_params_fpaths) == 0:
             raise ValueError(
                 f'No file ending in "{PREDICTIONS_PARAMS_SAVE_FILE_ENDING}" was found in "{predictions_source.path}"; '
-                f'this file is required to create a {Predictions.class_name} object; please check the directory is '
-                f'correct.'
+                f"this file is required to create a {Predictions.class_name} object; please check the directory is "
+                f"correct."
             )
         if len(predictions_params_fpaths) > 1:
             ## Ensure all are the same:
-            predictions_params_list: List[Dict] = accumulate([
-                run_concurrent(
-                    json_reader.read_metadata,
-                    FileMetadata.of(
-                        predictions_params_fpath,
-                        format=FileFormat.JSON,
+            predictions_params_list: List[Dict] = accumulate(
+                [
+                    run_concurrent(
+                        json_reader.read_metadata,
+                        FileMetadata.of(
+                            predictions_params_fpath,
+                            format=FileFormat.JSON,
+                        ),
                     )
-                )
-                for predictions_params_fpath in predictions_params_fpaths
-            ])
+                    for predictions_params_fpath in predictions_params_fpaths
+                ]
+            )
             predictions_params_list: List[Dict] = [
-                remove_keys(predictions_params_d, ['data_idx', 'data_position', 'validated'])
+                remove_keys(predictions_params_d, ["data_idx", "data_position", "validated"])
                 for predictions_params_d in predictions_params_list
             ]
-            predictions_params_set: Set[str] = set([
-                String.stringify(predictions_params_d)
-                for predictions_params_d in predictions_params_list
-            ])
+            predictions_params_set: Set[str] = set(
+                [String.stringify(predictions_params_d) for predictions_params_d in predictions_params_list]
+            )
             if len(predictions_params_set) > 1:
                 raise ValueError(
                     f'Found {len(predictions_params_fpaths)} files ending with "{PREDICTIONS_PARAMS_SAVE_FILE_ENDING}" '
                     f'in directory "{predictions_source.path}", however these files have different parameters and thus '
-                    f'the predictions cannot be merged. Different parameters found:'
-                    f'\n{predictions_params_set}'
+                    f"the predictions cannot be merged. Different parameters found:"
+                    f"\n{predictions_params_set}"
                 )
         predictions_params_file: FileMetadata = FileMetadata.of(
             predictions_params_fpaths[0],
@@ -506,18 +509,16 @@ def load_predictions(
         file_endings: List[str] = as_list(FILE_FORMAT_TO_FILE_ENDING_MAP[predictions_source.format])
         if file_ending is None:
             for file_ending in file_endings:
-                if len(predictions_source.list(file_glob=f'*{file_ending}')) > 0:
+                if len(predictions_source.list(file_glob=f"*{file_ending}")) > 0:
                     break
                 file_ending: Optional[str] = None
         if file_ending is None:
             raise ValueError(
-                f'No files ending with {String.join_human(file_endings, final_join="or")} '
+                f"No files ending with {String.join_human(file_endings, final_join='or')} "
                 f'exist in directory: "{predictions_source.path}"'
             )
         data: ScalableDataFrame = reader.read_metadata(
-            predictions_source,
-            file_glob=f'*{file_ending}',
-            **kwargs
+            predictions_source, file_glob=f"*{file_ending}", **kwargs
         )
         return Predictions.of(
             **predictions_params,
@@ -526,11 +527,11 @@ def load_predictions(
 
 
 def save_predictions(
-        predictions: Optional[PredictionsSubclass],
-        predictions_destination: Optional[Union[FileMetadata, Dict, str]],
-        *,
-        overwrite: bool = True,
-        **kwargs
+    predictions: Optional[PredictionsSubclass],
+    predictions_destination: Optional[Union[FileMetadata, Dict, str]],
+    *,
+    overwrite: bool = True,
+    **kwargs,
 ) -> NoReturn:
     from fmcore.data.writer import DataFrameWriter, JsonWriter
 
@@ -552,7 +553,7 @@ def save_predictions(
         )
         predictions_params_file: FileMetadata = predictions_params_file.update_params(format=FileFormat.JSON)
     else:
-        kwargs['single_file']: bool = True  ## Passed to DataFrameWriter, writes a single file.
+        kwargs["single_file"]: bool = True  ## Passed to DataFrameWriter, writes a single file.
         file_endings: List[str] = as_list(FILE_FORMAT_TO_FILE_ENDING_MAP[predictions_destination.format])
         file_ending: Optional[str] = None
         for file_ending in file_endings:
@@ -564,24 +565,18 @@ def save_predictions(
         if file_ending is None:
             raise ValueError(f'Cannot detect file ending from path: "{predictions_destination.path}"')
         predictions_params_file: FileMetadata = FileMetadata.of(
-            String.remove_suffix(
-                predictions_destination.path,
-                suffix=file_ending
-            ) + PREDICTIONS_PARAMS_SAVE_FILE_ENDING,
+            String.remove_suffix(predictions_destination.path, suffix=file_ending)
+            + PREDICTIONS_PARAMS_SAVE_FILE_ENDING,
             format=FileFormat.JSON,
         )
 
-    writer.write_metadata(
-        file=predictions_destination,
-        data=predictions.data,
-        overwrite=overwrite,
-        **kwargs
-    )
+    writer.write_metadata(file=predictions_destination, data=predictions.data, overwrite=overwrite, **kwargs)
     json_writer.write_metadata(
         file=predictions_params_file,
-        data=predictions.dict(exclude={'data', 'data_idx', 'data_position', 'validated'}),
+        data=predictions.dict(exclude={"data", "data_idx", "data_position", "validated"}),
         overwrite=overwrite,
     )
+
 
 #
 # class PredictionsUtil:

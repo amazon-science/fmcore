@@ -1,18 +1,19 @@
-from typing import *
 from abc import ABC
-from fmcore.util import get_current_fn_name
-from fmcore.data.sdf import ScalableSeries, ScalableSeriesRawType
+from typing import *
+
+from fmcore.constants import DASK_APPLY_OUTPUT_MLTYPE_TO_META_MAP, DataLayout
 from fmcore.data.processor import DataProcessor
-from fmcore.constants import MLType, MLTypeSchema, DataLayout, DASK_APPLY_OUTPUT_MLTYPE_TO_META_MAP
+from fmcore.data.sdf import ScalableSeries, ScalableSeriesRawType
+from fmcore.util import get_current_fn_name
 
 
 class SingleColumnProcessor(DataProcessor, ABC):
     """Abstract base class for 1:1 data processors."""
 
     def fit(
-            self,
-            data: Union[ScalableSeries, ScalableSeriesRawType],
-            process_as: Optional[DataLayout] = None,
+        self,
+        data: Union[ScalableSeries, ScalableSeriesRawType],
+        process_as: Optional[DataLayout] = None,
     ):
         data: ScalableSeries = ScalableSeries.of(data, layout=process_as)
         self._fit_series(data)
@@ -25,9 +26,9 @@ class SingleColumnProcessor(DataProcessor, ABC):
         return self.transform(*args, **kwargs)
 
     def transform(
-            self,
-            data: Union[ScalableSeries, ScalableSeriesRawType],
-            process_as: Optional[DataLayout] = None,
+        self,
+        data: Union[ScalableSeries, ScalableSeriesRawType],
+        process_as: Optional[DataLayout] = None,
     ) -> Union[ScalableSeries, ScalableSeriesRawType]:
         output_data: ScalableSeries = self._transform_series(ScalableSeries.of(data, layout=process_as))
         if isinstance(data, ScalableSeries):
@@ -39,7 +40,7 @@ class SingleColumnProcessor(DataProcessor, ABC):
         kwargs = {}
         if data.layout is DataLayout.DASK:
             if self.output_mltype in DASK_APPLY_OUTPUT_MLTYPE_TO_META_MAP:
-                kwargs['meta'] = DASK_APPLY_OUTPUT_MLTYPE_TO_META_MAP[self.output_mltype]
+                kwargs["meta"] = DASK_APPLY_OUTPUT_MLTYPE_TO_META_MAP[self.output_mltype]
         return data.apply(self.transform_single, **kwargs)
 
     def transform_single(self, data: Any) -> Any:
@@ -48,12 +49,12 @@ class SingleColumnProcessor(DataProcessor, ABC):
         :param data: input data point
         :return: transformed value
         """
-        raise NotImplementedError(f'{get_current_fn_name()} has not been implemented.')
+        raise NotImplementedError(f"{get_current_fn_name()} has not been implemented.")
 
     def fit_transform(
-            self,
-            data: Union[ScalableSeries, ScalableSeriesRawType],
-            process_as: Optional[DataLayout] = None,
+        self,
+        data: Union[ScalableSeries, ScalableSeriesRawType],
+        process_as: Optional[DataLayout] = None,
     ) -> ScalableSeries:
         self.fit(data, process_as=process_as)
         return self.transform(data, process_as=process_as)

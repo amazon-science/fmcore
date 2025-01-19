@@ -1,5 +1,6 @@
-from typing import *
 from importlib import import_module
+from typing import *
+
 from fmcore.util import AutoEnum, auto, optional_dependency
 
 
@@ -15,14 +16,14 @@ class VisualizationBackend(AutoEnum):
 
 
 VISUALIZATION_BACKEND_DEPENDENCIES: Dict[VisualizationBackend, List[str]] = {
-    VisualizationBackend.HVPLOT_BOKEH: ['hvplot', 'holoviews', 'bokeh'],
-    VisualizationBackend.HVPLOT_MATPLOTLIB: ['hvplot', 'holoviews', 'matplotlib'],
-    VisualizationBackend.BOKEH: ['bokeh'],
-    VisualizationBackend.PLOTLY_EXPRESS: ['plotly', 'plotly-express'],
-    VisualizationBackend.SEABORN: ['seaborn'],
-    VisualizationBackend.MATPLOTLIB: ['matplotlib'],
-    VisualizationBackend.ALTAIR: ['altair', 'vega_datasets'],
-    VisualizationBackend.TERMCOLOR: ['termcolor'],
+    VisualizationBackend.HVPLOT_BOKEH: ["hvplot", "holoviews", "bokeh"],
+    VisualizationBackend.HVPLOT_MATPLOTLIB: ["hvplot", "holoviews", "matplotlib"],
+    VisualizationBackend.BOKEH: ["bokeh"],
+    VisualizationBackend.PLOTLY_EXPRESS: ["plotly", "plotly-express"],
+    VisualizationBackend.SEABORN: ["seaborn"],
+    VisualizationBackend.MATPLOTLIB: ["matplotlib"],
+    VisualizationBackend.ALTAIR: ["altair", "vega_datasets"],
+    VisualizationBackend.TERMCOLOR: ["termcolor"],
 }
 
 AVAILABLE_VISUALIZATION_BACKENDS: Set[VisualizationBackend] = set()

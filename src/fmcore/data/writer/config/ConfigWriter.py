@@ -1,11 +1,13 @@
-from typing import *
 import io
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
+from typing import *
+
+from pydantic import *
+
+from fmcore.constants import FileContents, MLType
 from fmcore.data.writer.Writer import Writer
-from fmcore.constants import FileContents, MLType, MLTypeSchema
 from fmcore.util import FileSystemUtil, String
 from fmcore.util.aws import S3Util
-from pydantic import *
 
 
 class ConfigWriter(Writer, ABC):
@@ -17,21 +19,21 @@ class ConfigWriter(Writer, ABC):
     streams = [io.TextIOBase]
 
     def _write_stream(
-            self,
-            stream: io.IOBase,
-            data: Any,
-            file_contents: FileContents,
-            **kwargs,
+        self,
+        stream: io.IOBase,
+        data: Any,
+        file_contents: FileContents,
+        **kwargs,
     ) -> NoReturn:
         stream.write(self._get_obj_str(data, file_contents=file_contents, **kwargs))
 
     def _write_local(
-            self,
-            local_path: str,
-            data: Any,
-            file_contents: FileContents,
-            file_name: Optional[constr(min_length=1)] = None,
-            **kwargs,
+        self,
+        local_path: str,
+        data: Any,
+        file_contents: FileContents,
+        file_name: Optional[constr(min_length=1)] = None,
+        **kwargs,
     ) -> str:
         if FileSystemUtil.is_path_valid_dir(local_path):
             if file_name is None:
@@ -53,11 +55,11 @@ class ConfigWriter(Writer, ABC):
         return local_path
 
     def _write_s3(
-            self,
-            s3_path: str,
-            data: Any,
-            file_contents: FileContents,
-            **kwargs,
+        self,
+        s3_path: str,
+        data: Any,
+        file_contents: FileContents,
+        **kwargs,
     ) -> str:
         S3Util.put_s3_object_str(
             s3_path,

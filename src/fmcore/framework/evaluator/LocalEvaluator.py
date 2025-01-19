@@ -1,49 +1,50 @@
-from typing import *
-import time, traceback, gc, os, warnings, io, numpy as np, pandas as pd
-from math import inf
+import gc
+import os
 from functools import partial
-from fmcore.util import Log, String, get_default, confloat, safe_validate_arguments, Timer, Timeout24Hr, Timeout
+from typing import *
+
 from fmcore.data import FileMetadata
-from fmcore.framework.tracker.Tracker import Tracker
+from fmcore.framework.algorithm import Algorithm
 from fmcore.framework.evaluator.Evaluator import Evaluator
-from fmcore.framework.task_data import DataSplit, Datasets, Dataset
+from fmcore.framework.metric import Metric
 from fmcore.framework.predictions import Predictions
-from fmcore.framework.algorithm import Algorithm, TaskOrStr
-from fmcore.framework.metric import Metric, Metrics
-from pydantic import conint, root_validator
+from fmcore.framework.tracker.Tracker import Tracker
+from fmcore.util import Timeout, Timeout24Hr, Timer, confloat, get_default, safe_validate_arguments
 
 
 class LocalEvaluator(Evaluator):
-    aliases = ['local', 'SimpleEvaluator', 'simple']
+    aliases = ["local", "SimpleEvaluator", "simple"]
 
     ## Cache model locally for 15 mins:
     cache_timeout: Optional[Union[Timeout, confloat(gt=0)]] = Timeout24Hr(timeout=3 * 60 * 60)
 
     def _load_model(
-            self,
-            *,
-            cache_dir: Optional[Union[FileMetadata, Dict, str]] = None,
-            **kwargs,
+        self,
+        *,
+        cache_dir: Optional[Union[FileMetadata, Dict, str]] = None,
+        **kwargs,
     ) -> Algorithm:
-        kwargs.pop('model_dir', None)
-        cache_dir: FileMetadata = FileMetadata.of(
-            get_default(cache_dir, self.cache_dir)
-        ).mkdir(return_metadata=True)
-        return Algorithm.of(**{
-            **dict(
-                task=self.task,
-                algorithm=self.AlgorithmClass,
-                hyperparams=self.hyperparams,
-                model_dir=self.download_remote_model_to_cache_dir(**kwargs),
-                cache_dir=cache_dir,
-            ),
-            **kwargs
-        })
+        kwargs.pop("model_dir", None)
+        cache_dir: FileMetadata = FileMetadata.of(get_default(cache_dir, self.cache_dir)).mkdir(
+            return_metadata=True
+        )
+        return Algorithm.of(
+            **{
+                **dict(
+                    task=self.task,
+                    algorithm=self.AlgorithmClass,
+                    hyperparams=self.hyperparams,
+                    model_dir=self.download_remote_model_to_cache_dir(**kwargs),
+                    cache_dir=cache_dir,
+                ),
+                **kwargs,
+            }
+        )
 
     @staticmethod
     def local_logger(text: str, verbosity: int, tracker: Tracker):
         pid: int = os.getpid()
-        text: str = f'(pid={pid}): {text}'
+        text: str = f"(pid={pid}): {text}"
         if verbosity == 0:  ## Don't log anything.
             return
         else:
@@ -51,15 +52,15 @@ class LocalEvaluator(Evaluator):
 
     @safe_validate_arguments
     def _run_evaluation(
-            self,
-            dataset: Any,
-            *,
-            tracker: Tracker,
-            metrics: Optional[List[Metric]],
-            return_predictions: bool,
-            predictions_destination: Optional[FileMetadata],
-            progress_bar: Optional[Dict],
-            **kwargs
+        self,
+        dataset: Any,
+        *,
+        tracker: Tracker,
+        metrics: Optional[List[Metric]],
+        return_predictions: bool,
+        predictions_destination: Optional[FileMetadata],
+        progress_bar: Optional[Dict],
+        **kwargs,
     ) -> Tuple[Optional[Predictions], Optional[List[Metric]]]:
         timer: Timer = Timer(silent=True)
         timer.start()
@@ -91,7 +92,7 @@ class LocalEvaluator(Evaluator):
                 logger=logger,
                 batch_logger=batch_logger,
                 progress_bar=progress_bar,
-                **kwargs
+                **kwargs,
             )
             timer.stop()
             logger(
@@ -110,9 +111,9 @@ class LocalEvaluator(Evaluator):
                 self.cleanup_model()
 
     def _local_evaluator_progress_bar(
-            self,
-            progress_bar: Optional[Dict],
-            **kwargs,
+        self,
+        progress_bar: Optional[Dict],
+        **kwargs,
     ) -> Optional[Dict]:
         if self.verbosity == 1 and progress_bar is not None:
             if not isinstance(progress_bar, dict):
@@ -132,26 +133,27 @@ class LocalEvaluator(Evaluator):
             gc.collect()
 
     def _evaluate_start_msg(self, *, model: Algorithm, tracker: Tracker, **kwargs) -> str:
-        if tracker.tracker_name == 'noop':
-            tracker_msg: str = 'Logs will not be tracked.'
+        if tracker.tracker_name == "noop":
+            tracker_msg: str = "Logs will not be tracked."
         else:
             tracker_msg: str = f'{tracker.class_name}@{tracker.id} will save logs to: "{tracker.log_dir}"'
-        return f'\nEvaluating {model.task} model...\n{str(model)}\n' \
-               f'{tracker_msg}'
+        return f"\nEvaluating {model.task} model...\n{str(model)}\n{tracker_msg}"
 
     def _evaluate_end_msg(
-            self,
-            *,
-            model: Algorithm,
-            timer: Timer,
-            evaluated_num_rows: int,
-            tracker: Tracker,
-            **kwargs,
+        self,
+        *,
+        model: Algorithm,
+        timer: Timer,
+        evaluated_num_rows: int,
+        tracker: Tracker,
+        **kwargs,
     ) -> str:
-        if tracker.tracker_name == 'noop':
-            tracker_msg: str = 'Logs have not been tracked.'
+        if tracker.tracker_name == "noop":
+            tracker_msg: str = "Logs have not been tracked."
         else:
             tracker_msg: str = f'{tracker.class_name}@{tracker.id} has saved logs to "{tracker.log_dir}"'
-        return f'...model evaluation on {evaluated_num_rows} rows completed in {timer.time_taken_str} ' \
-               f'({evaluated_num_rows / timer.time_taken_sec:.3f} rows/sec, including overhead time).\n' \
-               f'{tracker_msg}'
+        return (
+            f"...model evaluation on {evaluated_num_rows} rows completed in {timer.time_taken_str} "
+            f"({evaluated_num_rows / timer.time_taken_sec:.3f} rows/sec, including overhead time).\n"
+            f"{tracker_msg}"
+        )

@@ -1,10 +1,12 @@
-from typing import *
-import time, math
+import math
+import time
 from datetime import datetime, timedelta
-from fmcore.util.language import Parameters, MutableParameters, set_param_from_alias, String, Alias
+from typing import *
+
+from pydantic import confloat, root_validator
+
+from fmcore.util.language import Alias, MutableParameters, Parameters, String, set_param_from_alias
 from fmcore.util.logging import Log
-from pydantic import root_validator, confloat, conint
-from pydantic.typing import Literal
 
 
 def measure_time_ms(fn: Callable) -> Tuple[Any, float]:
@@ -16,13 +18,14 @@ def measure_time_ms(fn: Callable) -> Tuple[Any, float]:
 
 class TimerError(Exception):
     """A custom exception used to report errors in use of Timer class"""
+
     pass
 
 
 class Timer(Parameters):
     task: str
     logger: Optional[Callable] = Log.info
-    silent: bool = False,
+    silent: bool = (False,)
     single_line: bool = False  ## Single-line printing
     i: Optional[int] = None
     max_i: Optional[int] = None
@@ -31,18 +34,15 @@ class Timer(Parameters):
     _end_dt: Optional[datetime] = None
     _end_time_ns: Optional[int] = None
 
-    def __init__(self, task: str = '', **kwargs):
-        super(Timer, self).__init__(
-            task=task,
-            **kwargs
-        )
+    def __init__(self, task: str = "", **kwargs):
+        super(Timer, self).__init__(task=task, **kwargs)
 
     @root_validator(pre=True)
     def _set_timer_params(cls, params: Dict) -> Dict:
-        set_param_from_alias(params, param='logger', alias=['log'])
+        set_param_from_alias(params, param="logger", alias=["log"])
         Alias.set_silent(params, default=False)
-        if 'logger' in params and params['logger'] in {None, False}:
-            params['logger']: Optional[Callable] = None
+        if "logger" in params and params["logger"] in {None, False}:
+            params["logger"]: Optional[Callable] = None
         return params
 
     @property
@@ -54,19 +54,19 @@ class Timer(Parameters):
         return self._end_time_ns is not None
 
     def time_taken(self, format: str) -> Union[timedelta, int, float, str]:
-        if format in {str, 'str', 'string'}:
+        if format in {str, "str", "string"}:
             return self.time_taken_str
-        elif format in {'s', 'sec', 'seconds'}:
+        elif format in {"s", "sec", "seconds"}:
             return self.time_taken_sec
-        elif format in {'ms', 'milli', 'millis', 'millisec', 'milliseconds'}:
+        elif format in {"ms", "milli", "millis", "millisec", "milliseconds"}:
             return self.time_taken_ms
-        elif format in {'us', 'micro', 'micros', 'microsec', 'microseconds'}:
+        elif format in {"us", "micro", "micros", "microsec", "microseconds"}:
             return self.time_taken_us
-        elif format in {'ns', 'nano', 'nanos', 'nanosec', 'nanoseconds'}:
+        elif format in {"ns", "nano", "nanos", "nanosec", "nanoseconds"}:
             return self.time_taken_ns
-        elif format in {'dt', 'td', 'datetime', 'timedelta'}:
+        elif format in {"dt", "td", "datetime", "timedelta"}:
             return self.time_taken_td
-        raise NotImplementedError(f'Unsupported `format` with type {type(format)} and value: {format}')
+        raise NotImplementedError(f"Unsupported `format` with type {type(format)} and value: {format}")
 
     @property
     def start_datetime(self) -> datetime:
@@ -118,19 +118,19 @@ class Timer(Parameters):
 
     def _check_started(self):
         if not self.has_started:
-            raise TimerError(f'Timer has not been started. Use .start() to start it.')
+            raise TimerError("Timer has not been started. Use .start() to start it.")
 
     def _check_not_started(self):
         if self.has_started:
-            raise TimerError(f'Timer has already been started at {String.readable_datetime(self._start_dt)}')
+            raise TimerError(f"Timer has already been started at {String.readable_datetime(self._start_dt)}")
 
     def _check_stopped(self):
         if not self.has_stopped:
-            raise TimerError(f'Timer has not been stopped. Use .stop() to stop it.')
+            raise TimerError("Timer has not been stopped. Use .stop() to stop it.")
 
     def _check_not_stopped(self):
         if self.has_stopped:
-            raise TimerError(f'Timer has already been stopped at {String.readable_datetime(self._end_dt)}')
+            raise TimerError(f"Timer has already been stopped at {String.readable_datetime(self._end_dt)}")
 
     def start(self):
         self._check_not_started()
@@ -170,46 +170,51 @@ class Timer(Parameters):
         self.stop()
 
     def _start_msg(self) -> str:
-        out: str = ''
+        out: str = ""
         out += self._task_msg()
         out += self._idx_msg()
-        out += f'Started at {String.readable_datetime(self._start_dt)}...'
+        out += f"Started at {String.readable_datetime(self._start_dt)}..."
         return out
 
     def _alert_msg(self, text: Optional[str] = None) -> str:
-        out: str = ''
+        out: str = ""
         out += self._task_msg()
         out += self._idx_msg()
-        out += f'Timer has been running for {String.readable_seconds(self.time_taken_sec, decimals=2)}.'
+        out += f"Timer has been running for {String.readable_seconds(self.time_taken_sec, decimals=2)}."
         if isinstance(text, str):
-            out += f' {text}'
+            out += f" {text}"
         return out
 
     def _end_msg(self) -> str:
-        out: str = ''
+        out: str = ""
         out += self._task_msg()
         out += self._idx_msg()
         if self.single_line:
-            out += f'Started at {String.readable_datetime(self._start_dt)}, ' \
-                   f'completed in {String.readable_seconds(self.time_taken_sec, decimals=2)}.'
+            out += (
+                f"Started at {String.readable_datetime(self._start_dt)}, "
+                f"completed in {String.readable_seconds(self.time_taken_sec, decimals=2)}."
+            )
             return out
-        out += f'...completed in {String.readable_seconds(self.time_taken_sec, decimals=2)}.'
+        out += f"...completed in {String.readable_seconds(self.time_taken_sec, decimals=2)}."
         return out
 
     def _task_msg(self) -> str:
-        out: str = ''
+        out: str = ""
         if len(self.task) > 0:
-            out += f'({self.task}) '
+            out += f"({self.task}) "
         return out
 
     def _idx_msg(self) -> str:
-        out: str = ''
+        out: str = ""
         if self.i is not None and self.max_i is not None:
-            out += f'[{String.pad_zeros(i=self.i + 1, max_i=self.max_i)}/' \
-                   f'{String.pad_zeros(i=self.max_i, max_i=self.max_i)}] '
+            out += (
+                f"[{String.pad_zeros(i=self.i + 1, max_i=self.max_i)}/"
+                f"{String.pad_zeros(i=self.max_i, max_i=self.max_i)}] "
+            )
         elif self.i is not None:
-            out += f'[{self.i}] '
+            out += f"[{self.i}] "
         return out
+
 
 class Timeout(MutableParameters):
     timeout: confloat(gt=0)  ## In seconds.

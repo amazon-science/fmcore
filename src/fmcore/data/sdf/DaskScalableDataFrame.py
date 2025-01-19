@@ -1,22 +1,39 @@
 import io
 import math
-import numpy as np
 from collections import deque
 from concurrent.futures._base import Future
 from typing import *
-from pandas.core.frame import Series as PandasSeries, DataFrame as PandasDataFrame
+
+import numpy as np
+from pandas.core.frame import DataFrame as PandasDataFrame
+from pandas.core.frame import Series as PandasSeries
 from pydantic import conint
 from pydantic.typing import Literal
 
 from fmcore.constants import DataLayout, Parallelize
 from fmcore.data.sdf.DaskScalableSeries import DaskScalableSeries
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameOrRaw, is_scalable, \
-    DataFrameShardingError
+from fmcore.data.sdf.ScalableDataFrame import (
+    DataFrameShardingError,
+    ScalableDataFrame,
+    ScalableDataFrameOrRaw,
+    is_scalable,
+)
 from fmcore.data.sdf.ScalableSeries import ScalableSeries
-from fmcore.util import accumulate, run_concurrent
-from fmcore.util import multiple_are_not_none, all_are_none, is_function, wrap_fn_output, \
-    get_default, RayDaskPersistWaitCallback, Alias, safe_validate_arguments, Log, Executor
-from fmcore.util.language._import import _IS_RAY_INSTALLED, _IS_DASK_INSTALLED
+from fmcore.util import (
+    Alias,
+    Executor,
+    Log,
+    RayDaskPersistWaitCallback,
+    accumulate,
+    all_are_none,
+    get_default,
+    is_function,
+    multiple_are_not_none,
+    run_concurrent,
+    safe_validate_arguments,
+    wrap_fn_output,
+)
+from fmcore.util.language._import import _IS_DASK_INSTALLED, _IS_RAY_INSTALLED
 
 DaskScalableDataFrame = "DaskScalableDataFrame"
 
@@ -25,15 +42,18 @@ if _IS_RAY_INSTALLED:
 
 if _IS_DASK_INSTALLED:
     import dask.dataframe as dd
-    from dask.dataframe.core import Scalar as DaskScalar, Series as DaskSeries, DataFrame as DaskDataFrame
-
+    from dask.dataframe.core import DataFrame as DaskDataFrame
+    from dask.dataframe.core import Scalar as DaskScalar
+    from dask.dataframe.core import Series as DaskSeries
 
     class DaskScalableDataFrame(ScalableDataFrame):
         layout = DataLayout.DASK
         layout_validator = ScalableDataFrame.is_dask
         ScalableSeriesClass = DaskScalableSeries
 
-        def __init__(self, data: Union[DaskDataFrame, ScalableDataFrame], name: Optional[str] = None, **kwargs):
+        def __init__(
+            self, data: Union[DaskDataFrame, ScalableDataFrame], name: Optional[str] = None, **kwargs
+        ):
             super(self.__class__, self).__init__(**kwargs)
             if isinstance(data, ScalableDataFrame):
                 data: DaskDataFrame = data.to_dask(**kwargs)
@@ -41,8 +61,8 @@ if _IS_DASK_INSTALLED:
             self._data: DaskDataFrame = data
             if name is not None and not isinstance(name, (str, int, float)):
                 raise ValueError(
-                    f'`name` used to construct {self.__class__} can only be int, str or float; '
-                    f'found object of type: {type(name)} with value: {name}'
+                    f"`name` used to construct {self.__class__} can only be int, str or float; "
+                    f"found object of type: {type(name)} with value: {name}"
                 )
             self._name: Optional[str] = name
 
@@ -79,7 +99,10 @@ if _IS_DASK_INSTALLED:
         @classmethod
         def _save_dask_to_npz(self, df: DaskDataFrame, partition: int, dir_path: str, name_fn: Callable):
             pandas_df = df.compute()
-            np.savez(dir_path + "/" + name_fn(partition), **{col: pandas_df[col].values for col in pandas_df.columns})
+            np.savez(
+                dir_path + "/" + name_fn(partition),
+                **{col: pandas_df[col].values for col in pandas_df.columns},
+            )
 
         @classmethod
         def _to_scalable(cls, data: Any) -> Union[ScalableDataFrame, ScalableSeries, Any]:
@@ -98,14 +121,16 @@ if _IS_DASK_INSTALLED:
         def __setitem__(self, key: Any, value: Any):
             if is_scalable(value):
                 if value.layout is not DataLayout.DASK:
-                    raise ValueError(f'Can only set using {DataLayout.DASK} DataFrame and Series')
+                    raise ValueError(f"Can only set using {DataLayout.DASK} DataFrame and Series")
                 value: Union[DaskSeries, DaskDataFrame] = value._data
             self._data[key] = value
             # raise NotImplementedError(f'Cannot set at the moment')
 
         def apply(self, func, *, axis=1, args=(), **kwargs):
             return self._data.map_partitions(
-                lambda df_part: df_part.apply(func, axis=axis, raw=False, result_type=None, args=args, **kwargs)
+                lambda df_part: df_part.apply(
+                    func, axis=axis, raw=False, result_type=None, args=args, **kwargs
+                )
             )
 
         @classmethod
@@ -140,7 +165,7 @@ if _IS_DASK_INSTALLED:
             :return: ScalableDataFrame.
             """
             if not isinstance(wait, bool):
-                raise ValueError(f'Attribute `wait` must be a boolean, found value of type {type(wait)}')
+                raise ValueError(f"Attribute `wait` must be a boolean, found value of type {type(wait)}")
             if wait:
                 with RayDaskPersistWaitCallback():
                     self._data = self._data.persist(**kwargs)
@@ -158,20 +183,22 @@ if _IS_DASK_INSTALLED:
             return self._data.npartitions
 
         def repartition(
-                self,
-                nrows: Optional[int] = None,
-                npartitions: Optional[int] = None,
-                partition_size: Optional[int] = None,
-                **kwargs
+            self,
+            nrows: Optional[int] = None,
+            npartitions: Optional[int] = None,
+            partition_size: Optional[int] = None,
+            **kwargs,
         ) -> ScalableDataFrame:
             """
             Creates a new DaskScalableDataFrame with different partition boundaries.
             We augment the Dask implementation to allow repartitioning by `nrows`.
             """
-            Alias.set_num_rows(kwargs, param='nrows')
-            nrows: int = get_default(nrows, kwargs.pop('nrows', None))
+            Alias.set_num_rows(kwargs, param="nrows")
+            nrows: int = get_default(nrows, kwargs.pop("nrows", None))
             if multiple_are_not_none(nrows, npartitions, partition_size):
-                raise ValueError(f'Only one of the following can be non-None: `nrows`, `npartitions`, `partition_size`')
+                raise ValueError(
+                    "Only one of the following can be non-None: `nrows`, `npartitions`, `partition_size`"
+                )
             if nrows is not None:
                 ## This slightly violates our desire to have all chunks (except the last) have exactly `nrows`.
                 ## However, this does ensure that all chunks have a similar number of rows, all of which are <=num_rows
@@ -179,9 +206,7 @@ if _IS_DASK_INSTALLED:
                 ## https://docs.dask.org/en/latest/dataframe-design.html#partitions
                 npartitions: int = math.ceil(len(self) / nrows)
             self._data = self._data.repartition(
-                npartitions=npartitions,
-                partition_size=partition_size,
-                **kwargs
+                npartitions=npartitions, partition_size=partition_size, **kwargs
             )
             return self
 
@@ -195,11 +220,18 @@ if _IS_DASK_INSTALLED:
             if isinstance(path, io.IOBase):
                 ## Patch the Dask writer to write to streams:
                 return self._data.compute().to_npz(path, **kwargs)
-            accumulate([
-                run_concurrent(self._save_dask_to_npz, self._data.get_partition(partition), partition, path,
-                               kwargs["name_function"]) for
-                partition in range(self._data.npartitions)
-            ])
+            accumulate(
+                [
+                    run_concurrent(
+                        self._save_dask_to_npz,
+                        self._data.get_partition(partition),
+                        partition,
+                        path,
+                        kwargs["name_function"],
+                    )
+                    for partition in range(self._data.npartitions)
+                ]
+            )
 
         def to_csv(self, path: Union[io.IOBase, str], **kwargs):
             if isinstance(path, io.IOBase):
@@ -215,24 +247,24 @@ if _IS_DASK_INSTALLED:
 
         @safe_validate_arguments
         def _stream_chunks(
-                self,
-                map_kwargs: Dict,
-                num_rows: Optional[conint(ge=1)] = None,
-                num_chunks: Optional[conint(ge=1)] = None,
-                stream_as: Optional[DataLayout] = None,
-                raw: bool = False,
-                shuffle: bool = False,
-                seed: Optional[int] = None,
-                map: Optional[Callable] = None,
-                num_workers: conint(ge=1) = 1,
-                parallelize: Parallelize = Parallelize.sync,
-                map_failure: Literal['raise', 'drop'] = 'raise',
-                map_executor: Literal['spawn'] = 'spawn',
-                fetch_partitions: conint(ge=0) = 1,
-                shard: Tuple[conint(ge=0), conint(ge=1)] = (0, 1),
-                reverse_sharding: bool = False,
-                drop_last: Optional[bool] = None,
-                **kwargs,
+            self,
+            map_kwargs: Dict,
+            num_rows: Optional[conint(ge=1)] = None,
+            num_chunks: Optional[conint(ge=1)] = None,
+            stream_as: Optional[DataLayout] = None,
+            raw: bool = False,
+            shuffle: bool = False,
+            seed: Optional[int] = None,
+            map: Optional[Callable] = None,
+            num_workers: conint(ge=1) = 1,
+            parallelize: Parallelize = Parallelize.sync,
+            map_failure: Literal["raise", "drop"] = "raise",
+            map_executor: Literal["spawn"] = "spawn",
+            fetch_partitions: conint(ge=0) = 1,
+            shard: Tuple[conint(ge=0), conint(ge=1)] = (0, 1),
+            reverse_sharding: bool = False,
+            drop_last: Optional[bool] = None,
+            **kwargs,
         ) -> Generator[ScalableDataFrameOrRaw, None, None]:
             def ilen(sdf_list: List[ScalableDataFrame]) -> int:
                 ## Add up length of sdfs in the list. These should be all in-memory DFs (e.g. Pandas, Dict, ListOfDict),
@@ -256,8 +288,8 @@ if _IS_DASK_INSTALLED:
                 if drop_last is not None:
                     if num_rows is None:
                         raise AttributeError(
-                            f'Can only run balanced sharding (i.e. using drop_last={drop_last}) on a DaskDataFrame using '
-                            f'`num_rows`; however, `num_rows` was found to be None.'
+                            f"Can only run balanced sharding (i.e. using drop_last={drop_last}) on a DaskDataFrame using "
+                            f"`num_rows`; however, `num_rows` was found to be None."
                         )
                     _, num_batches_per_shard = self.set_shard_divisions(
                         num_shards=num_shards,
@@ -268,8 +300,7 @@ if _IS_DASK_INSTALLED:
                 elif drop_last is None and num_shards > 1:
                     ## We have multiple shards, but we don't care if they are exactly the equal size.
                     new_P: int = self.get_closest_npartitions(
-                        npartitions=self.npartitions,
-                        num_shards=num_shards
+                        npartitions=self.npartitions, num_shards=num_shards
                     )
                     if new_P != self.npartitions:
                         self.repartition(npartitions=new_P)
@@ -331,18 +362,20 @@ if _IS_DASK_INSTALLED:
                     if all_are_none(num_rows, num_chunks):
                         ## If no arguments are passed, yield each partition as a chunk.
                         out_sdf_chunk = df_partition
-                        out_sdf_chunk: Optional[ScalableDataFrame] = self._stream_loop_enqueue_dequeue_map_chunk(
-                            out_sdf_chunk=out_sdf_chunk,
-                            mapped_sdf_chunks=mapped_sdf_chunks,
-                            chunks_returned=chunks_returned,
-                            map=map,
-                            map_kwargs=map_kwargs,
-                            parallelize=parallelize,
-                            num_workers=num_workers,
-                            map_failure=map_failure,
-                            stream_as=stream_as,
-                            raw=raw,
-                            executor=executor,
+                        out_sdf_chunk: Optional[ScalableDataFrame] = (
+                            self._stream_loop_enqueue_dequeue_map_chunk(
+                                out_sdf_chunk=out_sdf_chunk,
+                                mapped_sdf_chunks=mapped_sdf_chunks,
+                                chunks_returned=chunks_returned,
+                                map=map,
+                                map_kwargs=map_kwargs,
+                                parallelize=parallelize,
+                                num_workers=num_workers,
+                                map_failure=map_failure,
+                                stream_as=stream_as,
+                                raw=raw,
+                                executor=executor,
+                            )
                         )
                         if out_sdf_chunk is not None and chunks_returned != num_batches_per_shard:
                             yield out_sdf_chunk
@@ -372,21 +405,23 @@ if _IS_DASK_INSTALLED:
                                 ## we can set it to twice to get the all remaining rows.
                                 num_rows: int = num_rows * 2
                             out_sdf_chunk: ScalableDataFrame = ScalableDataFrame.concat(
-                                sdfs[:-1] + [sdfs[-1].iloc[:num_rows - ilen(sdfs[:-1]), :]],
+                                sdfs[:-1] + [sdfs[-1].iloc[: num_rows - ilen(sdfs[:-1]), :]],
                                 layout=stream_as,
                             )
-                            out_sdf_chunk: Optional[ScalableDataFrame] = self._stream_loop_enqueue_dequeue_map_chunk(
-                                out_sdf_chunk=out_sdf_chunk,
-                                mapped_sdf_chunks=mapped_sdf_chunks,
-                                chunks_returned=chunks_returned,
-                                map=map,
-                                map_kwargs=map_kwargs,
-                                parallelize=parallelize,
-                                num_workers=num_workers,
-                                map_failure=map_failure,
-                                stream_as=stream_as,
-                                raw=raw,
-                                executor=executor,
+                            out_sdf_chunk: Optional[ScalableDataFrame] = (
+                                self._stream_loop_enqueue_dequeue_map_chunk(
+                                    out_sdf_chunk=out_sdf_chunk,
+                                    mapped_sdf_chunks=mapped_sdf_chunks,
+                                    chunks_returned=chunks_returned,
+                                    map=map,
+                                    map_kwargs=map_kwargs,
+                                    parallelize=parallelize,
+                                    num_workers=num_workers,
+                                    map_failure=map_failure,
+                                    stream_as=stream_as,
+                                    raw=raw,
+                                    executor=executor,
+                                )
                             )
                             if out_sdf_chunk is not None:
                                 yield out_sdf_chunk
@@ -394,12 +429,12 @@ if _IS_DASK_INSTALLED:
                             if chunks_returned == num_batches_per_shard:
                                 return  ## Stop yielding
                             ## Set the sdfs to be the remaining part of the final sdf.
-                            sdfs: List[ScalableDataFrame] = [
-                                sdfs[-1].iloc[num_rows - ilen(sdfs[:-1]):, :]
-                            ]
+                            sdfs: List[ScalableDataFrame] = [sdfs[-1].iloc[num_rows - ilen(sdfs[:-1]) :, :]]
                             # print(f'An sdf with {ilen(sdfs)} rows remains')
                             if num_chunks is not None:
-                                assert length is not None, f'`length` should be set in the upper half of this loop.'
+                                assert length is not None, (
+                                    "`length` should be set in the upper half of this loop."
+                                )
                                 num_rows: int = self._stream_update_num_rows_according_to_num_chunks(
                                     length=length,
                                     chunks_returned=chunks_returned,
@@ -447,7 +482,12 @@ if _IS_DASK_INSTALLED:
         def _fetch_partition(ddf: DaskDataFrame, ddf_i: int) -> PandasDataFrame:
             df: DaskDataFrame = ddf.partitions[ddf_i]
             df: PandasDataFrame = df.compute()
-            if _IS_RAY_INSTALLED and isinstance(df, PandasSeries) and len(df) == 1 and isinstance(df.iloc[0], ray.ObjectRef):
+            if (
+                _IS_RAY_INSTALLED
+                and isinstance(df, PandasSeries)
+                and len(df) == 1
+                and isinstance(df.iloc[0], ray.ObjectRef)
+            ):
                 ## If you pass a Dask-on-Ray-DataFrame to a Ray Task/Actor, for some reason it treats each partition
                 ## like a Series object with one element. The one element is a ray.ObjectRef of the actual partition's
                 ## PandasDataFrame. So we need to fetch the actual PandasDataFrame.
@@ -457,12 +497,12 @@ if _IS_DASK_INSTALLED:
         @classmethod
         @safe_validate_arguments
         def _stream_get_sharded_partition_idxs(
-                cls,
-                npartitions: conint(ge=1),
-                shuffle: bool,
-                seed: Optional[int],
-                shard: Tuple[conint(ge=0), conint(ge=1)],
-                reverse_sharding: bool,
+            cls,
+            npartitions: conint(ge=1),
+            shuffle: bool,
+            seed: Optional[int],
+            shard: Tuple[conint(ge=0), conint(ge=1)],
+            reverse_sharding: bool,
         ) -> np.ndarray:
             """
             Here we are doing "simple" sharding, where drop_last=None.
@@ -509,41 +549,42 @@ if _IS_DASK_INSTALLED:
             shard_rank, num_shards = shard
             if npartitions < num_shards:  ## E.g. we ask for 10 shards but there are only 5 partitions
                 raise ValueError(
-                    f'Sharding failed when streaming: requested {num_shards} shards, but the DataFrame only has '
-                    f'{npartitions} partitions.'
+                    f"Sharding failed when streaming: requested {num_shards} shards, but the DataFrame only has "
+                    f"{npartitions} partitions."
                 )
             if not (0 <= shard_rank < num_shards):
                 raise ValueError(
-                    f'When we have {npartitions} partitions, `shard_rank` must be in range [0, {num_shards}); '
-                    f'found shard_rank={shard_rank}, which is outside this range.'
+                    f"When we have {npartitions} partitions, `shard_rank` must be in range [0, {num_shards}); "
+                    f"found shard_rank={shard_rank}, which is outside this range."
                 )
             if num_shards > 1:
                 if shuffle and seed is None:
                     raise ValueError(
-                        f'When calling .stream() with {num_shards} shards and shuffle=True, '
+                        f"When calling .stream() with {num_shards} shards and shuffle=True, "
                         f'you must pass "seed" to ensure you get consistent results.'
                     )
                 if reverse_sharding:
-                    partition_idxs: np.ndarray = np.array([
-                        idx
-                        for idx_i, idx in enumerate(partition_idxs)
-                        if idx_i % num_shards != shard_rank  ## Only pick shards which do NOT belong to this rank.
-                    ])
+                    partition_idxs: np.ndarray = np.array(
+                        [
+                            idx
+                            for idx_i, idx in enumerate(partition_idxs)
+                            if idx_i % num_shards
+                            != shard_rank  ## Only pick shards which do NOT belong to this rank.
+                        ]
+                    )
                 else:
-                    partition_idxs: np.ndarray = np.array([
-                        idx
-                        for idx_i, idx in enumerate(partition_idxs)
-                        if idx_i % num_shards == shard_rank
-                    ])
+                    partition_idxs: np.ndarray = np.array(
+                        [idx for idx_i, idx in enumerate(partition_idxs) if idx_i % num_shards == shard_rank]
+                    )
             return partition_idxs
 
         @safe_validate_arguments
         def set_shard_divisions(
-                self,
-                num_shards: int,
-                num_rows: int,
-                inplace: bool = True,
-                index_col_name: str = '__ROW_UID__',
+            self,
+            num_shards: int,
+            num_rows: int,
+            inplace: bool = True,
+            index_col_name: str = "__ROW_UID__",
         ) -> Tuple[Optional[ScalableDataFrame], int]:
             ## Repartition the DaskDataFrame along equal divisions. Otherwise, we cannot shard in a balanced way
             ## (i.e. by ensuring the same number of batches across shards)
@@ -557,16 +598,16 @@ if _IS_DASK_INSTALLED:
             length: int = sum(partition_lens)
             if num_shards > length:
                 raise DataFrameShardingError(
-                    f'Cannot shard DataFrame of {length} rows into {num_shards} shards; DataFrame length is insufficient. '
-                    f'Please reduce the number of shards.'
+                    f"Cannot shard DataFrame of {length} rows into {num_shards} shards; DataFrame length is insufficient. "
+                    f"Please reduce the number of shards."
                 )
 
             if num_shards * num_rows > length:
                 raise DataFrameShardingError(
-                    f'Cannot shard DataFrame into {num_shards} shards into batches of size {num_rows}; '
-                    f'{num_shards}*{num_rows} is more than the length of the DataFrame ({length} rows), '
-                    f'so we cannot even create one batch for each shard. '
-                    f'Please reduce the number of shards and/or reduce the number of rows per batch.'
+                    f"Cannot shard DataFrame into {num_shards} shards into batches of size {num_rows}; "
+                    f"{num_shards}*{num_rows} is more than the length of the DataFrame ({length} rows), "
+                    f"so we cannot even create one batch for each shard. "
+                    f"Please reduce the number of shards and/or reduce the number of rows per batch."
                 )
             divisions, _, num_batches_per_shard = self._stream_get_balanced_shard_intervals(
                 length=length,
@@ -579,15 +620,18 @@ if _IS_DASK_INSTALLED:
             )
             if list(df.divisions) != list(divisions):
                 Log.warning(
-                    f'WARNING: reassigning Dask DataFrame (length={length}, npartitions={df.npartitions}), to '
-                    f'{len(divisions)} divisions (using num_shards={num_shards}, num_rows={num_rows}, drop_last={False}). '
-                    f'This might take a while...'
+                    f"WARNING: reassigning Dask DataFrame (length={length}, npartitions={df.npartitions}), to "
+                    f"{len(divisions)} divisions (using num_shards={num_shards}, num_rows={num_rows}, drop_last={False}). "
+                    f"This might take a while..."
                 )
                 df: DaskDataFrame = df.map_partitions(
                     self._set_unique_row_num,
                     partition_lens=partition_lens,
                     unique_col_name=index_col_name,
-                    meta={**df.dtypes.to_dict(), index_col_name: int, }
+                    meta={
+                        **df.dtypes.to_dict(),
+                        index_col_name: int,
+                    },
                 )
                 df: DaskDataFrame = df.set_index(index_col_name, sorted=True)
                 ## TODO: fix drop_last=True case, getting error: "right side of the new division must be equal or larger than old division"
@@ -600,36 +644,43 @@ if _IS_DASK_INSTALLED:
         @staticmethod
         def _partition_lens(df: DaskDataFrame) -> List[int]:
             partition_lens: List[int] = [
-                x[1] for x in
-                sorted(list(df.map_partitions(
-                    lambda df_part, partition_info: (partition_info['number'], len(df_part)),
-                    meta=tuple,
-                ).compute()), key=lambda x: x[0])
+                x[1]
+                for x in sorted(
+                    list(
+                        df.map_partitions(
+                            lambda df_part, partition_info: (partition_info["number"], len(df_part)),
+                            meta=tuple,
+                        ).compute()
+                    ),
+                    key=lambda x: x[0],
+                )
             ]
             return partition_lens
 
-        def set_unique_column(self, col_name: str = '__ROW_UID__') -> DaskScalableDataFrame:
+        def set_unique_column(self, col_name: str = "__ROW_UID__") -> DaskScalableDataFrame:
             partition_lens: List[int] = DaskScalableDataFrame._partition_lens(self._data)
             self._data = self._data.map_partitions(
                 DaskScalableDataFrame._set_unique_row_num,
                 partition_lens=partition_lens,
                 unique_col_name=col_name,
-                meta={**self._data.dtypes.to_dict(), col_name: int, }
+                meta={
+                    **self._data.dtypes.to_dict(),
+                    col_name: int,
+                },
             )
             return self
 
         @staticmethod
         def _set_unique_row_num(
-                df_part: PandasDataFrame,
-                partition_lens: List[int],
-                partition_info: Dict,
-                unique_col_name: str,
+            df_part: PandasDataFrame,
+            partition_lens: List[int],
+            partition_info: Dict,
+            unique_col_name: str,
         ) -> PandasDataFrame:
-            partition_number: int = partition_info['number']
+            partition_number: int = partition_info["number"]
             df_part_len: int = len(df_part)
             rows_before_this_partition: int = sum(partition_lens[:partition_number])
             row_uids = [
-                row_i
-                for row_i in range(rows_before_this_partition, rows_before_this_partition + df_part_len)
+                row_i for row_i in range(rows_before_this_partition, rows_before_this_partition + df_part_len)
             ]
             return df_part.assign(**{unique_col_name: row_uids})

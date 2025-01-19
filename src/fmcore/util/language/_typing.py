@@ -7,13 +7,20 @@ from typing import *
 
 import numpy as np
 import typing_extensions
-from pydantic import BaseModel, validate_arguments, Field, root_validator, Extra, constr, \
-    create_model_from_typeddict
+from pydantic import (
+    BaseModel,
+    Extra,
+    Field,
+    constr,
+    create_model_from_typeddict,
+    root_validator,
+    validate_arguments,
+)
 from pydantic.fields import Undefined
 
 from ._autoenum import AutoEnum
-from ._function import get_fn_spec, params_to_call_str, is_function, call_str_to_params
-from ._string import String, NeverFailJsonEncoder
+from ._function import call_str_to_params, get_fn_spec, is_function, params_to_call_str
+from ._string import NeverFailJsonEncoder, String
 from ._structs import as_list, as_set, is_list_like
 from ._utils import get_default
 
@@ -27,7 +34,7 @@ def type_str(data: Any) -> str:
     else:
         out: str = str(type(data))
     ## Crocodile brackets mess up Aim's logging, they are treated as HTML tags.
-    out: str = out.replace('<', '').replace('>', '')
+    out: str = out.replace("<", "").replace(">", "")
     return out
 
 
@@ -48,7 +55,7 @@ class classproperty(property):
 
 
 def safe_validate_arguments(f):
-    names_to_fix = {n for n in BaseModel.__dict__ if not n.startswith('_')}
+    names_to_fix = {n for n in BaseModel.__dict__ if not n.startswith("_")}
 
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
@@ -60,7 +67,9 @@ def safe_validate_arguments(f):
         return p.replace(name=f"{p.name}_", default=Field(default, alias=p.name))
 
     sig = inspect.signature(f)
-    sig = sig.replace(parameters=[_create_param(p) if n in names_to_fix else p for n, p in sig.parameters.items()])
+    sig = sig.replace(
+        parameters=[_create_param(p) if n in names_to_fix else p for n, p in sig.parameters.items()]
+    )
 
     wrapper.__signature__ = sig
     wrapper.__annotations__ = {f"{n}_" if n in names_to_fix else n: v for n, v in f.__annotations__.items()}
@@ -71,25 +80,29 @@ def safe_validate_arguments(f):
             config={
                 "allow_population_by_field_name": True,
                 "arbitrary_types_allowed": True,
-            }
+            },
         )
     except Exception as e:
         raise ValueError(
-            f'Error creating model for function {get_fn_spec(f).resolved_name}.'
-            f'\nEncountered Exception: {String.format_exception_msg(e)}'
+            f"Error creating model for function {get_fn_spec(f).resolved_name}."
+            f"\nEncountered Exception: {String.format_exception_msg(e)}"
         )
 
 
-def check_isinstance(x: Optional[Any], y: Union[List[Type], Tuple[Type, ...], Type], raise_error: bool = True):
+def check_isinstance(
+    x: Optional[Any], y: Union[List[Type], Tuple[Type, ...], Type], raise_error: bool = True
+):
     if x is None and y is type(None):
         return True
     assert isinstance(y, type) or (isinstance(y, (list, tuple)) and np.all([isinstance(z, type) for z in y]))
-    if (isinstance(y, type) and isinstance(x, y)) or (isinstance(y, list) and np.any([isinstance(x, z) for z in y])):
+    if (isinstance(y, type) and isinstance(x, y)) or (
+        isinstance(y, list) and np.any([isinstance(x, z) for z in y])
+    ):
         return True
     if raise_error:
-        y_str: str = ', '.join([type_str(_y) for _y in as_list(y)])
+        y_str: str = ", ".join([type_str(_y) for _y in as_list(y)])
         raise TypeError(
-            f'Input parameter must be of type `{y_str}`; found type `{type_str(x)}` with value:\n{x}'
+            f"Input parameter must be of type `{y_str}`; found type `{type_str(x)}` with value:\n{x}"
         )
     return False
 
@@ -111,10 +124,14 @@ def check_issubclass(x: Optional[Any], y: Type, raise_error: bool = True):
         return False
     assert isinstance(x, type)
     assert isinstance(y, type) or (isinstance(y, list) and np.all([isinstance(z, type) for z in y]))
-    if (isinstance(y, type) and issubclass(x, y)) or (isinstance(y, list) and np.any([issubclass(x, z) for z in y])):
+    if (isinstance(y, type) and issubclass(x, y)) or (
+        isinstance(y, list) and np.any([issubclass(x, z) for z in y])
+    ):
         return True
     if raise_error:
-        raise TypeError(f'Input parameter must be a subclass of type {str(y)}; found type {type(x)} with value {x}')
+        raise TypeError(
+            f"Input parameter must be a subclass of type {str(y)}; found type {type(x)} with value {x}"
+        )
     return False
 
 
@@ -173,6 +190,7 @@ class Registry(ABC):
                 def _registry_keys(cls) -> List[Any]:
                     return [AnimalType.DOG]
     """
+
     _registry: ClassVar[Dict[Any, Dict[str, Type]]] = {}  ## Dict[key, Dict[classname, Class]
     _registry_base_class: ClassVar[Optional[Type[BaseModel]]] = None
     _classvars_typing_dict: ClassVar[Optional[Dict[str, Any]]] = None
@@ -205,7 +223,7 @@ class Registry(ABC):
         classvars_typing_dict: Dict[str, Any] = {
             var_name: typing_
             for var_name, typing_ in get_classvars_typing(cls).items()
-            if not var_name.startswith('_')
+            if not var_name.startswith("_")
         }
         cls._classvars_typing_dict: ClassVar[Dict[str, Any]] = classvars_typing_dict
 
@@ -213,9 +231,9 @@ class Registry(ABC):
             extra = Extra.ignore
 
         cls._classvars_BaseModel: ClassVar[Type[BaseModel]] = create_model_from_typeddict(
-            typing_extensions.TypedDict(f'{cls.__name__}_ClassVarsBaseModel', classvars_typing_dict),
+            typing_extensions.TypedDict(f"{cls.__name__}_ClassVarsBaseModel", classvars_typing_dict),
             warnings=False,
-            __config__=Config
+            __config__=Config,
         )
 
     @classmethod
@@ -233,8 +251,12 @@ class Registry(ABC):
                     )
             else:
                 classvar_value = getattr(cls, classvar)
-                if hasattr(type_, '__origin__'):
-                    if type_.__origin__ == typing.Union and len(type_.__args__) == 2 and type(None) in type_.__args__:
+                if hasattr(type_, "__origin__"):
+                    if (
+                        type_.__origin__ == typing.Union
+                        and len(type_.__args__) == 2
+                        and type(None) in type_.__args__
+                    ):
                         ## It is something like Optional[str], Optional[List[str]], etc.
                         args = set(type_.__args__)
                         args.remove(type(None))
@@ -277,11 +299,13 @@ class Registry(ABC):
             ## Case-insensitive matching:
             keys_to_register: List[str] = [String.str_normalize(key)]
         elif isinstance(key, tuple):
-            keys_to_register: List[Tuple] = [tuple(
-                ## Case-insensitive matching:
-                String.str_normalize(k) if isinstance(k, (str, AutoEnum)) else k
-                for k in key
-            )]
+            keys_to_register: List[Tuple] = [
+                tuple(
+                    ## Case-insensitive matching:
+                    String.str_normalize(k) if isinstance(k, (str, AutoEnum)) else k
+                    for k in key
+                )
+            ]
         else:
             keys_to_register: List[Any] = [key]
         for k in keys_to_register:
@@ -291,19 +315,20 @@ class Registry(ABC):
             ## Key is in the registry
             registered: Dict[str, Type] = cls._registry[k]
             registered_names: Set[str] = set(registered.keys())
-            assert len(registered_names) > 0, f'Invalid state: key {k} is registered to an empty dict'
+            assert len(registered_names) > 0, f"Invalid state: key {k} is registered to an empty dict"
             if subclass_name in registered_names and cls._allow_subclass_override is False:
                 raise KeyError(
-                    f'A subclass with name {subclass_name} is already registered against key {k} for registry under '
-                    f'{cls._registry_base_class}; overriding subclasses is not permitted.'
+                    f"A subclass with name {subclass_name} is already registered against key {k} for registry under "
+                    f"{cls._registry_base_class}; overriding subclasses is not permitted."
                 )
             elif subclass_name not in registered_names and cls._allow_multiple_subclasses is False:
-                assert len(registered_names) == 1, \
-                    f'Invalid state: _allow_multiple_subclasses is False but we have multiple subclasses registered ' \
-                    f'against key {k}'
+                assert len(registered_names) == 1, (
+                    f"Invalid state: _allow_multiple_subclasses is False but we have multiple subclasses registered "
+                    f"against key {k}"
+                )
                 raise KeyError(
-                    f'Key {k} already is already registered to subclass {next(iter(registered_names))}; registering '
-                    f'multiple subclasses to the same key is not permitted.'
+                    f"Key {k} already is already registered to subclass {next(iter(registered_names))}; registering "
+                    f"multiple subclasses to the same key is not permitted."
                 )
             cls._registry[k] = {
                 **registered,
@@ -313,11 +338,11 @@ class Registry(ABC):
 
     @classmethod
     def get_subclass(
-            cls,
-            key: Any,
-            raise_error: bool = True,
-            *args,
-            **kwargs,
+        cls,
+        key: Any,
+        raise_error: bool = True,
+        *args,
+        **kwargs,
     ) -> Optional[Union[Type, List[Type]]]:
         if isinstance(key, (str, AutoEnum)):
             Subclass: Optional[Dict[str, Type]] = cls._registry.get(String.str_normalize(key))
@@ -327,7 +352,7 @@ class Registry(ABC):
             if raise_error:
                 raise KeyError(
                     f'Could not find subclass of {cls} using key: "{key}" (type={type(key)}). '
-                    f'Available keys are: {set(cls._registry.keys())}'
+                    f"Available keys are: {set(cls._registry.keys())}"
                 )
             return None
         if len(Subclass) == 1:
@@ -377,7 +402,7 @@ class Singleton:
         return cls.__instance
 
 
-ParametersSubclass = TypeVar('ParametersSubclass', bound='Parameters')
+ParametersSubclass = TypeVar("ParametersSubclass", bound="Parameters")
 
 
 class Parameters(BaseModel, ABC):
@@ -392,7 +417,7 @@ class Parameters(BaseModel, ABC):
         except Exception as e:
             raise ValueError(
                 f'Cannot create Pydantic instance of type "{self.class_name}".'
-                f'\nEncountered exception: {String.format_exception_msg(e)}'
+                f"\nEncountered exception: {String.format_exception_msg(e)}"
             )
 
     @classproperty
@@ -402,15 +427,15 @@ class Parameters(BaseModel, ABC):
     @classmethod
     def param_names(cls, **kwargs) -> Set[str]:
         # superclass_params: Set[str] = set(super(Parameters, cls).schema(**kwargs)['properties'].keys())
-        class_params: Set[str] = set(cls.schema(**kwargs)['properties'].keys())
+        class_params: Set[str] = set(cls.schema(**kwargs)["properties"].keys())
         return class_params  # .union(superclass_params)
 
     @classmethod
     def param_default_values(cls, **kwargs) -> Dict:
         return {
-            param: param_schema['default']
-            for param, param_schema in cls.schema(**kwargs)['properties'].items()
-            if 'default' in param_schema  ## The default value might be None
+            param: param_schema["default"]
+            for param, param_schema in cls.schema(**kwargs)["properties"].items()
+            if "default" in param_schema  ## The default value might be None
         }
 
     @classmethod
@@ -432,7 +457,7 @@ class Parameters(BaseModel, ABC):
 
     def __str__(self) -> str:
         params_str: str = self.json(indent=4)
-        out: str = f'{self.class_name} with params:\n{params_str}'
+        out: str = f"{self.class_name} with params:\n{params_str}"
         return out
 
     class Config:
@@ -457,7 +482,7 @@ class Parameters(BaseModel, ABC):
             return Class()
         if isinstance(d, dict):
             return Class(**d)
-        raise NotImplementedError(f'Cannot convert object of type {type(d)} to {Class.__class__}')
+        raise NotImplementedError(f"Cannot convert object of type {type(d)} to {Class.__class__}")
 
     def update_params(self, **new_params) -> Generic[ParametersSubclass]:
         ## Since Parameters class is immutable, we create a new one:
@@ -503,6 +528,7 @@ class MappedParameters(Parameters, ABC):
     From this dict, the 'name' key will be used to look up the cls._mapping dictionary, and retrieve the corresponding
     class. This class will be instantiated using the other values in the dict.
     """
+
     _mapping: ClassVar[Dict[Union[Tuple[str, ...], str], Any]]
 
     class Config(Parameters.Config):
@@ -514,7 +540,7 @@ class MappedParameters(Parameters, ABC):
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         if not isinstance(cls._mapping, dict) or len(cls._mapping) == 0:
-            raise ValueError(f'Lookup must be a non-empty dict; found: {cls._mapping}')
+            raise ValueError(f"Lookup must be a non-empty dict; found: {cls._mapping}")
         for key, val in list(cls._mapping.items()):
             if is_list_like(key):
                 for k in key:
@@ -524,24 +550,24 @@ class MappedParameters(Parameters, ABC):
 
     @root_validator(pre=True)
     def check_mapped_params(cls, params: Dict) -> Dict:
-        if not String.str_normalize(params['name']) in cls._mapping:
+        if String.str_normalize(params["name"]) not in cls._mapping:
             raise ValueError(
-                f'''`name`="{params['name']}" was not found in the lookup. '''
-                f'''Valid values for `name`: {set(cls._mapping.keys())}'''
+                f'''`name`="{params["name"]}" was not found in the lookup. '''
+                f"""Valid values for `name`: {set(cls._mapping.keys())}"""
             )
         return params
 
     def dict(self, *args, exclude: Optional[Any] = None, **kwargs) -> Dict:
         params: Dict = super(Parameters, self).dict(*args, exclude=exclude, **kwargs)
-        if exclude is not None and 'name' in exclude:
-            params.pop('name', None)
+        if exclude is not None and "name" in exclude:
+            params.pop("name", None)
         else:
-            params['name'] = self.name
+            params["name"] = self.name
         return params
 
     def __str__(self) -> str:
         params_str: str = self.json(indent=4)
-        out: str = f'{self.class_name} with params:\n{params_str}'
+        out: str = f"{self.class_name} with params:\n{params_str}"
         return out
 
     @classmethod
@@ -554,7 +580,7 @@ class MappedParameters(Parameters, ABC):
 
     @property
     def kwargs(self) -> Dict:
-        return self.dict(exclude={'name', 'args'} | set(self.dict_exclude))
+        return self.dict(exclude={"name", "args"} | set(self.dict_exclude))
 
     def to_call_str(self) -> str:
         args: List = list(self.args)
@@ -573,9 +599,9 @@ class MappedParameters(Parameters, ABC):
     @classmethod
     @safe_validate_arguments
     def of(
-            cls,
-            name: Optional[Union[Parameters, Dict, str]],
-            **params,
+        cls,
+        name: Optional[Union[Parameters, Dict, str]],
+        **params,
     ) -> Optional[Any]:
         if name is None:
             return None
@@ -584,15 +610,11 @@ class MappedParameters(Parameters, ABC):
         if isinstance(name, dict):
             return cls(**name)
         if isinstance(name, str):
-            if '(' in name or ')' in name:
+            if "(" in name or ")" in name:
                 return cls.from_call_str(name)
             else:
-                return cls(**{'name': name, **params})
-        raise ValueError(f'Unsupported value for `name`: {name}')
+                return cls(**{"name": name, **params})
+        raise ValueError(f"Unsupported value for `name`: {name}")
 
     def initialize(self, **kwargs) -> Any:
-        return self.mapped_callable()(
-            *self.args,
-            **self.kwargs,
-            **kwargs
-        )
+        return self.mapped_callable()(*self.args, **self.kwargs, **kwargs)

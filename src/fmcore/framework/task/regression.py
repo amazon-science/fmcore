@@ -1,21 +1,23 @@
+from abc import ABC
 from typing import *
-from abc import ABC, abstractmethod
+
 import numpy as np
-from fmcore.util import is_list_like
-from fmcore.data import ScalableDataFrame, ScalableSeries, ScalableSeriesRawType, ScalableDataFrameRawType
+
+from fmcore.constants import MLType, Task
+from fmcore.data import ScalableSeries
 from fmcore.framework import Algorithm, Dataset, Predictions
-from fmcore.constants import Task, MLType, MLTypeSchema, DataLayout
+from fmcore.util import is_list_like
 
 
 class RegressionData(Dataset):
     tasks = Task.REGRESSION
 
     ground_truths_schema = {
-        '{ground_truth_score_col_name}': MLType.FLOAT,
+        "{ground_truth_score_col_name}": MLType.FLOAT,
     }
 
 
-REGRESSION_PREDICTIONS_FORMAT_MSG: str = f"""
+REGRESSION_PREDICTIONS_FORMAT_MSG: str = """
 Regression predictions returned by algorithm must be a column of scores.
 This can be a list, tuple, Numpy array, Pandas Series, etc.
 """.strip()
@@ -25,11 +27,11 @@ class RegressionPredictions(Predictions):
     tasks = Task.REGRESSION
 
     ground_truths_schema = {
-        '{ground_truth_score_col_name}': MLType.FLOAT,
+        "{ground_truth_score_col_name}": MLType.FLOAT,
     }
 
     predictions_schema = {
-        'predicted_score': MLType.FLOAT,
+        "predicted_score": MLType.FLOAT,
     }
 
     @property
@@ -50,16 +52,9 @@ class Regressor(Algorithm, ABC):
     outputs = RegressionPredictions
 
     def _create_predictions(
-            self,
-            batch: Dataset,
-            predictions: Union[List, np.ndarray],
-            **kwargs
+        self, batch: Dataset, predictions: Union[List, np.ndarray], **kwargs
     ) -> RegressionPredictions:
         if not is_list_like(predictions):
             raise ValueError(REGRESSION_PREDICTIONS_FORMAT_MSG)
-        predictions: Dict = {'predicted_score': predictions}
-        return RegressionPredictions.from_task_data(
-            data=batch,
-            predictions=predictions,
-            **kwargs
-        )
+        predictions: Dict = {"predicted_score": predictions}
+        return RegressionPredictions.from_task_data(data=batch, predictions=predictions, **kwargs)

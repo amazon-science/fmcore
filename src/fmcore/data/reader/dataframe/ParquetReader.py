@@ -1,16 +1,16 @@
-import boto3
 import io
 from typing import *
 
+import boto3
 import pandas as pd
 from botocore.exceptions import NoCredentialsError
 from pandas import read_parquet as Pandas_read_parquet
 
-from fmcore.constants import FileFormat, Storage, DataLayout, MLTypeSchema
+from fmcore.constants import DataLayout, FileFormat, MLTypeSchema, Storage
 from fmcore.data.FileMetadata import FileMetadata
-from fmcore.data.reader.dataframe import DataFrameReader
-from fmcore.data.sdf.ScalableDataFrame import ScalableDataFrame, ScalableDataFrameRawType, DaskDataFrame
-from fmcore.util import optional_dependency, as_list
+from fmcore.data.reader.dataframe.DataFrameReader import DataFrameReader
+from fmcore.data.sdf.ScalableDataFrame import DaskDataFrame, ScalableDataFrame, ScalableDataFrameRawType
+from fmcore.util import as_list, optional_dependency
 from fmcore.util.aws import S3Util
 
 
@@ -19,12 +19,12 @@ class ParquetReader(DataFrameReader):
     streams = [io.BytesIO, io.StringIO]
 
     def _read_raw_sdf(
-            self,
-            source: Union[str, io.IOBase],
-            storage: Storage,
-            data_schema: Optional[MLTypeSchema],
-            read_as: Optional[DataLayout],
-            **kwargs
+        self,
+        source: Union[str, io.IOBase],
+        storage: Storage,
+        data_schema: Optional[MLTypeSchema],
+        read_as: Optional[DataLayout],
+        **kwargs,
     ) -> ScalableDataFrameRawType:
         parquet_params: Dict = self.filtered_params(Pandas_read_parquet)
         # print(f'parquet_params: {parquet_params}')
@@ -32,26 +32,26 @@ class ParquetReader(DataFrameReader):
             return pd.read_parquet(
                 source,
                 columns=self._filtered_data_columns(source=source, storage=storage, data_schema=data_schema),
-                **parquet_params
+                **parquet_params,
             )
         except NoCredentialsError:
             assert storage is Storage.S3
             ## Create a new session and read manually:
             bucket_name, file_key = S3Util.s3_path_exploder(source)
-            response = boto3.Session().client('s3').get_object(Bucket=bucket_name, Key=file_key)
-            parquet_data = response['Body'].read()
+            response = boto3.Session().client("s3").get_object(Bucket=bucket_name, Key=file_key)
+            parquet_data = response["Body"].read()
             return pd.read_parquet(
                 io.BytesIO(parquet_data),
                 columns=self._filtered_data_columns(source=source, storage=storage, data_schema=data_schema),
-                **parquet_params
+                **parquet_params,
             )
 
     def _read_raw_dask_sdf(
-            self,
-            source: Union[List[str], str, io.IOBase],
-            storage: Storage,
-            data_schema: Optional[MLTypeSchema],
-            **kwargs
+        self,
+        source: Union[List[str], str, io.IOBase],
+        storage: Storage,
+        data_schema: Optional[MLTypeSchema],
+        **kwargs,
     ) -> DaskDataFrame:
         import dask.dataframe as dd
         from dask.dataframe import read_parquet as Dask_read_parquet
@@ -59,9 +59,7 @@ class ParquetReader(DataFrameReader):
         if storage is Storage.STREAM:
             ## Read as another layout and convert to Dask:
             df: ScalableDataFrameRawType = self._read_raw_sdf_with_retries(
-                source=source,
-                storage=storage,
-                **kwargs
+                source=source, storage=storage, **kwargs
             )
             return ScalableDataFrame.of(df, layout=DataLayout.DASK, **kwargs).raw()
         else:
@@ -73,11 +71,11 @@ class ParquetReader(DataFrameReader):
             )
 
     def _filtered_data_columns(
-            self,
-            *,
-            source: Union[List[str], str],
-            storage: Storage,
-            data_schema: Optional[MLTypeSchema],
+        self,
+        *,
+        source: Union[List[str], str],
+        storage: Storage,
+        data_schema: Optional[MLTypeSchema],
     ) -> Optional[List[str]]:
         columns: Optional[List[str]] = self._data_columns(data_schema)
         if columns is not None and self.allow_missing_columns and storage is not Storage.STREAM:
@@ -87,7 +85,9 @@ class ParquetReader(DataFrameReader):
             for fpath in as_list(source):
                 ## Keep only the common subset of columns...this is what Dask does when reading from multiple Parquet
                 ## files with different sets of columns.
-                file_columns: Optional[List[str]] = self.detect_columns(fpath, storage=storage, raise_error=False)
+                file_columns: Optional[List[str]] = self.detect_columns(
+                    fpath, storage=storage, raise_error=False
+                )
                 if file_columns is not None:
                     file_columns: Set[str] = set(file_columns)
                     columns: List[str] = [col for col in columns if col in file_columns]
@@ -95,19 +95,20 @@ class ParquetReader(DataFrameReader):
 
     @classmethod
     def detect_columns(
-            cls,
-            fpath: str,
-            storage: Optional[Storage] = None,
-            raise_error: bool = True,
+        cls,
+        fpath: str,
+        storage: Optional[Storage] = None,
+        raise_error: bool = True,
     ) -> Optional[List[str]]:
         if storage is None:
             storage: Storage = FileMetadata.detect_storage(fpath)
         if storage is not Storage.LOCAL_FILE_SYSTEM:
             if raise_error:
-                raise ValueError(f'Can only detect columns for parquet file on disk, not {storage}')
+                raise ValueError(f"Can only detect columns for parquet file on disk, not {storage}")
             return None
-        with optional_dependency('pyarrow', warn_every_time=True):
+        with optional_dependency("pyarrow", warn_every_time=True):
             import pyarrow.parquet as pq
+
             parquet_file = pq.ParquetFile(fpath)
             columns_in_file: List[str] = [c for c in parquet_file.schema.names]
             return columns_in_file

@@ -8,7 +8,7 @@ from pydantic import confloat, conint
 from pydantic.typing import Literal
 
 from ._import import optional_dependency
-from ._structs import flatten1d, as_set, as_list, is_set_like, is_list_like, is_dict_like, is_sorted
+from ._structs import as_list, as_set, flatten1d, is_dict_like, is_list_like, is_set_like, is_sorted
 from ._typing import type_str
 from ._utils import get_default, is_null, is_scalar
 
@@ -34,16 +34,16 @@ def resolve_sample_size(sample_size: Optional[SampleSizeType], length: int) -> c
     elif isinstance(sample_size, int) and 1 < sample_size:
         n: int = sample_size
     else:
-        raise ValueError(f'Invalid value for `sample_size`: {sample_size}')
+        raise ValueError(f"Invalid value for `sample_size`: {sample_size}")
     n: int = min(n, length)
     return n
 
 
 def infer_np_dtype(
-        data: Union[List, np.ndarray, pd.Series, 'torch.Tensor'],
-        sample_size: SampleSizeType = True,
-        str_to_object: bool = True,
-        return_str_for_collection: bool = False,
+    data: Union[List, np.ndarray, pd.Series, "torch.Tensor"],
+    sample_size: SampleSizeType = True,
+    str_to_object: bool = True,
+    return_str_for_collection: bool = False,
 ) -> Optional[Union[np.dtype, Type, str]]:
     """
     Fast inference of the numpy dtype in a list.
@@ -61,9 +61,11 @@ def infer_np_dtype(
     """
     if isinstance(data, (np.ndarray, pd.Series)):
         return data.dtype
-    with optional_dependency('torch'):
+    with optional_dependency("torch"):
         import torch
+
         from ._structs import TORCH_TO_NUMPY_DTYPE_MAP
+
         if isinstance(data, torch.Tensor):
             return TORCH_TO_NUMPY_DTYPE_MAP[data.dtype]
 
@@ -77,7 +79,7 @@ def infer_np_dtype(
         if not is_scalar(x):
             ## Fast return for collections such as list, tuple, dict, set, np.ndarray, Tensors.
             if return_str_for_collection:
-                return 'collection'
+                return "collection"
             return object
         if is_null(x):  ## Checks NaNs, None, and pd.NaT
             has_nulls: bool = True
@@ -98,7 +100,12 @@ def _np_dtype_fallback(dtypes: Union[Type, Set[Type]], has_nulls: bool, str_to_o
     ## We have one or more dtypes, which might be Python types or Numpy dtypes.
     ## We will now check if all the dtypes have a common parent, based on the NumPy scalar types hierarchy:
     ## i.e. https://numpy.org/doc/stable/reference/arrays.scalars.html
-    if all_are_np_subtypes(dtypes, {np.bool_, }):
+    if all_are_np_subtypes(
+        dtypes,
+        {
+            np.bool_,
+        },
+    ):
         if has_nulls:
             return np.float_  ## Converts None to NaN, and True/False to 1.0/0.0
         return np.bool_
@@ -108,7 +115,12 @@ def _np_dtype_fallback(dtypes: Union[Type, Set[Type]], has_nulls: bool, str_to_o
         return np.int_
     elif all_are_np_subtypes(dtypes, {np.bool_, np.integer, np.floating}):
         return np.float_
-    elif all_are_np_subtypes(dtypes, {np.character, }):
+    elif all_are_np_subtypes(
+        dtypes,
+        {
+            np.character,
+        },
+    ):
         if str_to_object:
             return object
         return np.unicode_
@@ -119,9 +131,8 @@ def _np_dtype_fallback(dtypes: Union[Type, Set[Type]], has_nulls: bool, str_to_o
 
 
 def all_are_np_subtypes(
-
-        dtypes: Union[Type, Set[Type]],
-        parent_dtypes: Union[Type, Set[Type]],
+    dtypes: Union[Type, Set[Type]],
+    parent_dtypes: Union[Type, Set[Type]],
 ) -> bool:
     ## Note: the following hold for Python types when checking with np.issubdtype:
     ## np.issubdtype(bool, np.bool_) is True
@@ -131,18 +142,17 @@ def all_are_np_subtypes(
     ## np.issubdtype(str, np.character) is True
     dtypes: Set[Type] = as_set(dtypes)
     parent_dtypes: Set[Type] = as_set(parent_dtypes)
-    return all({
-        any({np.issubdtype(dtype, parent_dtype) for parent_dtype in parent_dtypes})
-        for dtype in dtypes
-    })
+    return all(
+        {any({np.issubdtype(dtype, parent_dtype) for parent_dtype in parent_dtypes}) for dtype in dtypes}
+    )
 
 
 def random_sample(
-        data: Union[List, Tuple, Set, np.ndarray],
-        n: SampleSizeType,
-        *,
-        replacement: bool = False,
-        seed: Optional[int] = None,
+    data: Union[List, Tuple, Set, np.ndarray],
+    n: SampleSizeType,
+    *,
+    replacement: bool = False,
+    seed: Optional[int] = None,
 ) -> Union[List, np.ndarray]:
     """
     Sample data randomly from a list or numpy array, with or without replacement.
@@ -158,8 +168,7 @@ def random_sample(
         data: List = list(data)
     if not is_list_like(data):
         raise ValueError(
-            f'Input `data` must be {list}, {tuple} or {np.ndarray}; '
-            f'found object of type {type(data)}'
+            f"Input `data` must be {list}, {tuple} or {np.ndarray}; found object of type {type(data)}"
         )
     if len(data) == 1:
         return data
@@ -186,7 +195,7 @@ def random_sample(
             return py_random.sample(l, n)
         elif isinstance(l, np.ndarray):
             return np_random.choice(l, n, replace=False)
-    raise NotImplementedError(f'Unsupported input data type: {type(data)}')
+    raise NotImplementedError(f"Unsupported input data type: {type(data)}")
 
 
 def values_dist(vals: Union[List, Tuple, np.ndarray, pd.Series]) -> pd.Series:
@@ -196,12 +205,12 @@ def values_dist(vals: Union[List, Tuple, np.ndarray, pd.Series]) -> pd.Series:
 
 
 def sample_idxs_match_distribution(
-        source: Union[List, Tuple, np.ndarray, pd.Series],
-        target: Union[List, Tuple, np.ndarray, pd.Series],
-        n: Optional[int] = None,
-        seed: Optional[int] = None,
-        shuffle: bool = True,
-        target_is_dist: bool = False,
+    source: Union[List, Tuple, np.ndarray, pd.Series],
+    target: Union[List, Tuple, np.ndarray, pd.Series],
+    n: Optional[int] = None,
+    seed: Optional[int] = None,
+    shuffle: bool = True,
+    target_is_dist: bool = False,
 ) -> np.ndarray:
     """
     Values from current series based on another distribution, and return randomly-shuffled indexes from the source.
@@ -212,7 +221,9 @@ def sample_idxs_match_distribution(
     else:
         target_prob_dist: pd.Series = target
     assert isinstance(target_prob_dist, pd.Series)
-    assert abs(float(target_prob_dist.sum()) - 1.0) <= 1e-2  ## Sum of probs should be exactly or very close to 1.
+    assert (
+        abs(float(target_prob_dist.sum()) - 1.0) <= 1e-2
+    )  ## Sum of probs should be exactly or very close to 1.
 
     assert isinstance(source, (list, tuple, np.ndarray, pd.Series))
     source_vc: pd.Series = pd.Series(Counter(source))
@@ -220,7 +231,9 @@ def sample_idxs_match_distribution(
     # print(f'\ntarget_prob_dist:\n{target_prob_dist}')
     missing_source_vals: Set = set(target_prob_dist.index) - set(source_vc.index)
     if len(missing_source_vals) > 0:
-        raise ValueError(f'Cannot sample; the following values are missing in the source: {missing_source_vals}')
+        raise ValueError(
+            f"Cannot sample; the following values are missing in the source: {missing_source_vals}"
+        )
 
     n: int = get_default(n, len(source))
     max_n_sample: pd.Series = (source_vc / target_prob_dist).apply(
@@ -236,10 +249,14 @@ def sample_idxs_match_distribution(
     for idx, val in enumerate(source):
         if val in source_value_wise_count_to_sample:
             source_val_idxs[val].append(idx)
-    sampled_idxs: np.array = np.array(flatten1d([
-        random_sample(source_val_idxs[val], n=req_source_val_count, seed=seed)
-        for val, req_source_val_count in source_value_wise_count_to_sample.items()
-    ]))
+    sampled_idxs: np.array = np.array(
+        flatten1d(
+            [
+                random_sample(source_val_idxs[val], n=req_source_val_count, seed=seed)
+                for val, req_source_val_count in source_value_wise_count_to_sample.items()
+            ]
+        )
+    )
     if shuffle:
         sampled_idxs: np.ndarray = np.random.RandomState(seed).permutation(sampled_idxs)
     return sampled_idxs
@@ -253,12 +270,9 @@ def random_cartesian_product(*lists, seed: Optional[int] = None, n: int):
     for l_len in list_lens:
         max_count *= l_len
     if max_count < n:
-        raise ValueError(f'At most {max_count} cartesian product elements can be created.')
+        raise ValueError(f"At most {max_count} cartesian product elements can be created.")
     while len(cartesian_idxs) < n:
-        rnd_idx: Tuple[int, ...] = tuple(
-            rnd.randint(0, l_len - 1)
-            for l_len in list_lens
-        )
+        rnd_idx: Tuple[int, ...] = tuple(rnd.randint(0, l_len - 1) for l_len in list_lens)
         if rnd_idx not in cartesian_idxs:
             cartesian_idxs.add(rnd_idx)
             elem = []
@@ -269,7 +283,7 @@ def random_cartesian_product(*lists, seed: Optional[int] = None, n: int):
 
 def argmax(d: Union[List, Tuple, np.ndarray, Dict, Set]) -> Any:
     if is_set_like(d):
-        raise ValueError(f'Cannot get argmax from a {type_str(d)}.')
+        raise ValueError(f"Cannot get argmax from a {type_str(d)}.")
     if is_dict_like(d):
         ## Get key pertaining to max value:
         return max(d, key=d.get)
@@ -279,7 +293,7 @@ def argmax(d: Union[List, Tuple, np.ndarray, Dict, Set]) -> Any:
 
 def argmin(d: Union[List, Tuple, np.ndarray, Dict, Set]) -> Any:
     if is_set_like(d):
-        raise ValueError(f'Cannot get argmin from a {type_str(d)}.')
+        raise ValueError(f"Cannot get argmin from a {type_str(d)}.")
     if is_dict_like(d):
         ## Get key pertaining to max value:
         return min(d, key=d.get)
@@ -288,53 +302,53 @@ def argmin(d: Union[List, Tuple, np.ndarray, Dict, Set]) -> Any:
 
 
 def best_k(
-        vals: np.ndarray,
-        k: int,
-        *,
-        how: Literal['min', 'max'],
-        sort: Optional[Literal['ascending', 'descending']] = None,
-        indexes_only: bool = False,
+    vals: np.ndarray,
+    k: int,
+    *,
+    how: Literal["min", "max"],
+    sort: Optional[Literal["ascending", "descending"]] = None,
+    indexes_only: bool = False,
 ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     """Efficiently gets the top-k elements from a numpy array."""
     assert isinstance(k, int) and k > 0
     ## np.argpartition creates a new array with the top-k/bottom-k scores in the head/tail k elements,
     ## but these k are not actually sorted.
-    if how == 'min':
-        sort: str = sort if sort is not None else 'ascending'
+    if how == "min":
+        sort: str = sort if sort is not None else "ascending"
         bottom_k_idxs: np.ndarray = np.argpartition(vals, k, axis=0)[:k]
         ## Index vals to get bottom-k values, unsorted:
         bottom_k_vals: np.ndarray = vals[bottom_k_idxs]
         ## Get argsorted indexes for the bottom-k values (between 1 & k).
         ## We then use this to index the bottom-k-indexes array:
-        if sort == 'ascending':
+        if sort == "ascending":
             bottom_k_idxs_sorted: np.ndarray = bottom_k_idxs[bottom_k_vals.argsort(axis=0)]
             bottom_k_vals_sorted = np.sort(bottom_k_vals, axis=0)
-        elif sort == 'descending':
+        elif sort == "descending":
             bottom_k_idxs_sorted: np.ndarray = bottom_k_idxs[bottom_k_vals.argsort(axis=0)[::-1]]
             bottom_k_vals_sorted = np.sort(bottom_k_vals, axis=0)[::-1]
         else:
-            raise NotImplementedError(f'Unsupported value of `sort`: {sort}')
+            raise NotImplementedError(f"Unsupported value of `sort`: {sort}")
         # print(f'bottom_k_vals_sorted: {bottom_k_vals_sorted}')
         # print(f'bottom_k_idxs_sorted: {bottom_k_idxs_sorted}')
         # assert bool((vals[bottom_k_idxs_sorted] == bottom_k_vals_sorted).all())
         if indexes_only:
             return bottom_k_idxs_sorted
         return bottom_k_idxs_sorted, bottom_k_vals_sorted
-    elif how == 'max':
-        sort: str = sort if sort is not None else 'descending'
+    elif how == "max":
+        sort: str = sort if sort is not None else "descending"
         top_k_idxs: np.ndarray = np.argpartition(vals, -k, axis=0)[-k:]
         ## Index vals to get top-k values, unsorted:
         top_k_vals: np.ndarray = vals[top_k_idxs]
         ## Get argsorted indexes for the top-k values (between 1 & k).
         ## We then use this to index the top-k-indexes array:
-        if sort == 'ascending':
+        if sort == "ascending":
             top_k_idxs_sorted: np.ndarray = top_k_idxs[top_k_vals.argsort(axis=0)]
             top_k_vals_sorted = np.sort(top_k_vals, axis=0)
-        elif sort == 'descending':
+        elif sort == "descending":
             top_k_idxs_sorted: np.ndarray = top_k_idxs[top_k_vals.argsort(axis=0)[::-1]]
             top_k_vals_sorted = np.sort(top_k_vals, axis=0)[::-1]
         else:
-            raise NotImplementedError(f'Unsupported value of `sort`: {sort}')
+            raise NotImplementedError(f"Unsupported value of `sort`: {sort}")
         # print(f'top_k_vals_sorted: {top_k_vals_sorted}')
         # print(f'top_k_idxs_sorted: {top_k_idxs_sorted}')
         # assert bool((vals[top_k_idxs_sorted] == top_k_vals_sorted).all())
@@ -342,14 +356,14 @@ def best_k(
             return top_k_idxs_sorted
         return top_k_idxs_sorted, top_k_vals_sorted
     else:
-        raise ValueError(f'Unsupported value for `how`: {how}')
+        raise ValueError(f"Unsupported value for `how`: {how}")
 
 
 def shuffle_items(
-        struct: Union[List, Tuple, Set, Dict, str],
-        *,
-        seed: Optional[int] = None,
-        dict_return_values: bool = False,
+    struct: Union[List, Tuple, Set, Dict, str],
+    *,
+    seed: Optional[int] = None,
+    dict_return_values: bool = False,
 ) -> Generator[Any, None, None]:
     if is_set_like(struct):
         struct: Tuple = tuple(struct)
@@ -368,14 +382,11 @@ _Comparable = Union[int, float, str]
 
 
 def binary_search(
-        l: Union[List[_Comparable], Tuple[_Comparable, ...]],
-        target: _Comparable,
-        *,
-        return_tuple: bool = False,
-) -> Union[
-    Tuple[Optional[_Comparable], Optional[_Comparable]],
-    _Comparable
-]:
+    l: Union[List[_Comparable], Tuple[_Comparable, ...]],
+    target: _Comparable,
+    *,
+    return_tuple: bool = False,
+) -> Union[Tuple[Optional[_Comparable], Optional[_Comparable]], _Comparable]:
     if not is_sorted(l):
         l: List[_Comparable] = sorted(l)
     low: int = 0

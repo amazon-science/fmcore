@@ -1,15 +1,16 @@
-from typing import *
-import re
-import numpy as np
-from scipy.sparse import csr_matrix as SparseCSRMatrix
 from ast import literal_eval
+from typing import *
+
+import numpy as np
+from pydantic import root_validator, validator
+from scipy.sparse import csr_matrix as SparseCSRMatrix
 from sklearn.feature_extraction.text import TfidfVectorizer
+
 from fmcore.constants import MLType
-from fmcore.util import if_else
-from fmcore.data.sdf import ScalableSeries, ScalableSeriesRawType
 from fmcore.data.processor import SingleColumnProcessor, TextInputProcessor
 from fmcore.data.processor.vector.VectorDensifier import VectorDensifier
-from pydantic import root_validator, validator
+from fmcore.data.sdf import ScalableSeries
+from fmcore.util import if_else
 
 
 class TFIDFVectorization(SingleColumnProcessor, TextInputProcessor):
@@ -26,19 +27,19 @@ class TFIDFVectorization(SingleColumnProcessor, TextInputProcessor):
         sklearn_params: Dict = {}
         output_sparse: bool = False
 
-        @validator('sklearn_params', pre=True)
+        @validator("sklearn_params", pre=True)
         def process_sklearn_tfidf_params(cls, sklearn_tfidf_params: Dict):
-            token_pattern: Optional = sklearn_tfidf_params.get('token_pattern')
+            token_pattern: Optional = sklearn_tfidf_params.get("token_pattern")
             if token_pattern is not None:
-                sklearn_tfidf_params['token_pattern'] = str(sklearn_tfidf_params.get('token_pattern'))
-            ngram_range: Optional = sklearn_tfidf_params.get('ngram_range')
+                sklearn_tfidf_params["token_pattern"] = str(sklearn_tfidf_params.get("token_pattern"))
+            ngram_range: Optional = sklearn_tfidf_params.get("ngram_range")
             if ngram_range is not None:
                 if isinstance(ngram_range, str):
                     ngram_range = literal_eval(ngram_range)
                 if isinstance(ngram_range, list):
                     ngram_range = tuple(ngram_range)
                 assert isinstance(ngram_range, tuple)
-                sklearn_tfidf_params['ngram_range'] = ngram_range
+                sklearn_tfidf_params["ngram_range"] = ngram_range
             return sklearn_tfidf_params
 
     output_mltype = MLType.VECTOR
@@ -47,12 +48,10 @@ class TFIDFVectorization(SingleColumnProcessor, TextInputProcessor):
 
     @root_validator(pre=False)
     def set_vectorizer(cls, params: Dict):
-        params['vectorizer']: TfidfVectorizer = TfidfVectorizer(**params['params'].sklearn_params)
-        params['vector_densifier']: VectorDensifier = VectorDensifier()
-        params['output_mltype']: MLType = if_else(
-            params['params'].output_sparse,
-            MLType.SPARSE_VECTOR,
-            MLType.VECTOR
+        params["vectorizer"]: TfidfVectorizer = TfidfVectorizer(**params["params"].sklearn_params)
+        params["vector_densifier"]: VectorDensifier = VectorDensifier()
+        params["output_mltype"]: MLType = if_else(
+            params["params"].output_sparse, MLType.SPARSE_VECTOR, MLType.VECTOR
         )
         return params
 

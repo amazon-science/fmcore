@@ -1,7 +1,8 @@
 from typing import *
-from fmcore.util import AutoEnum, auto, as_list
 
-UNKNOWN_LABEL_FILL: str = '__UNKNOWN__LABEL__'
+from fmcore.util import AutoEnum, as_list, auto
+
+UNKNOWN_LABEL_FILL: str = "__UNKNOWN__LABEL__"
 
 
 class FileFormat(AutoEnum):
@@ -80,97 +81,92 @@ class FileContents(AutoEnum):
 FILE_FORMAT_TO_FILE_ENDING_MAP: Dict[FileFormat, Union[str, List[str]]] = {
     ## Map of file formats to file endings.
     ## If multiple valid file-endings exist for a format, mention them in decreasing order of preference.
-
     ## Data formats:
     ### CSV and TSV:
-    FileFormat.CSV: ['.csv', '.csv.part'],
-    FileFormat.TSV: ['.tsv', '.tsv.part'],
+    FileFormat.CSV: [".csv", ".csv.part"],
+    FileFormat.TSV: [".tsv", ".tsv.part"],
     ### JSON and JSONLINES:
-    FileFormat.JSON: ['.json', '.aiw_schema.json'],
-    FileFormat.JSONLINES: ['.jsonl', '.jsonl.part', '.jsonlines.json', '.jsonlines'],
-    FileFormat.METRICS_JSONLINES: '.metrics.json',
+    FileFormat.JSON: [".json", ".aiw_schema.json"],
+    FileFormat.JSONLINES: [".jsonl", ".jsonl.part", ".jsonlines.json", ".jsonlines"],
+    FileFormat.METRICS_JSONLINES: ".metrics.json",
     ### YAML:
-    FileFormat.YAML: ['.yaml', '.yml'],
+    FileFormat.YAML: [".yaml", ".yml"],
     ### Plain text:
-    FileFormat.PLAIN_TEXT: '.txt',
+    FileFormat.PLAIN_TEXT: ".txt",
     ### Parquet:
-    FileFormat.PARQUET: '.parquet',
+    FileFormat.PARQUET: ".parquet",
     ### Pickled Python objects:
-    FileFormat.PICKLE: '.pickle',  ## Ref: https://docs.python.org/3.7/library/pickle.html#examples
+    FileFormat.PICKLE: ".pickle",  ## Ref: https://docs.python.org/3.7/library/pickle.html#examples
     ### Excel:
-    FileFormat.EXCEL: '.xlsx',
+    FileFormat.EXCEL: ".xlsx",
     ### LIBSVM:
-    FileFormat.LIBSVM: '.libsvm',
+    FileFormat.LIBSVM: ".libsvm",
     ### Compressed:
-    FileFormat.ZIP: '.zip',
+    FileFormat.ZIP: ".zip",
     ## Image:
-    FileFormat.PNG: '.png',
-    FileFormat.JPEG: ['.jpg', '.jpeg'],
-    FileFormat.TIFF: ['.tif', '.tiff'],
-    FileFormat.BMP: '.bmp',
-    FileFormat.GIF: '.gif',
-    FileFormat.ICO: '.ico',
-    FileFormat.WEBP: '.webp',
-    FileFormat.SVG: '.svg',
-
+    FileFormat.PNG: ".png",
+    FileFormat.JPEG: [".jpg", ".jpeg"],
+    FileFormat.TIFF: [".tif", ".tiff"],
+    FileFormat.BMP: ".bmp",
+    FileFormat.GIF: ".gif",
+    FileFormat.ICO: ".ico",
+    FileFormat.WEBP: ".webp",
+    FileFormat.SVG: ".svg",
     ## Algorithm formats:
     ### BlazingText:
-    FileFormat.BLAZINGTEXT: '.blazingtext.txt',
+    FileFormat.BLAZINGTEXT: ".blazingtext.txt",
     ### FastText:
-    FileFormat.FASTTEXT: '.fasttext.txt',
+    FileFormat.FASTTEXT: ".fasttext.txt",
     ### VowpalWabbit:
-    FileFormat.VOWPALWABBIT: '.vw.txt',
+    FileFormat.VOWPALWABBIT: ".vw.txt",
     ### XGBoost:
-    FileFormat.XGBOOST: '.xgboost.libsvm',  ## LIBSVM is used for XGB, CatBoost, LightGBM, etc.
+    FileFormat.XGBOOST: ".xgboost.libsvm",  ## LIBSVM is used for XGB, CatBoost, LightGBM, etc.
     ### TFRecord:
-    FileFormat.TFRECORD: '.tfrecord',
-
+    FileFormat.TFRECORD: ".tfrecord",
     ## EmbeddingFormats:
     ### NPZ:
-    FileFormat.NPZ: '.npz'
+    FileFormat.NPZ: ".npz",
 }
 
 FILE_ENDING_TO_FILE_FORMAT_MAP: Dict[str, FileFormat] = {}
 for file_format, file_ending in FILE_FORMAT_TO_FILE_ENDING_MAP.items():
     for fe in as_list(file_ending):
         if fe in FILE_ENDING_TO_FILE_FORMAT_MAP:
-            raise ValueError(f'Cannot have duplicate file-ending keys: {fe}')
+            raise ValueError(f"Cannot have duplicate file-ending keys: {fe}")
         FILE_ENDING_TO_FILE_FORMAT_MAP[fe] = file_format
 
 FILE_FORMAT_TO_CONTENT_TYPE_MAP: Dict[FileFormat, str] = {
-    FileFormat.CSV: 'text/csv',
-    FileFormat.TSV: 'text/tsv',
-    FileFormat.PARQUET: 'application/parquet',
-    FileFormat.EXCEL: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    FileFormat.CSV: "text/csv",
+    FileFormat.TSV: "text/tsv",
+    FileFormat.PARQUET: "application/parquet",
+    FileFormat.EXCEL: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ## Ref: https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
-    FileFormat.JSON: 'application/json',
-    FileFormat.JSONLINES: 'application/jsonlines',
-    FileFormat.YAML: 'application/x-yaml',
-    FileFormat.LIBSVM: 'text/libsvm',
-    FileFormat.PICKLE: 'application/octet-stream',  ## Ref: https://stackoverflow.com/a/40433504
-    FileFormat.TFRECORD: 'application/x-tfexample',
-    FileFormat.PLAIN_TEXT: 'text/plain',
-    FileFormat.ZIP: 'application/zip',
-
-    FileFormat.PNG: 'image/png',
-    FileFormat.JPEG: 'image/jpeg',
-    FileFormat.TIFF: 'image/tiff',
-    FileFormat.BMP: 'image/bmp',
-    FileFormat.GIF: 'image/gif',
-    FileFormat.ICO: 'image/vnd.microsoft.icon',
-    FileFormat.WEBP: 'image/webp',
-    FileFormat.SVG: 'image/svg+xml',
-
+    FileFormat.JSON: "application/json",
+    FileFormat.JSONLINES: "application/jsonlines",
+    FileFormat.YAML: "application/x-yaml",
+    FileFormat.LIBSVM: "text/libsvm",
+    FileFormat.PICKLE: "application/octet-stream",  ## Ref: https://stackoverflow.com/a/40433504
+    FileFormat.TFRECORD: "application/x-tfexample",
+    FileFormat.PLAIN_TEXT: "text/plain",
+    FileFormat.ZIP: "application/zip",
+    FileFormat.PNG: "image/png",
+    FileFormat.JPEG: "image/jpeg",
+    FileFormat.TIFF: "image/tiff",
+    FileFormat.BMP: "image/bmp",
+    FileFormat.GIF: "image/gif",
+    FileFormat.ICO: "image/vnd.microsoft.icon",
+    FileFormat.WEBP: "image/webp",
+    FileFormat.SVG: "image/svg+xml",
     ## Made-up algorithm content types:
-    FileFormat.BLAZINGTEXT: 'application/blazingtext',
-    FileFormat.XGBOOST: 'application/xgboost',
-    FileFormat.FASTTEXT: 'application/fasttext',
-    FileFormat.VOWPALWABBIT: 'application/vw',
+    FileFormat.BLAZINGTEXT: "application/blazingtext",
+    FileFormat.XGBOOST: "application/xgboost",
+    FileFormat.FASTTEXT: "application/fasttext",
+    FileFormat.VOWPALWABBIT: "application/vw",
 }
 CONTENT_TYPE_TO_FILE_FORMAT_MAP: Dict[str, FileFormat] = {}
 for file_format, content_type in FILE_FORMAT_TO_CONTENT_TYPE_MAP.items():
     if content_type in CONTENT_TYPE_TO_FILE_FORMAT_MAP:
-        raise ValueError(f'Cannot have duplicate content-type keys: {content_type}')
+        raise ValueError(f"Cannot have duplicate content-type keys: {content_type}")
     CONTENT_TYPE_TO_FILE_FORMAT_MAP[content_type] = file_format
 
 BINARY_FILE_FORMATS: List[FileFormat] = [

@@ -1,7 +1,17 @@
+import errno
+import glob
+import io
+import json
+import os
+import pathlib
+import pickle
+import shutil
+import time
 from typing import *
-import io, json, yaml, os, errno, sys, glob, pathlib, math, copy, time, shutil, pickle
-from fmcore.util.language import as_list, is_list_like, String, remove_values
-from fmcore.util.language import String
+
+import yaml
+
+from fmcore.util.language import String, as_list, remove_values
 
 
 class FileSystemUtil:
@@ -35,8 +45,7 @@ class FileSystemUtil:
     def is_path_valid_dir(cls, path: str) -> bool:
         path: str = cls.expand_dir(path)
         path: str = String.assert_not_empty_and_strip(
-            path,
-            error_message=f'Following path is not a valid local directory: "{path}"'
+            path, error_message=f'Following path is not a valid local directory: "{path}"'
         )
         return path.endswith(os.path.sep) or cls.dir_exists(path)
 
@@ -106,7 +115,7 @@ class FileSystemUtil:
         if pathlib.Path(path).is_dir() or path.endswith(os.path.sep):
             is_dir: bool = True
         path: str = str(path)
-        if path.startswith('~'):
+        if path.startswith("~"):
             path: str = os.path.expanduser(path)
         path: str = os.path.abspath(path)
         if is_dir:
@@ -139,23 +148,25 @@ class FileSystemUtil:
 
     @classmethod
     def list(
-            cls,
-            path: str,
-            *,
-            file_glob: str = String.DOUBLE_ASTERISK,
-            ignored_files: Union[str, List[str]] = None,
-            recursive: bool = False,
-            only_files: bool = False,
-            only_subdirs: bool = False,
-            **kwargs
+        cls,
+        path: str,
+        *,
+        file_glob: str = String.DOUBLE_ASTERISK,
+        ignored_files: Union[str, List[str]] = None,
+        recursive: bool = False,
+        only_files: bool = False,
+        only_subdirs: bool = False,
+        **kwargs,
     ) -> List[str]:
         if ignored_files is None:
             ignored_files = []
         ignored_files: List[str] = as_list(ignored_files)
         if not isinstance(file_glob, str):
-            raise ValueError(f'`file_glob` must be a string; found {type(file_glob)} with value {file_glob}')
+            raise ValueError(f"`file_glob` must be a string; found {type(file_glob)} with value {file_glob}")
         if only_files and only_subdirs:
-            raise ValueError(f'Cannot set both `only_files` and `only_subdir` to True; at most one must be set.')
+            raise ValueError(
+                "Cannot set both `only_files` and `only_subdir` to True; at most one must be set."
+            )
         path: str = cls.expand_dir(path)
         fpaths: List[str] = glob.glob(os.path.join(path, file_glob), recursive=recursive)
         file_names_map: Dict[str, str] = {file_path: os.path.basename(file_path) for file_path in fpaths}
@@ -168,7 +179,9 @@ class FileSystemUtil:
         return fpaths if len(fpaths) > 0 else []
 
     @classmethod
-    def list_first_file_in_dir(cls, path: str, file_glob=String.ASTERISK, ignored_files=None) -> Optional[str]:
+    def list_first_file_in_dir(
+        cls, path: str, file_glob=String.ASTERISK, ignored_files=None
+    ) -> Optional[str]:
         path: str = cls.expand_dir(path)
         file_paths: List[str] = cls.list_files_in_dir(path, file_glob=file_glob, ignored_files=ignored_files)
         return file_paths[0] if len(file_paths) > 0 else None
@@ -182,15 +195,15 @@ class FileSystemUtil:
         if len(file_paths) == 0:
             return None
         if len(file_paths) > 1:
-            raise FileNotFoundError(f'Multiple matching files are present in the directory')
+            raise FileNotFoundError("Multiple matching files are present in the directory")
         return file_paths[0]
 
     @classmethod
     def get_file_size(
-            cls,
-            path: Union[List[str], str],
-            unit: Optional[str] = None,
-            decimals: int = 3,
+        cls,
+        path: Union[List[str], str],
+        unit: Optional[str] = None,
+        decimals: int = 3,
     ) -> Union[float, str]:
         fpaths: List[str] = as_list(path)
         size_in_bytes: int = int(sum([pathlib.Path(fpath).stat().st_size for fpath in fpaths]))
@@ -202,13 +215,13 @@ class FileSystemUtil:
     def get_time_last_modified(cls, path: str, decimals=3):
         path = String.assert_not_empty_and_strip(path)
         path: str = cls.expand_dir(path)
-        assert cls.exists(path), f'Path {path} does not exist.'
+        assert cls.exists(path), f"Path {path} does not exist."
         return round(os.path.getmtime(path), decimals)
 
     @classmethod
     def get_last_modified_time(cls, path: str):
         path: str = cls.expand_dir(path)
-        assert cls.exists(path), f'Path {path} does not exist.'
+        assert cls.exists(path), f"Path {path} does not exist."
         return os.path.getmtime(path)
 
     @classmethod
@@ -218,40 +231,35 @@ class FileSystemUtil:
 
     @classmethod
     def read(
-            cls,
-            path: str,
-            *,
-            concat: bool = False,
-            concat_sep: str = '\n',
-            **kwargs,
+        cls,
+        path: str,
+        *,
+        concat: bool = False,
+        concat_sep: str = "\n",
+        **kwargs,
     ) -> Optional[Union[Dict[str, str], str]]:
         if cls.file_exists(path):
             return cls.get_file_str(path, **kwargs)
         elif cls.dir_exists(path):
-            out = {
-                fpath: cls.get_file_str(fpath, **kwargs)
-                for fpath in cls.list(path, **kwargs)
-            }
+            out = {fpath: cls.get_file_str(fpath, **kwargs) for fpath in cls.list(path, **kwargs)}
             if not concat:
                 return out
-            return concat_sep.join([
-                out[fpath]
-                for fpath in sorted(list(out.keys()))
-            ])
+            return concat_sep.join([out[fpath] for fpath in sorted(list(out.keys()))])
         raise OSError(f'Path "{path}" is neither an existing file or directory.')
 
     @classmethod
     def get_file_str(
-            cls,
-            path: str, *,
-            encoding: str = 'utf-8',
-            errors: str = 'replace',
-            raise_error: bool = False,
-            **kwargs
+        cls,
+        path: str,
+        *,
+        encoding: str = "utf-8",
+        errors: str = "replace",
+        raise_error: bool = False,
+        **kwargs,
     ) -> Optional[str]:
         path: str = cls.expand_dir(path)
         try:
-            with io.open(path, 'r', encoding=encoding, errors=errors) as inp:
+            with io.open(path, "r", encoding=encoding, errors=errors) as inp:
                 file_str = inp.read()
             String.assert_not_empty(file_str)
             return file_str
@@ -264,7 +272,7 @@ class FileSystemUtil:
     def get_file_bytes(cls, path: str, *, raise_error: bool = False) -> Optional[bytes]:
         path: str = cls.expand_dir(path)
         try:
-            with io.open(path, 'rb') as inp:
+            with io.open(path, "rb") as inp:
                 file_bytes = inp.read()
             String.assert_not_empty_bytes(file_bytes)
             return file_bytes
@@ -277,7 +285,7 @@ class FileSystemUtil:
     def get_file_pickle(cls, path: str, *, raise_error: bool = False) -> Optional[Any]:
         path: str = cls.expand_dir(path)
         try:
-            with io.open(path, 'rb') as inp:
+            with io.open(path, "rb") as inp:
                 data = pickle.load(inp)
                 assert data is not None
                 return data
@@ -290,7 +298,7 @@ class FileSystemUtil:
     def get_json(cls, path: str, *, raise_error: bool = False):
         path: str = cls.expand_dir(path)
         try:
-            with io.open(path, 'r') as inp:
+            with io.open(path, "r") as inp:
                 return json.load(inp)
         except Exception as e:
             if raise_error:
@@ -301,7 +309,7 @@ class FileSystemUtil:
     def get_yaml(cls, path: str, *, raise_error: bool = False):
         path: str = cls.expand_dir(path)
         try:
-            with io.open(path, 'r') as inp:
+            with io.open(path, "r") as inp:
                 return yaml.safe_load(inp)
         except Exception as e:
             if raise_error:
@@ -310,27 +318,27 @@ class FileSystemUtil:
 
     @classmethod
     def touch_file(
-            cls,
-            path: str,
-            **kwargs,
+        cls,
+        path: str,
+        **kwargs,
     ) -> bool:
-        return cls.put_file_str(path=path, file_str='', **kwargs)
+        return cls.put_file_str(path=path, file_str="", **kwargs)
 
     @classmethod
     def put_file_str(
-            cls,
-            path: str,
-            file_str: str,
-            overwrite: bool = True,
-            raise_error: bool = True,
+        cls,
+        path: str,
+        file_str: str,
+        overwrite: bool = True,
+        raise_error: bool = True,
     ) -> bool:
         path: str = cls.expand_dir(path)
         if cls.file_exists(path) and overwrite is False:
             if raise_error:
-                raise FileExistsError(f'File already exists at {path}, set overwrite=True to overwrite it.')
+                raise FileExistsError(f"File already exists at {path}, set overwrite=True to overwrite it.")
             return False
         try:
-            with io.open(path, 'w') as out:
+            with io.open(path, "w") as out:
                 out.write(file_str)
             return True
         except Exception as e:
@@ -340,19 +348,19 @@ class FileSystemUtil:
 
     @classmethod
     def put_file_pickle(
-            cls,
-            path: str,
-            data: Any,
-            overwrite: bool = True,
-            raise_error: bool = True,
+        cls,
+        path: str,
+        data: Any,
+        overwrite: bool = True,
+        raise_error: bool = True,
     ) -> bool:
         path: str = cls.expand_dir(path)
         if cls.file_exists(path) and overwrite is False:
             if raise_error:
-                raise FileExistsError(f'File already exists at {path}, set overwrite=True to overwrite it.')
+                raise FileExistsError(f"File already exists at {path}, set overwrite=True to overwrite it.")
             return False
         try:
-            with io.open(path, 'wb') as out:
+            with io.open(path, "wb") as out:
                 pickle.dump(data, out)
             return True
         except Exception as e:

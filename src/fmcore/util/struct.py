@@ -1,13 +1,15 @@
+import gc
 from typing import *
-import math, gc, collections
-from fmcore.util.language import MutableParameters, ProgressBar, is_list_like, as_list, set_param_from_alias
-from pydantic import conint, confloat
+
+from pydantic import conint
+
+from fmcore.util.language import MutableParameters, ProgressBar, as_list, is_list_like, set_param_from_alias
 
 
 class Trie(MutableParameters):
-    parent: Optional['Trie'] = None
+    parent: Optional["Trie"] = None
     value: Optional[Any] = None
-    children: Dict[str, 'Trie'] = dict()
+    children: Dict[str, "Trie"] = dict()
     _depth: Optional[conint(ge=0)] = None
     _max_child_depth: Optional[conint(ge=0)] = None
     _num_children_in_subtree: Optional[conint(ge=0)] = None
@@ -16,13 +18,13 @@ class Trie(MutableParameters):
         return str(self)
 
     def __str__(self):
-        out: str = f'{self.class_name}('
+        out: str = f"{self.class_name}("
         if self.value is not None:
-            out += f'value={self.value}, '
-        out += f'depth={self.depth}, num_children={self.num_children}'
+            out += f"value={self.value}, "
+        out += f"depth={self.depth}, num_children={self.num_children}"
         if self.has_children:
-            out += f', children={set(self.children.keys())}'
-        out += f')'
+            out += f", children={set(self.children.keys())}"
+        out += ")"
         return out
 
     @property
@@ -36,7 +38,7 @@ class Trie(MutableParameters):
         return self._depth
 
     @property
-    def root(self) -> 'Trie':
+    def root(self) -> "Trie":
         cur_node: Trie = self
         while self.parent is not None:
             cur_node: Trie = self.parent
@@ -60,9 +62,10 @@ class Trie(MutableParameters):
             if self.has_children is False:
                 self._num_children_in_subtree = 0
             else:
-                self._num_children_in_subtree: int = sum([
-                    child.num_children_in_subtree for child in self.children.values()
-                ]) + self.num_children
+                self._num_children_in_subtree: int = (
+                    sum([child.num_children_in_subtree for child in self.children.values()])
+                    + self.num_children
+                )
         return self._num_children_in_subtree
 
     @property
@@ -83,11 +86,11 @@ class Trie(MutableParameters):
 
     @classmethod
     def of(
-            cls,
-            nodes: Union[List[List[str]], List[str], str],
-            splitter: Optional[str] = None,
-            allow_end_at_branch: bool = True,
-            **kwargs,
+        cls,
+        nodes: Union[List[List[str]], List[str], str],
+        splitter: Optional[str] = None,
+        allow_end_at_branch: bool = True,
+        **kwargs,
     ) -> Any:
         """
         Creates a trie from a list of strings.
@@ -98,9 +101,9 @@ class Trie(MutableParameters):
             nodes: List[str] = as_list(nodes)
 
         assert is_list_like(nodes)
-        set_param_from_alias(params=kwargs, param='progress_bar', alias=['progress', 'pbar'], default=True)
+        set_param_from_alias(params=kwargs, param="progress_bar", alias=["progress", "pbar"], default=True)
         pbar: ProgressBar = ProgressBar.of(
-            kwargs.get('progress_bar'),
+            kwargs.get("progress_bar"),
             miniters=1000,
             total=len(nodes),
             prefer_kwargs=True,
@@ -111,7 +114,7 @@ class Trie(MutableParameters):
             for node_i, node in enumerate(nodes):
                 if isinstance(node, str):
                     if splitter is None:
-                        raise ValueError(f'When passing nodes as a list of strings, please pass `splitter`.')
+                        raise ValueError("When passing nodes as a list of strings, please pass `splitter`.")
                     node: List[str] = node.split(splitter)
                 current_node: Trie = trie_root
                 # print(f'\ncreating: {node}')
@@ -124,7 +127,7 @@ class Trie(MutableParameters):
                     if allow_end_at_branch is False and node_part_i != len(node) - 1:
                         if len(current_node_child.children) == 0:
                             raise ValueError(
-                                f'Branch nodes cannot be values for this Trie; thus cannot create trie from {node}'
+                                f"Branch nodes cannot be values for this Trie; thus cannot create trie from {node}"
                             )
                     current_node: Trie = current_node_child
                 pbar.update(1)

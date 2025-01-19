@@ -1,15 +1,17 @@
-from typing import *
+import json
+import os
 import urllib.error
 import urllib.request
 from itertools import chain
 from pathlib import Path, PurePath
-import typing, types, typing_extensions
-import sys, time, functools, datetime as dt, string, inspect, re, random, math, json, os
-from fmcore.util.language import as_list, safe_validate_arguments
+from typing import *
+
+from fmcore.util.language import as_list, not_impl, safe_validate_arguments
 
 JUPYTER_FILE_ERROR: str = "Can't identify the notebook {}."
-JUPYTER_CONN_ERROR: str = "Unable to access server;\n" \
-                          + "ipynbname requires either no security or token based security."
+JUPYTER_CONN_ERROR: str = (
+    "Unable to access server;\n" + "ipynbname requires either no security or token based security."
+)
 
 
 class JupyterNotebook:
@@ -19,6 +21,7 @@ class JupyterNotebook:
     def _list_maybe_running_servers(cls, runtime_dir=None) -> Generator[dict, None, None]:
         """Iterate over the server info files of running notebook servers."""
         from jupyter_core.paths import jupyter_runtime_dir
+
         if runtime_dir is None:
             runtime_dir = jupyter_runtime_dir()
         runtime_dir = Path(runtime_dir)
@@ -26,37 +29,40 @@ class JupyterNotebook:
         if runtime_dir.is_dir():
             # Get notebook configuration files, sorted to check the more recently modified ones first
             for file_name in sorted(
-                    chain(
-                        runtime_dir.glob('nbserver-*.json'),  # jupyter notebook (or lab 2)
-                        runtime_dir.glob('jpserver-*.json'),  # jupyterlab 3
-                    ),
-                    key=os.path.getmtime,
-                    reverse=True,
+                chain(
+                    runtime_dir.glob("nbserver-*.json"),  # jupyter notebook (or lab 2)
+                    runtime_dir.glob("jpserver-*.json"),  # jupyterlab 3
+                ),
+                key=os.path.getmtime,
+                reverse=True,
             ):
                 try:
                     yield json.loads(file_name.read_bytes())
-                except json.JSONDecodeError as err:
+                except json.JSONDecodeError:
                     # Sometimes we encounter empty JSON files. Ignore them.
                     pass
 
     @classmethod
-    def _get_kernel_id(cls, ) -> str:
-        """ Returns the kernel ID of the ipykernel."""
+    def _get_kernel_id(
+        cls,
+    ) -> str:
+        """Returns the kernel ID of the ipykernel."""
         import ipykernel
+
         connection_file = Path(ipykernel.get_connection_file()).stem
-        kernel_id = connection_file.split('-', 1)[1]
+        kernel_id = connection_file.split("-", 1)[1]
         return kernel_id
 
     @classmethod
     def _get_sessions(cls, srv):
-        """ Given a server, returns sessions, or HTTPError if access is denied.
-            NOTE: Works only when either there is no security or there is token
-            based security. An HTTPError is raised if unable to connect to a
-            server.
+        """Given a server, returns sessions, or HTTPError if access is denied.
+        NOTE: Works only when either there is no security or there is token
+        based security. An HTTPError is raised if unable to connect to a
+        server.
         """
         try:
             qry_str = ""
-            token = srv['token']
+            token = srv["token"]
             if token:
                 qry_str = f"?token={token}"
             if not token and "JUPYTERHUB_API_TOKEN" in os.environ:
@@ -69,8 +75,11 @@ class JupyterNotebook:
             raise urllib.error.HTTPError(JUPYTER_CONN_ERROR)
 
     @classmethod
-    def _find_nb_path(cls, ) -> Union[Tuple[dict, PurePath], Tuple[None, None]]:
+    def _find_nb_path(
+        cls,
+    ) -> Union[Tuple[dict, PurePath], Tuple[None, None]]:
         from traitlets.config import MultipleInstanceError
+
         try:
             kernel_id = cls._get_kernel_id()
         except (MultipleInstanceError, RuntimeError):
@@ -79,16 +88,16 @@ class JupyterNotebook:
             try:
                 sessions = cls._get_sessions(srv)
                 for sess in sessions:
-                    if sess['kernel']['id'] == kernel_id:
-                        return srv, PurePath(sess['notebook']['path'])
+                    if sess["kernel"]["id"] == kernel_id:
+                        return srv, PurePath(sess["notebook"]["path"])
             except Exception:
                 pass  # There may be stale entries in the runtime directory
         return None, None
 
     @classmethod
     def name(cls, *, extension: bool = False) -> Optional[str]:
-        """ Returns the short name of the notebook w/o the .ipynb extension,
-            or raises a FileNotFoundError exception if it cannot be determined.
+        """Returns the short name of the notebook w/o the .ipynb extension,
+        or raises a FileNotFoundError exception if it cannot be determined.
         """
         try:
             _, path = cls._find_nb_path()
@@ -96,22 +105,24 @@ class JupyterNotebook:
                 if extension:
                     return path.name
                 return path.stem
-            raise FileNotFoundError(JUPYTER_FILE_ERROR.format('name'))
-        except Exception as e:
+            raise FileNotFoundError(JUPYTER_FILE_ERROR.format("name"))
+        except Exception:
             return None
 
     @classmethod
-    def path(cls, ) -> Optional[str]:
-        """ Returns the absolute path of the notebook,
-            or raises a FileNotFoundError exception if it cannot be determined.
+    def path(
+        cls,
+    ) -> Optional[str]:
+        """Returns the absolute path of the notebook,
+        or raises a FileNotFoundError exception if it cannot be determined.
         """
         try:
             srv, path = cls._find_nb_path()
             if srv and path:
-                root_dir = Path(srv.get('root_dir') or srv['notebook_dir'])
+                root_dir = Path(srv.get("root_dir") or srv["notebook_dir"])
                 return str(root_dir / path)
-            raise FileNotFoundError(JUPYTER_FILE_ERROR.format('path'))
-        except Exception as e:
+            raise FileNotFoundError(JUPYTER_FILE_ERROR.format("path"))
+        except Exception:
             return None
 
     @staticmethod
@@ -122,7 +133,8 @@ class JupyterNotebook:
 
 def print_md(x):
     try:
-        from IPython.display import display, Markdown
+        from IPython.display import Markdown, display
+
         x = Markdown(x)
     except ImportError:
         display = print
@@ -131,7 +143,8 @@ def print_md(x):
 
 def print_math(x):
     try:
-        from IPython.display import display, Math
+        from IPython.display import Math, display
+
         x = Math(x)
     except ImportError:
         display = print
@@ -157,7 +170,7 @@ def display_colors(colors: Union[Set[str], Tuple[str, ...], List[str], str]):
 
     # Display the HTML
     try:
-        from IPython.display import display, HTML
+        from IPython.display import HTML, display
     except ImportError:
         display = print
         HTML = lambda x: str(x)
@@ -166,15 +179,14 @@ def display_colors(colors: Union[Set[str], Tuple[str, ...], List[str], str]):
 
 @safe_validate_arguments
 def plotsum(
-        plots_list: Union[List[Tuple[str, Any]], List[Any]],
-        *,
-        order: Optional[List[str]] = None,
-        how: Literal['overlay', 'grid'] = 'grid',
-        legend: Literal['first', 'last', 'none'] = 'none',
-        update_layout: Optional[Dict] = None,
-        backend: Literal['plotly'] = 'plotly',
+    plots_list: Union[List[Tuple[str, Any]], List[Any]],
+    *,
+    order: Optional[List[str]] = None,
+    how: Literal["overlay", "grid"] = "grid",
+    legend: Literal["first", "last", "none"] = "none",
+    update_layout: Optional[Dict] = None,
+    backend: Literal["plotly"] = "plotly",
 ):
-    import holoviews as hv
     if order is not None:
         assert len(plots_list) > 0
         assert len(order) == len(plots_list)
@@ -199,10 +211,10 @@ def plotsum(
         if plots is None:
             plots = plot
         else:
-            if how == 'grid':
+            if how == "grid":
                 plots += plot
-            elif how == 'overlay':
+            elif how == "overlay":
                 plots *= plot
             else:
-                raise not_impl('how', how)
+                raise not_impl("how", how)
     return plots

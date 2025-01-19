@@ -1,18 +1,18 @@
+import io
 from typing import *
-from abc import abstractmethod, ABC
-import io, numpy as np
-from fmcore.constants import FileContents, FileFormat, Storage, DataLayout, SHORTHAND_TO_TENSOR_LAYOUT_MAP
-from fmcore.util import is_list_like, String, FileSystemUtil, run_concurrent, run_parallel, run_parallel_ray, \
-    accumulate, optional_dependency
-from fmcore.util.aws import S3Util
-from fmcore.data.asset import Image
-from fmcore.data.reader.asset.image.ImageReader import ImageReader
+
+import numpy as np
 from pydantic import constr
 from pydantic.typing import Literal
 
-with optional_dependency('imageio'):
-    import imageio.v3 as iio
+from fmcore.constants import FileContents, FileFormat, Storage
+from fmcore.data.asset import Image
+from fmcore.data.reader.asset.image.ImageReader import ImageReader
+from fmcore.util import optional_dependency
+from fmcore.util.aws import S3Util
 
+with optional_dependency("imageio"):
+    import imageio.v3 as iio
 
     class ImageIOReader(ImageReader):
         ## Subset of formats supported by imageio:
@@ -26,14 +26,14 @@ with optional_dependency('imageio'):
         ]
 
         class Params(ImageReader.Params):
-            mode: constr(min_length=1, max_length=6, strip_whitespace=True) = 'RGB'
+            mode: constr(min_length=1, max_length=6, strip_whitespace=True) = "RGB"
 
         def _read_image(
-                self,
-                source: Union[str, io.BytesIO],
-                storage: Storage,
-                file_contents: Optional[FileContents] = None,
-                **kwargs
+            self,
+            source: Union[str, io.BytesIO],
+            storage: Storage,
+            file_contents: Optional[FileContents] = None,
+            **kwargs,
         ) -> Image:
             if storage is Storage.S3:
                 source: io.BytesIO = io.BytesIO(S3Util.stream_s3_object(source).read())
@@ -47,9 +47,8 @@ with optional_dependency('imageio'):
                 height=img.shape[0],
                 width=img.shape[1],
                 color_mode=self.params.mode,
-                channels='last',
+                channels="last",
             )
-
 
     class TIFFImageIOReader(ImageIOReader):
         ## Subset of formats supported by imageio:
@@ -58,15 +57,14 @@ with optional_dependency('imageio'):
         ]
 
         class Params(ImageIOReader.Params):
-            mode: Literal['r'] = 'r'  ## In imageio's tifffile plugin, mode is 'r' or 'w'
-
+            mode: Literal["r"] = "r"  ## In imageio's tifffile plugin, mode is 'r' or 'w'
 
         def _read_image(
-                self,
-                source: Union[str, io.BytesIO],
-                storage: Storage,
-                file_contents: Optional[FileContents] = None,
-                **kwargs
+            self,
+            source: Union[str, io.BytesIO],
+            storage: Storage,
+            file_contents: Optional[FileContents] = None,
+            **kwargs,
         ) -> Image:
             if storage is Storage.S3:
                 source: io.BytesIO = io.BytesIO(S3Util.stream_s3_object(source).read())
@@ -74,7 +72,7 @@ with optional_dependency('imageio'):
                 source,
                 **self.params.dict(),
             )
-            if self.channels == 'first':
+            if self.channels == "first":
                 img: np.ndarray = np.moveaxis(img, -1, 0)
                 height: int = img.shape[1]
                 width: int = img.shape[2]
@@ -86,7 +84,7 @@ with optional_dependency('imageio'):
                 data=img,
                 height=height,
                 width=width,
-                color_mode='RGB',
+                color_mode="RGB",
                 channels=self.channels,
             )
 

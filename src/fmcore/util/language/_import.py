@@ -7,10 +7,10 @@ from pydantic.typing import Literal
 
 @contextmanager
 def optional_dependency(
-        *names: Union[List[str], str],
-        error: Literal['raise', 'warn', 'ignore'] = "ignore",
-        warn_every_time: bool = False,
-        __WARNED_OPTIONAL_MODULES: Set[str] = set()  ## "Private" argument
+    *names: Union[List[str], str],
+    error: Literal["raise", "warn", "ignore"] = "ignore",
+    warn_every_time: bool = False,
+    __WARNED_OPTIONAL_MODULES: Set[str] = set(),  ## "Private" argument
 ) -> Optional[Union[Tuple[types.ModuleType, ...], types.ModuleType]]:
     """
     A contextmanager (used with "with") which passes code if optional dependencies are not present.
@@ -78,30 +78,32 @@ def optional_dependency(
         if error == "warn":
             if missing_module not in __WARNED_OPTIONAL_MODULES or warn_every_time is True:
                 msg = f'Missing optional dependency "{missing_module}". Use pip or conda to install.'
-                print(f'Warning: {msg}')
+                print(f"Warning: {msg}")
                 __WARNED_OPTIONAL_MODULES.add(missing_module)
 
 
 _IS_RAY_INSTALLED: bool = False
 
-with optional_dependency('ray'):
+with optional_dependency("ray"):
     import ray
+
+    assert isinstance(ray.ObjectRef, type)
 
     _IS_RAY_INSTALLED: bool = True
 
 
 def _check_is_ray_installed():
     if not _IS_RAY_INSTALLED:
-        raise ImportError(f'Dependency "ray" is not installed.')
+        raise ImportError('Dependency "ray" is not installed.')
 
 
 _IS_DASK_INSTALLED: bool = False
 
-DaskDataFrame = 'DaskDataFrame'
-DaskSeries = 'DaskSeries'
-with optional_dependency('dask'):
-    import dask
-    from dask.dataframe import DataFrame as DaskDataFrame, Scalar as DaskScalar, Series as DaskSeries
+DaskDataFrame = "DaskDataFrame"
+DaskSeries = "DaskSeries"
+with optional_dependency("dask"):
+    from dask.dataframe import DataFrame as DaskDataFrame
+    from dask.dataframe import Series as DaskSeries
 
     assert isinstance(DaskDataFrame, type)
     assert isinstance(DaskSeries, type)
@@ -111,17 +113,19 @@ with optional_dependency('dask'):
 
 def _check_is_dask_installed():
     if not _IS_DASK_INSTALLED:
-        raise ImportError(f'Dependency "dask" is not installed.')
+        raise ImportError('Dependency "dask" is not installed.')
 
 
 _IS_TORCH_INSTALLED: bool = False
 
-with optional_dependency('torch'):
+with optional_dependency("torch"):
     import torch
+
+    assert isinstance(torch.Tensor, type)
 
     _IS_TORCH_INSTALLED: bool = True
 
 
 def _check_is_torch_installed():
     if not _IS_TORCH_INSTALLED:
-        raise ImportError(f'Dependency "torch" is not installed.')
+        raise ImportError('Dependency "torch" is not installed.')

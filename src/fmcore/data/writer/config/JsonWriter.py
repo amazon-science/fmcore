@@ -1,8 +1,9 @@
+import json
 from typing import *
-import io, json
+
+from fmcore.constants import FileFormat
 from fmcore.data.writer.config.ConfigWriter import ConfigWriter
 from fmcore.util import StructuredBlob
-from fmcore.constants import FileFormat, FileContents
 
 
 class JsonWriter(ConfigWriter):

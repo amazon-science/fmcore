@@ -1,55 +1,82 @@
-from typing import *
-from abc import abstractmethod, ABC
-import os, time, logging, sys, shutil, numpy as np, pandas as pd, gc, warnings
-from math import exp, log, inf
-from contextlib import contextmanager
-from fmcore.util import optional_dependency, set_param_from_alias, Parameters, get_default, safe_validate_arguments, \
-    ignore_warnings, as_list, Alias
-from fmcore.data import FileMetadata
-from fmcore.data import ScalableDataFrame, ScalableSeries
-from fmcore.constants import MLType
+import gc
+import time
+from abc import ABC
 from collections import OrderedDict
-from pydantic import root_validator, Extra
+from contextlib import contextmanager
+from math import inf
+from typing import *
+
+import numpy as np
+from pydantic import Extra, root_validator
 from pydantic.typing import Literal
 
-with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers', 'huggingface_hub'):
+from fmcore.constants import MLType
+from fmcore.data import FileMetadata
+from fmcore.util import (
+    Alias,
+    Parameters,
+    as_list,
+    get_default,
+    ignore_warnings,
+    optional_dependency,
+    safe_validate_arguments,
+    set_param_from_alias,
+)
+
+with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers", "huggingface_hub"):
+    import huggingface_hub
     import torch
     from torch import Tensor
-    from torch.nn.functional import softmax, sigmoid
-    from fmcore.framework import Dataset, Classifier, EncodingRange
-    from fmcore.framework.dl.torch import PyTorch, Loss, Optimizer, LRScheduler, \
-        PyTorchBaseModel, PyTorchClassifierMixin, PyTorchMultiLabelClassifierMixin
-    from transformers import AutoModel, AutoTokenizer, AutoConfig, \
-        PreTrainedModel, PreTrainedTokenizerBase, PretrainedConfig, \
-        AutoModelForSequenceClassification, AutoModelForCausalLM, AutoModelForSeq2SeqLM, \
-        BatchEncoding
-    from transformers.models.auto.modeling_auto import _BaseAutoModelClass, MODEL_MAPPING_NAMES, \
-        MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING_NAMES, MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING_NAMES, \
-        MODEL_FOR_CAUSAL_LM_MAPPING_NAMES, MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES
-    from transformers.generation.utils import GreedySearchDecoderOnlyOutput, SampleDecoderOnlyOutput, StoppingCriteria
     from transformers import (
-        LogitsProcessorList,
-        MinLengthLogitsProcessor, TemperatureLogitsWarper,
-        TopKLogitsWarper, TopPLogitsWarper,
-        TypicalLogitsWarper
+        AutoConfig,
+        AutoModel,
+        AutoModelForCausalLM,
+        AutoModelForSeq2SeqLM,
+        AutoModelForSequenceClassification,
+        AutoTokenizer,
+        BatchEncoding,
+        PretrainedConfig,
+        PreTrainedModel,
+        PreTrainedTokenizerBase,
     )
-    from transformers.modeling_outputs import SequenceClassifierOutput, TokenClassifierOutput
-    import huggingface_hub
-    from transformers.utils.logging import is_progress_bar_enabled, enable_progress_bar, disable_progress_bar
-    from fmcore.framework.task.text_generation import GenerativeLM, Prompts, NextTokens, GenerationOutputScoresFormat, \
-        TextGenerationParams, TextGenerationParamsMapper, \
-        TEXT_PROMPT_COL, GENERATED_TEXTS_COL
+    from transformers.generation.utils import (
+        GreedySearchDecoderOnlyOutput,
+        SampleDecoderOnlyOutput,
+        StoppingCriteria,
+    )
+    from transformers.modeling_outputs import SequenceClassifierOutput
+    from transformers.models.auto.modeling_auto import (
+        MODEL_FOR_CAUSAL_LM_MAPPING_NAMES,
+        MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES,
+        MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING_NAMES,
+        MODEL_MAPPING_NAMES,
+        _BaseAutoModelClass,
+    )
+    from transformers.utils.logging import disable_progress_bar, enable_progress_bar, is_progress_bar_enabled
 
+    from fmcore.framework import Dataset
+    from fmcore.framework.dl.torch import (
+        Loss,
+        Optimizer,
+        PyTorch,
+        PyTorchBaseModel,
+        PyTorchClassifierMixin,
+        PyTorchMultiLabelClassifierMixin,
+    )
+    from fmcore.framework.task.text_generation import (
+        GENERATED_TEXTS_COL,
+        GenerationOutputScoresFormat,
+        GenerativeLM,
+        Prompts,
+        TextGenerationParams,
+        TextGenerationParamsMapper,
+    )
 
     def mapping_to_auto_model_classes(mapping_names: Union[List, Dict, OrderedDict]) -> Dict[str, str]:
         if isinstance(mapping_names, (dict, OrderedDict)):
             mapping_names: List = list(mapping_names.items())
         mapping_names: List[Tuple[str, Union[Tuple, str]]] = list(mapping_names)
-        return {
-            k: as_list(v)[0]
-            for k, v in mapping_names
-        }
-
+        return {k: as_list(v)[0] for k, v in mapping_names}
 
     @contextmanager
     def disable_hf_logging():
@@ -60,9 +87,8 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
         if should_reenable_progress_bar:
             enable_progress_bar()
 
-
     class HFPyTorchModel(PyTorch, ABC):
-        aliases = ['huggingface']
+        aliases = ["huggingface"]
 
         AutoModelClass: ClassVar[Type[_BaseAutoModelClass]]
         available_auto_model_classes: ClassVar[Dict[str, str]]
@@ -72,13 +98,13 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
         @root_validator(pre=True)
         def set_aliases(cls, params: Dict) -> Dict:
             Alias.set_cache_dir(params)
-            if params.get('cache_dir') is not None:
-                params['cache_dir']: FileMetadata = FileMetadata.of(params['cache_dir'])
+            if params.get("cache_dir") is not None:
+                params["cache_dir"]: FileMetadata = FileMetadata.of(params["cache_dir"])
             return params
 
         def create_model(
-                self,
-                model_dir: Optional[FileMetadata] = None,
+            self,
+            model_dir: Optional[FileMetadata] = None,
         ) -> PreTrainedModel:
             cache_dir: Optional[str] = self.cache_dir.path if self.cache_dir is not None else None
             if self.init_empty is True:
@@ -139,35 +165,37 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
 
         @safe_validate_arguments
         def download_model_to_cache_dir(
-                self,
-                cache_dir: Optional[Union[FileMetadata, Dict, str]] = None,
-                download_strategy: Literal['load_model', 'snapshot_download', 'none'] = 'snapshot_download',
-                **kwargs
+            self,
+            cache_dir: Optional[Union[FileMetadata, Dict, str]] = None,
+            download_strategy: Literal["load_model", "snapshot_download", "none"] = "snapshot_download",
+            **kwargs,
         ) -> FileMetadata:
             ## Download model if not already downloaded.
             cache_dir: FileMetadata = FileMetadata.of(get_default(cache_dir, self.cache_dir))
             # print(f'{self.class_name} using cache dir: {cache_dir}')
 
             with disable_hf_logging():
-                if download_strategy == 'snapshot_download':
+                if download_strategy == "snapshot_download":
                     huggingface_hub.snapshot_download(
                         repo_id=self.hyperparams.model_name,
                         cache_dir=cache_dir.path,
                         ignore_patterns=[
                             ## Ignore HF-format files:
-                            '*.safetensors', '*.safetensors.index.json',
+                            "*.safetensors",
+                            "*.safetensors.index.json",
                             ## Ignore Flax-format files:
-                            '*.msgpack', '*.msgpack.index.json',
+                            "*.msgpack",
+                            "*.msgpack.index.json",
                             ## Ignore tensorflow-format files:
-                            '*.h5', '*.h5.index.json',
+                            "*.h5",
+                            "*.h5.index.json",
                         ],
                         token=self.hyperparams.api_key,
                     )
                     gc.collect()
-                elif download_strategy == 'load_model':
+                elif download_strategy == "load_model":
                     hf_repos: Dict[str, Any] = {
-                        repo.repo_id: repo
-                        for repo in huggingface_hub.scan_cache_dir(cache_dir.path).repos
+                        repo.repo_id: repo for repo in huggingface_hub.scan_cache_dir(cache_dir.path).repos
                     }
                     if self.hyperparams.model_name not in hf_repos:
                         model = self.AutoModelClass.from_pretrained(
@@ -179,7 +207,7 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
                         )
                         del model
                         gc.collect()
-                elif download_strategy == 'none':
+                elif download_strategy == "none":
                     ## Do not download:
                     pass
                 else:
@@ -190,8 +218,7 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
             for _ in range(3):
                 try:
                     hf_repos: Dict[str, Any] = {
-                        repo.repo_id: repo
-                        for repo in huggingface_hub.scan_cache_dir(cache_dir.path).repos
+                        repo.repo_id: repo for repo in huggingface_hub.scan_cache_dir(cache_dir.path).repos
                     }
                     model_cache_dir: str = str(
                         sorted(
@@ -207,10 +234,9 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
                     exc = e
                     time.sleep(np.random.randint(1, 15))
             raise OSError(
-                f'Failed to load HuggingFace model after 3 tries. '
-                f'Error:\n{String.format_exception_msg(exc, short=False)}'
+                f"Failed to load HuggingFace model after 3 tries. "
+                f"Error:\n{String.format_exception_msg(exc, short=False)}"
             )
-
 
     class HFTokenizerConfig(Parameters):
         class Config(Parameters.Config):
@@ -218,33 +244,45 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
 
         tokenizer_name: Optional[str] = None
         pad_token: Optional[str] = None
-        truncation_side: Literal['left', 'right'] = 'right'  ## Keeps tokens at the start of the string
+        truncation_side: Literal["left", "right"] = "right"  ## Keeps tokens at the start of the string
 
         @root_validator(pre=True)
         def set_aliases(cls, params: Dict) -> Dict:
-            set_param_from_alias(params, param='tokenizer_name', alias=[
-                'model_name', 'pretrained_model_name_or_path', 'model_name_or_path', 'tokenizer',
-            ])
+            set_param_from_alias(
+                params,
+                param="tokenizer_name",
+                alias=[
+                    "model_name",
+                    "pretrained_model_name_or_path",
+                    "model_name_or_path",
+                    "tokenizer",
+                ],
+            )
             return params
-
 
     class HFTokenizerEncode(Parameters):
         class Config(Parameters.Config):
             extra = Extra.allow
 
         max_length: Optional[int] = None
-        padding: Literal['longest', 'max_length', 'do_not_pad'] = 'longest'  ## Same as padding="True"
-        truncation: Literal['only_first', 'only_second',
-                            'longest_first', 'do_not_truncate'] = 'longest_first'  ## Same as truncation="True"
+        padding: Literal["longest", "max_length", "do_not_pad"] = "longest"  ## Same as padding="True"
+        truncation: Literal["only_first", "only_second", "longest_first", "do_not_truncate"] = (
+            "longest_first"  ## Same as truncation="True"
+        )
 
         @root_validator(pre=True)
         def set_aliases(cls, params: Dict) -> Dict:
-            set_param_from_alias(params, param='max_length', alias=[
-                'max_len', 'max_sequence_length', 'max_sequence_len',
-            ])
-            set_param_from_alias(params, param='padding', alias=['pad'])
+            set_param_from_alias(
+                params,
+                param="max_length",
+                alias=[
+                    "max_len",
+                    "max_sequence_length",
+                    "max_sequence_len",
+                ],
+            )
+            set_param_from_alias(params, param="padding", alias=["pad"])
             return params
-
 
     class HFTokenizerDecode(Parameters):
         class Config(Parameters.Config):
@@ -252,7 +290,6 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
 
         skip_special_tokens: bool = True
         clean_up_tokenization_spaces: bool = True
-
 
     class HFPyTorchTextModel(HFPyTorchModel, ABC):
         AutoTokenizerClass: ClassVar[Type] = AutoTokenizer
@@ -266,7 +303,10 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
         def save_param_names(cls) -> Set[str]:
             return super(HFPyTorchTextModel, cls).save_param_names() - {
                 ## Remove all params PyTorch-specific params which should not be saved in __model_params__.pkl file:
-                'tokenizer', 'token2id', 'id2token', 'id2token_np',
+                "tokenizer",
+                "token2id",
+                "id2token",
+                "id2token_np",
             }
 
         def post_initialize(self):
@@ -284,7 +324,7 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
             device_map: Optional[Union[Dict, str]] = None
             torch_dtype: Optional[Union[torch.dtype, str]] = None
             optimizer: Optimizer = dict(
-                name='AdamW',
+                name="AdamW",
                 lr=5e-5,
                 weight_decay=1e-7,
                 eps=1e-8,
@@ -292,16 +332,28 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
 
             @root_validator(pre=True)
             def set_hf_text_model_params(cls, params: Dict) -> Dict:
-                set_param_from_alias(params, param='model_name', alias=[
-                    'model', 'pretrained_model_name_or_path', 'model_name_or_path',
-                ])
-                set_param_from_alias(params, param='torch_dtype', alias=[
-                    'weights_dtype', 'model_dtype', 'model_weights_dtype',
-                ])
-                if params.get('torch_dtype') is not None:
-                    if isinstance(params['torch_dtype'], str):
-                        params['torch_dtype'] = getattr(torch, params['torch_dtype'])
-                    assert isinstance(params['torch_dtype'], torch.dtype)
+                set_param_from_alias(
+                    params,
+                    param="model_name",
+                    alias=[
+                        "model",
+                        "pretrained_model_name_or_path",
+                        "model_name_or_path",
+                    ],
+                )
+                set_param_from_alias(
+                    params,
+                    param="torch_dtype",
+                    alias=[
+                        "weights_dtype",
+                        "model_dtype",
+                        "model_weights_dtype",
+                    ],
+                )
+                if params.get("torch_dtype") is not None:
+                    if isinstance(params["torch_dtype"], str):
+                        params["torch_dtype"] = getattr(torch, params["torch_dtype"])
+                    assert isinstance(params["torch_dtype"], torch.dtype)
                 return params
 
         def initialize(self, model_dir: Optional[FileMetadata] = None):
@@ -315,7 +367,7 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
             self.token2id: Dict[str, int] = self.tokenizer.get_vocab()
             self.id2token: Dict[int, str] = {tok_id: tok for tok, tok_id in self.token2id.items()}
             max_vocab_value: int = max(self.tokenizer.get_vocab().values())
-            id2token_np: List[str] = ['' for _ in range(max_vocab_value + 1)]
+            id2token_np: List[str] = ["" for _ in range(max_vocab_value + 1)]
             for tok, tok_id in self.tokenizer.get_vocab().items():
                 id2token_np[tok_id] = tok
             id2token_np: np.ndarray = np.array(id2token_np)
@@ -329,9 +381,13 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
                         self.hyperparams.tokenizer_config.tokenizer_name,
                         self.hyperparams.model_name,
                     ),
-                    **self.hyperparams.tokenizer_config.dict(exclude={
-                        'pad_token', 'cache_dir', 'tokenizer_name',
-                    }),
+                    **self.hyperparams.tokenizer_config.dict(
+                        exclude={
+                            "pad_token",
+                            "cache_dir",
+                            "tokenizer_name",
+                        }
+                    ),
                     cache_dir=self.cache_dir.path if self.cache_dir is not None else None,
                     trust_remote_code=True,
                     token=self.hyperparams.api_key,
@@ -343,9 +399,13 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
                 # )
                 return self.AutoTokenizerClass.from_pretrained(
                     model_dir.path,
-                    **self.hyperparams.tokenizer_config.dict(exclude={
-                        'pad_token', 'cache_dir', 'tokenizer_name',
-                    }),
+                    **self.hyperparams.tokenizer_config.dict(
+                        exclude={
+                            "pad_token",
+                            "cache_dir",
+                            "tokenizer_name",
+                        }
+                    ),
                     trust_remote_code=True,
                     token=self.hyperparams.api_key,
                 )
@@ -359,52 +419,53 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
             )
 
         def prepare_input(
-                self,
-                batch: Dataset,
-                **kwargs,
+            self,
+            batch: Dataset,
+            **kwargs,
         ) -> Dict[str, Tensor]:
-            sentences: List[str] = batch.features(MLType.TEXT, return_series=True).fillna('').to_list()
+            sentences: List[str] = batch.features(MLType.TEXT, return_series=True).fillna("").to_list()
             input: BatchEncoding = self.tokenizer(
                 sentences,
                 **{
                     **self.hyperparams.tokenizer_encode.dict(),
-                    **dict(return_tensors='pt'),
-                }
+                    **dict(return_tensors="pt"),
+                },
             )
             return dict(input)
 
-
     class HFPyTorchTextEmbedder(HFPyTorchTextModel, PyTorchBaseModel):
-        aliases = ['huggingface', 'huggingface-TextEmbedder']
+        aliases = ["huggingface", "huggingface-TextEmbedder"]
         AutoModelClass = AutoModel
         available_auto_model_classes = mapping_to_auto_model_classes(MODEL_MAPPING_NAMES)
 
         _embedding_size: Optional[int] = None
 
         class Hyperparameters(HFPyTorchTextModel.Hyperparameters):
-            loss: Union[Loss, Dict, str] = 'CrossEntropyLoss'
-            pooling: Literal['mean'] = 'mean'
+            loss: Union[Loss, Dict, str] = "CrossEntropyLoss"
+            pooling: Literal["mean"] = "mean"
 
         def embed_single(self, input: Dict[str, Tensor], **kwargs) -> Tensor:
             # print(f'input: {input}')
             with torch.no_grad():
                 model_output = self.model(**input)
-            if self.hyperparams.pooling == 'mean':
-                return self.mean_pooling(model_output, input['attention_mask'])
+            if self.hyperparams.pooling == "mean":
+                return self.mean_pooling(model_output, input["attention_mask"])
             raise NotImplementedError(f'Unsupported pooling type: "{self.hyperparams.pooling}"')
 
         def embed_multi(self, input: Dict[str, Tensor], **kwargs) -> Tensor:
             with torch.no_grad():
                 model_output = self.model(**input)
-            return model_output[0]  ## model_output[0] is a Tensor of shape (batch_size, num_tokens, embedding_size)
+            return model_output[
+                0
+            ]  ## model_output[0] is a Tensor of shape (batch_size, num_tokens, embedding_size)
 
         def embedding_size(self) -> int:
             if self._embedding_size is None:
                 input: BatchEncoding = self.tokenizer(
-                    ['test'],
+                    ["test"],
                     truncation=True,
                     max_length=3,
-                    return_tensors='pt',
+                    return_tensors="pt",
                 )
                 with torch.no_grad():
                     model_output = self.model(**input)
@@ -425,18 +486,19 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
         @staticmethod
         def mean_pooling(model_output, attention_mask) -> Tensor:
             token_embeddings = model_output[0]  ## First element of model_output contains all token embeddings
-            token_embeddings = token_embeddings.masked_fill(~attention_mask[..., None].bool(), 0.)
+            token_embeddings = token_embeddings.masked_fill(~attention_mask[..., None].bool(), 0.0)
             sentence_embeddings = token_embeddings.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
             return sentence_embeddings
 
-
     class HFPyTorchSequenceClassifier(HFPyTorchTextModel, PyTorchClassifierMixin):
-        aliases = ['huggingface', 'huggingface-SequenceClassification']
+        aliases = ["huggingface", "huggingface-SequenceClassification"]
         AutoModelClass = AutoModelForSequenceClassification
-        available_auto_model_classes = mapping_to_auto_model_classes(MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING_NAMES)
+        available_auto_model_classes = mapping_to_auto_model_classes(
+            MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING_NAMES
+        )
 
         class Hyperparameters(HFPyTorchTextModel.Hyperparameters):
-            loss: Union[Loss, Dict, str] = 'CrossEntropyLoss'
+            loss: Union[Loss, Dict, str] = "CrossEntropyLoss"
 
         def create_model_config(self) -> PretrainedConfig:
             return AutoConfig.from_pretrained(
@@ -465,14 +527,15 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
             # return logits
             return output.logits
 
-
     class HFPyTorchMultiLabelSequenceClassifier(HFPyTorchTextModel, PyTorchMultiLabelClassifierMixin):
-        aliases = ['huggingface', 'huggingface-MultiLabelSequenceClassification']
+        aliases = ["huggingface", "huggingface-MultiLabelSequenceClassification"]
         AutoModelClass = AutoModelForSequenceClassification
-        available_auto_model_classes = mapping_to_auto_model_classes(MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING_NAMES)
+        available_auto_model_classes = mapping_to_auto_model_classes(
+            MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING_NAMES
+        )
 
         class Hyperparameters(HFPyTorchTextModel.Hyperparameters):
-            loss: Union[Loss, Dict, str] = 'BCEWithLogitsLoss'
+            loss: Union[Loss, Dict, str] = "BCEWithLogitsLoss"
 
         def create_model_config(self) -> PretrainedConfig:
             return AutoConfig.from_pretrained(
@@ -502,19 +565,19 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
             # return logits
             return output.logits
 
-
     class HFGenerativeLMTokenizerConfig(HFTokenizerConfig):
-        truncation_side: Literal['left', 'right'] = 'left'  ## Keeps tokens at the end of the string, useful for LLMs
-
+        truncation_side: Literal["left", "right"] = (
+            "left"  ## Keeps tokens at the end of the string, useful for LLMs
+        )
 
     class HFSubstringMatchStoppingCriteria(StoppingCriteria):
         def __init__(
-                self,
-                *,
-                stop_sequences: List[str],
-                tokenizer: Any,
-                tokenizer_decode_dict: Dict,
-                prompt_input_ids: Tensor,
+            self,
+            *,
+            stop_sequences: List[str],
+            tokenizer: Any,
+            tokenizer_decode_dict: Dict,
+            prompt_input_ids: Tensor,
         ):
             self.tokenizer: PreTrainedTokenizerBase = tokenizer
             self.tokenizer_decode_dict: Dict = tokenizer_decode_dict
@@ -524,7 +587,7 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
         def __call__(self, input_ids, scores, **kwargs):
             # Get the generated text as a string
             generated_texts: List[str] = self.tokenizer.batch_decode(
-                input_ids[:, self.prompt_input_ids.shape[1]:],
+                input_ids[:, self.prompt_input_ids.shape[1] :],
                 **self.tokenizer_decode_dict,
             )
             # Check if the target sequence appears in ALL generated texts
@@ -551,23 +614,32 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
         def __iter__(self):
             yield self
 
-
     class HFPyTorchGenerativeLMMixin(GenerativeLM, HFPyTorchTextModel, ABC):
         class Hyperparameters(HFPyTorchTextModel.Hyperparameters):
-            prompt_prefix: str = ''
+            prompt_prefix: str = ""
             generation_params: Union[TextGenerationParams, Dict, str]
 
-            tokenizer_config: HFGenerativeLMTokenizerConfig = dict(padding_side='left', truncation_side='left')
+            tokenizer_config: HFGenerativeLMTokenizerConfig = dict(
+                padding_side="left", truncation_side="left"
+            )
             tokenizer_decode: HFTokenizerDecode = dict()
 
             @root_validator(pre=True)
             def set_generative_lm_params(cls, params: Dict) -> Dict:
-                set_param_from_alias(params, param='generation_params', alias=[
-                    'text_generation_params',
-                    'generation', 'text_generation',
-                    'generation_strategy', 'text_generation_strategy',
-                ])
-                params['generation_params'] = TextGenerationParamsMapper.of(params['generation_params']).initialize()
+                set_param_from_alias(
+                    params,
+                    param="generation_params",
+                    alias=[
+                        "text_generation_params",
+                        "generation",
+                        "text_generation",
+                        "generation_strategy",
+                        "text_generation_strategy",
+                    ],
+                )
+                params["generation_params"] = TextGenerationParamsMapper.of(
+                    params["generation_params"]
+                ).initialize()
                 return params
 
         @property
@@ -591,8 +663,8 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
 
         def forward(self, input: Dict, **kwargs) -> Dict:
             ## Feed the input_ids and masks to the model:
-            input.pop('token_type_ids', None)
-            input_ids: Tensor = input['input_ids']
+            input.pop("token_type_ids", None)
+            input_ids: Tensor = input["input_ids"]
             with disable_hf_logging():
                 gen_kwargs: Dict = {
                     **input,
@@ -600,18 +672,20 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
                     **dict(return_dict_in_generate=True),  ## Always return a *DecoderOnlyOutput
                 }
                 if self.stop_sequences is not None:
-                    gen_kwargs['stopping_criteria'] = HFSubstringMatchStoppingCriteria(
+                    gen_kwargs["stopping_criteria"] = HFSubstringMatchStoppingCriteria(
                         stop_sequences=self.stop_sequences,
                         tokenizer=self.tokenizer,
                         tokenizer_decode_dict=self.tokenizer_decode_dict,
                         prompt_input_ids=input_ids,
                     )
-                out: Union[GreedySearchDecoderOnlyOutput, SampleDecoderOnlyOutput] = self.model.generate(**gen_kwargs)
+                out: Union[GreedySearchDecoderOnlyOutput, SampleDecoderOnlyOutput] = self.model.generate(
+                    **gen_kwargs
+                )
             return dict(out)
 
         def prepare_predictions(self, output: Dict, input: Dict, **kwargs) -> Any:
-            input_ids: Tensor = input['input_ids']
-            generated_sequences: Tensor = output['sequences']
+            input_ids: Tensor = input["input_ids"]
+            generated_sequences: Tensor = output["sequences"]
             num_input_tokens: int = input_ids.shape[1]
             num_generated_tokens: int = generated_sequences.shape[1]
             if num_generated_tokens <= num_input_tokens:
@@ -643,16 +717,16 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
                     if earliest_stop_idx is not None:
                         generated_texts[gen_text_i]: str = generated_text[:earliest_stop_idx]
 
-            predictions: Dict = {
-                GENERATED_TEXTS_COL: generated_texts
-            }
+            predictions: Dict = {GENERATED_TEXTS_COL: generated_texts}
             if self.hyperparams.generation_params.output_scores:
                 ## We get a tensor of size (B, vocab_size) for each timestep
-                token_probs: Tuple[Tensor, ...] = output['scores']
+                token_probs: Tuple[Tensor, ...] = output["scores"]
                 token_probs: Tuple[Tensor, ...] = token_probs[:num_generated_tokens]
-                predictions['generated_token_ids'], \
-                predictions['generated_tokens'], \
-                predictions['generated_token_scores'] = self._convert_hf_scores_to_score_arrays(
+                (
+                    predictions["generated_token_ids"],
+                    predictions["generated_tokens"],
+                    predictions["generated_token_scores"],
+                ) = self._convert_hf_scores_to_score_arrays(
                     token_probs,
                     batch_size=len(generated_sequences),
                     token2id=self.token2id,
@@ -669,38 +743,37 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
 
         @staticmethod
         def _convert_hf_scores_to_score_arrays(
-                token_probs: Tuple[Tensor, ...],
-                batch_size: int,
-                token2id: Dict[str, int],
-                id2token_np: np.ndarray,
-                top_k_output_scores: Optional[int],
-                output_scores_format: GenerationOutputScoresFormat,
-                min_possible_score: float,
-                output_scores_tolerance: Optional[float],
-                renormalize_logits: bool,
-                tokens_to_keep: Optional[List[str]],
-                force_vocab_size: bool,
+            token_probs: Tuple[Tensor, ...],
+            batch_size: int,
+            token2id: Dict[str, int],
+            id2token_np: np.ndarray,
+            top_k_output_scores: Optional[int],
+            output_scores_format: GenerationOutputScoresFormat,
+            min_possible_score: float,
+            output_scores_tolerance: Optional[float],
+            renormalize_logits: bool,
+            tokens_to_keep: Optional[List[str]],
+            force_vocab_size: bool,
         ):
             num_generated_tokens: int = len(token_probs)
-            token_probs: np.ndarray = np.array([
-                token_probs_t.detach().cpu().float().numpy()
-                for token_probs_t in token_probs
-            ])
+            token_probs: np.ndarray = np.array(
+                [token_probs_t.detach().cpu().float().numpy() for token_probs_t in token_probs]
+            )
 
             token_probs: np.ndarray = np.swapaxes(token_probs, 0, 1)
             ## `token_probs` now has shape (B, num_generated_tokens, vocab_size).
-            if output_scores_format == 'probabilities':
+            if output_scores_format == "probabilities":
                 ## Convert from log-softmax-probs to softmax-probs.
                 assert renormalize_logits is True
                 token_probs: np.ndarray = np.exp(token_probs)
                 assert min_possible_score == 0.0
                 assert 0.0 < output_scores_tolerance < 1.0
-            elif output_scores_format == 'log-probabilities':
+            elif output_scores_format == "log-probabilities":
                 ## `token_probs` is already in log-softmax form.
                 assert renormalize_logits is True
                 assert min_possible_score == -inf
                 assert output_scores_tolerance < 0.0
-            elif output_scores_format == 'logits':
+            elif output_scores_format == "logits":
                 assert renormalize_logits is False
                 assert min_possible_score == -inf
                 assert output_scores_tolerance is None  ## Do not filter out any tokens.
@@ -713,15 +786,14 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
             ## Check dim 2 has same size as vocab:
             if force_vocab_size:
                 ## Needed for flan-t5 model: https://github.com/huggingface/transformers/issues/21734#issuecomment-1510111894
-                token_probs: np.ndarray = token_probs[:, :, :len(id2token_np)]
+                token_probs: np.ndarray = token_probs[:, :, : len(id2token_np)]
             assert token_probs.shape[2] == len(id2token_np)
 
             if tokens_to_keep is not None:
                 ## filtered_tokens are the ones we should keep. We should remove the rest, i.e. set them to zero.
-                filtered_out_token_ids_np: np.ndarray = np.array([
-                    token2id[tok] for tok, tok_id in token2id.items()
-                    if tok not in tokens_to_keep
-                ])
+                filtered_out_token_ids_np: np.ndarray = np.array(
+                    [token2id[tok] for tok, tok_id in token2id.items() if tok not in tokens_to_keep]
+                )
                 token_probs[:, :, filtered_out_token_ids_np] = min_possible_score
 
             ## Sort tokens based on probabilities. Here we are sorting along the vocab dimension.
@@ -738,14 +810,14 @@ with optional_dependency('torch', 'sentencepiece', 'transformers', 'tokenizers',
                 token_scores_ascending[token_scores_ascending < output_scores_tolerance] = min_possible_score
             return token_ids_ascending, tokens_ascending, token_scores_ascending
 
-
     class HFPyTorchCausalLM(HFPyTorchGenerativeLMMixin):
-        aliases = ['huggingface', 'huggingface-CausalLM']
+        aliases = ["huggingface", "huggingface-CausalLM"]
         AutoModelClass = AutoModelForCausalLM
         available_auto_model_classes = mapping_to_auto_model_classes(MODEL_FOR_CAUSAL_LM_MAPPING_NAMES)
 
-
     class HFPyTorchSeq2SeqLM(HFPyTorchGenerativeLMMixin):
-        aliases = ['huggingface', 'huggingface-Seq2SeqLM', 'huggingface-ConditionalGeneration']
+        aliases = ["huggingface", "huggingface-Seq2SeqLM", "huggingface-ConditionalGeneration"]
         AutoModelClass = AutoModelForSeq2SeqLM
-        available_auto_model_classes = mapping_to_auto_model_classes(MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES)
+        available_auto_model_classes = mapping_to_auto_model_classes(
+            MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES
+        )

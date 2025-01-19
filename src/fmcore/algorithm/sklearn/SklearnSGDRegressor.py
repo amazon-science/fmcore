@@ -1,17 +1,17 @@
-from typing import *
 import os
+from typing import *
+
 import numpy as np
 import pandas as pd
 
-from fmcore.util import optional_dependency
+from fmcore.constants import MLType, Storage
 from fmcore.data import FileMetadata
-from fmcore.framework import Regressor, RegressionData
-from fmcore.constants import Storage, MLType
+from fmcore.framework import RegressionData, Regressor
+from fmcore.util import optional_dependency
 
-with optional_dependency('sklearn', 'joblib'):
+with optional_dependency("sklearn", "joblib"):
     import joblib
     from sklearn.linear_model import SGDRegressor
-
 
     class SklearnSGDRegressor(Regressor):
         model: SGDRegressor = None
@@ -26,8 +26,8 @@ with optional_dependency('sklearn', 'joblib'):
                     random_state=self.hyperparams.seed,
                 )
             else:
-                assert model_dir.storage is Storage.LOCAL_FILE_SYSTEM, 'Can only load models from disk.'
-                self.model: SGDRegressor = joblib.load(os.path.join(model_dir.path, 'model.pkl'))
+                assert model_dir.storage is Storage.LOCAL_FILE_SYSTEM, "Can only load models from disk."
+                self.model: SGDRegressor = joblib.load(os.path.join(model_dir.path, "model.pkl"))
 
         def train_step(self, batch: RegressionData, **kwargs):
             ## Convert from our internal format to Pandas Series
@@ -42,4 +42,4 @@ with optional_dependency('sklearn', 'joblib'):
             return predictions
 
         def save(self, model_dir: FileMetadata):
-            joblib.dump(self.model, os.path.join(model_dir.path, 'model.pkl'))
+            joblib.dump(self.model, os.path.join(model_dir.path, "model.pkl"))

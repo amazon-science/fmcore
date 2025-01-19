@@ -1,19 +1,25 @@
+import csv
 from typing import *
 
 import numpy as np
 
-from fmcore.util import AutoEnum, auto, alias, optional_dependency, as_list
 from fmcore.constants.MLConstants import MLType
-import csv
+from fmcore.util import AutoEnum, alias, as_list, auto, optional_dependency
 
-DEFAULT_RANDOM_SEED: int = 42  ## https://en.wikipedia.org/wiki/42_(number)#The_Hitchhiker's_Guide_to_the_Galaxy
+DEFAULT_RANDOM_SEED: int = (
+    42  ## https://en.wikipedia.org/wiki/42_(number)#The_Hitchhiker's_Guide_to_the_Galaxy
+)
 
 
 class DataLayout(AutoEnum):
     DATUM = auto()
     LIST_OF_DICT = auto()  ## List dicts with various columns (sparse storage). Fast row-wise access.
-    DICT = auto()  ## Single Dict with Numpy Arrays or Tensorts for columns (dense storage). Fast column-wise access.
-    RECORD = auto()  ## Single Dict with Numpy Arrays or Tensorts for columns (dense storage). Fast column-wise access.
+    DICT = (
+        auto()
+    )  ## Single Dict with Numpy Arrays or Tensorts for columns (dense storage). Fast column-wise access.
+    RECORD = (
+        auto()
+    )  ## Single Dict with Numpy Arrays or Tensorts for columns (dense storage). Fast column-wise access.
     NUMPY = auto()  ## Numpy array (dense storage). Useful for row-wise access.
     TORCH = auto()
     TENSORFLOW = auto()
@@ -46,42 +52,37 @@ TENSOR_SS_DATA_LAYOUT_PRIORITY: List[DataLayout] = [
     DataLayout.JAX,
 ]
 
-AVAILABLE_TENSOR_TYPES: Dict[DataLayout, Type] = {
-    DataLayout.NUMPY: np.ndarray
-}
-with optional_dependency('torch'):
+AVAILABLE_TENSOR_TYPES: Dict[DataLayout, Type] = {DataLayout.NUMPY: np.ndarray}
+with optional_dependency("torch"):
     import torch
 
     AVAILABLE_TENSOR_TYPES[DataLayout.TORCH] = torch.Tensor
 
-with optional_dependency('tensorflow'):
+with optional_dependency("tensorflow"):
     import tensorflow as tf
-    from tensorflow import keras as ks
 
     AVAILABLE_TENSOR_TYPES[DataLayout.TENSORFLOW] = tf.Tensor
 
-with optional_dependency('jax', 'flax'):
-    import jax
+with optional_dependency("jax", "flax"):
     import jax.numpy as jnp
-    import flax.linen as nn
 
     AVAILABLE_TENSOR_TYPES[DataLayout.JAX] = jnp.ndarray
 
 AVAILABLE_DEEP_LEARNING_PACKAGES: Set[DataLayout] = set(AVAILABLE_TENSOR_TYPES.keys())
 
 TENSOR_LAYOUT_TO_SHORTHAND_MAP: Dict[DataLayout, List[str]] = {
-    DataLayout.NUMPY: ['np', 'numpy'],
-    DataLayout.TORCH: ['pt', 'torch', 'pytorch'],
-    DataLayout.TENSORFLOW: ['tf', 'tensorflow'],
-    DataLayout.JAX: ['jax'],
+    DataLayout.NUMPY: ["np", "numpy"],
+    DataLayout.TORCH: ["pt", "torch", "pytorch"],
+    DataLayout.TENSORFLOW: ["tf", "tensorflow"],
+    DataLayout.JAX: ["jax"],
 }
-TensorShortHand = Literal['np', 'numpy', 'pt', 'torch', 'pytorch', 'tf', 'tensorflow', 'jax']
+TensorShortHand = Literal["np", "numpy", "pt", "torch", "pytorch", "tf", "tensorflow", "jax"]
 
 SHORTHAND_TO_TENSOR_LAYOUT_MAP: Dict[str, DataLayout] = {}
 for tensor_layout, shorthand in TENSOR_LAYOUT_TO_SHORTHAND_MAP.items():
     for sh in as_list(shorthand):
         if sh in SHORTHAND_TO_TENSOR_LAYOUT_MAP:
-            raise ValueError(f'Cannot have duplicate file-ending keys: {sh}')
+            raise ValueError(f"Cannot have duplicate file-ending keys: {sh}")
         SHORTHAND_TO_TENSOR_LAYOUT_MAP[sh] = tensor_layout
 
 
@@ -102,21 +103,21 @@ class MissingColumnBehavior(AutoEnum):
 
 
 class Parallelize(AutoEnum):
-    asyncio = alias('async', 'asynchronous')
-    sync = alias('synchronous')
-    threads = alias('thread')
-    processes = alias('proc', 'process')
+    asyncio = alias("async", "asynchronous")
+    sync = alias("synchronous")
+    threads = alias("thread")
+    processes = alias("proc", "process")
     ray = auto()
 
 
 QUOTING_MAP: Dict = {
-    'quote_none': csv.QUOTE_NONE,
+    "quote_none": csv.QUOTE_NONE,
     csv.QUOTE_NONE: csv.QUOTE_NONE,
-    'quote_minimal': csv.QUOTE_MINIMAL,
+    "quote_minimal": csv.QUOTE_MINIMAL,
     csv.QUOTE_MINIMAL: csv.QUOTE_MINIMAL,
-    'quote_nonnumeric': csv.QUOTE_NONNUMERIC,
+    "quote_nonnumeric": csv.QUOTE_NONNUMERIC,
     csv.QUOTE_NONNUMERIC: csv.QUOTE_NONNUMERIC,
-    'quote_all': csv.QUOTE_ALL,
+    "quote_all": csv.QUOTE_ALL,
     csv.QUOTE_ALL: csv.QUOTE_ALL,
 }
 
@@ -150,10 +151,10 @@ class CompressionEngine(AutoEnum):
 
 
 class Status(AutoEnum):
-    PENDING = alias('SCHEDULED')  ## The job has not yet started executing
+    PENDING = alias("SCHEDULED")  ## The job has not yet started executing
     RUNNING = auto()  ## The job is currently running.
     STOPPED = auto()  ## The job was intentionally stopped by the user.
-    SUCCEEDED = alias('SUCCESS', 'SUCCESSFUL')  ## The job finished successfully.
+    SUCCEEDED = alias("SUCCESS", "SUCCESSFUL")  ## The job finished successfully.
     FAILED = auto()  ## The job failed.
 
 

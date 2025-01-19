@@ -1,25 +1,48 @@
-from typing import *
-import types
+import gc
+import pickle
+import tempfile
 from abc import ABC, abstractmethod
-import numpy as np
-import time, traceback, pickle, gc, os, tempfile
-from fmcore.constants import FileFormat, DataLayout, MLType, DataSplit, MLTypeSchema, Storage
-from fmcore.util import Registry, MutableParameters, Parameters, FractionalBool, resolve_fractional_bool, as_list, \
-    random_sample, safe_validate_arguments, Log, any_are_none, as_set, String, \
-    all_are_none, all_are_not_none, is_abstract, flatten1d, get_default, Schema, String, \
-    remove_nulls, String, is_function, get_fn_args
-from fmcore.util.aws import S3Util
-from fmcore.data import FileMetadata, ScalableDataFrame, ScalableSeries, Asset, ScalableDataFrameOrRaw
-from fmcore.framework import Predictions, Dataset, Datasets
-from fmcore.framework.metric import Metric, Metrics
-from fmcore.framework.mixins import TaskRegistryMixin, TaskOrStr
-from pydantic import root_validator, Extra, conint
+from typing import *
 
-MODEL_PARAMS_FILE_NAME: str = f'__model_params__.pkl'
+import numpy as np
+from pydantic import Extra, conint, root_validator
+
+from fmcore.constants import DataSplit, MLType, MLTypeSchema
+from fmcore.data import FileMetadata, ScalableDataFrame
+from fmcore.framework import Dataset, Datasets, Predictions
+from fmcore.framework.metric import Metric, Metrics
+from fmcore.framework.mixins import TaskOrStr, TaskRegistryMixin
+from fmcore.util import (
+    FractionalBool,
+    Log,
+    MutableParameters,
+    Parameters,
+    Registry,
+    Schema,
+    String,
+    all_are_none,
+    all_are_not_none,
+    any_are_none,
+    as_list,
+    as_set,
+    flatten1d,
+    get_default,
+    get_fn_args,
+    is_abstract,
+    is_function,
+    random_sample,
+    remove_nulls,
+    resolve_fractional_bool,
+    safe_validate_arguments,
+)
+
+MODEL_PARAMS_FILE_NAME: str = "__model_params__.pkl"
 
 
 class Algorithm(TaskRegistryMixin, Registry, ABC):
-    _allow_multiple_subclasses: ClassVar[bool] = True  ## Allows multiple subclasses registered to the same task.
+    _allow_multiple_subclasses: ClassVar[bool] = (
+        True  ## Allows multiple subclasses registered to the same task.
+    )
     _allow_subclass_override: ClassVar[bool] = True  ## Allows replacement of subclass with same name.
 
     dataset_statistics: ClassVar[Tuple[Union[str, Dict], ...]] = ()
@@ -44,18 +67,16 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
     def _pre_registration_hook(cls):
         cls.inputs = cls._validate_inputs(cls.inputs)
         cls.outputs = cls._validate_outputs_type(cls.outputs)
-        cls.dataset_statistics = tuple(as_set('row_count') | as_set(cls.dataset_statistics))
+        cls.dataset_statistics = tuple(as_set("row_count") | as_set(cls.dataset_statistics))
 
     @classmethod
     def _registry_keys(cls) -> Optional[Union[List[Any], Any]]:
         tasks: List = as_list(cls.tasks)
-        return tasks + \
-               [(task, String.str_normalize(cls.class_name)) for task in tasks] + \
-               [
-                   (task, String.str_normalize(alias))
-                   for task in tasks
-                   for alias in cls.aliases
-               ]
+        return (
+            tasks
+            + [(task, String.str_normalize(cls.class_name)) for task in tasks]
+            + [(task, String.str_normalize(alias)) for task in tasks for alias in cls.aliases]
+        )
 
     @classmethod
     def _validate_inputs(cls, inputs: Type[Dataset]) -> Type[Dataset]:
@@ -79,18 +100,13 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
                 )
         return outputs
 
-    def __init__(
-            self,
-            *,
-            stats: Optional[Metrics] = None,
-            **kwargs
-    ):
+    def __init__(self, *, stats: Optional[Metrics] = None, **kwargs):
         super(Algorithm, self).__init__(stats=stats, **kwargs)
         self.stats = stats
 
     def __str__(self):
-        params_str: str = self.json(indent=4, include={'hyperparams'})
-        out: str = f'{self.class_name} with params:\n{params_str}'
+        params_str: str = self.json(indent=4, include={"hyperparams"})
+        out: str = f"{self.class_name} with params:\n{params_str}"
         return out
 
     class Hyperparameters(Parameters):
@@ -104,14 +120,14 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
 
         @root_validator(pre=True)
         def check_params(cls, params: Dict) -> Dict:
-            if all_are_not_none(params.get('epochs'), params.get('steps')):
-                raise ValueError(f'Must pass at most one of `epochs` and `steps`; both were passed.')
+            if all_are_not_none(params.get("epochs"), params.get("steps")):
+                raise ValueError("Must pass at most one of `epochs` and `steps`; both were passed.")
             return params
 
         def dict(
-                self,
-                include: Optional[Union[Tuple[str, ...], Set[str], Callable]] = None,
-                **kwargs,
+            self,
+            include: Optional[Union[Tuple[str, ...], Set[str], Callable]] = None,
+            **kwargs,
         ) -> Dict:
             if is_function(include):
                 include: Tuple[str, ...] = get_fn_args(include)
@@ -121,14 +137,14 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
 
         def __str__(self) -> str:
             params_str: str = self.json(indent=4)
-            out: str = f'{self.class_name}:\n{params_str}'
+            out: str = f"{self.class_name}:\n{params_str}"
             return out
 
     hyperparams: Hyperparameters = {}
 
     @property
     def hyperparams_str(self) -> str:
-        return ';'.join([f'{k}={v}' for k, v in self.hyperparams.dict().items()])
+        return ";".join([f"{k}={v}" for k, v in self.hyperparams.dict().items()])
 
     @classmethod
     def create_hyperparams(cls, hyperparams: Optional[Dict] = None) -> Hyperparameters:
@@ -139,11 +155,11 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
     def convert_params(cls, params: Dict):
         ## This allows us to create a new Algorithm instance without specifying `hyperparams`.
         ## If it is specified, we will pick cls.Hyperparameters, which can be overridden by the subclass.
-        params.setdefault('hyperparams', {})
-        params['hyperparams'] = cls._convert_params(cls.Hyperparameters, params['hyperparams'])
-        if not isinstance(params['hyperparams'], Algorithm.Hyperparameters):
+        params.setdefault("hyperparams", {})
+        params["hyperparams"] = cls._convert_params(cls.Hyperparameters, params["hyperparams"])
+        if not isinstance(params["hyperparams"], Algorithm.Hyperparameters):
             raise ValueError(
-                f'Custom hyperparameters class does not inherit from the base class version. '
+                f"Custom hyperparameters class does not inherit from the base class version. "
                 f'Please ensure your custom class for hyperparameters is called "{cls.Hyperparameters.class_name}" '
                 f'and inherits from "{cls.Hyperparameters.class_name}" defined in the base class.'
             )
@@ -151,41 +167,43 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
 
     @classmethod
     def of(
-            cls,
-            name: Optional[Union[str, Type['Algorithm'], FileMetadata, Dict]] = None,
-            *,
-            task: Optional[TaskOrStr] = None,
-            init: bool = True,
-            post_init: bool = True,
-            model_dir: Optional[Union[FileMetadata, Dict, str]] = None,
-            **kwargs,
-    ) -> 'Algorithm':
+        cls,
+        name: Optional[Union[str, Type["Algorithm"], FileMetadata, Dict]] = None,
+        *,
+        task: Optional[TaskOrStr] = None,
+        init: bool = True,
+        post_init: bool = True,
+        model_dir: Optional[Union[FileMetadata, Dict, str]] = None,
+        **kwargs,
+    ) -> "Algorithm":
         kwargs: Dict = remove_nulls(kwargs)
-        if 'algorithm' in kwargs and name is None:
-            name = kwargs.pop('algorithm')
+        if "algorithm" in kwargs and name is None:
+            name = kwargs.pop("algorithm")
         if isinstance(name, (FileMetadata, dict)):
             model_dir: Union[FileMetadata, Dict] = name
             name: Optional[str] = None
         if model_dir is not None:
             model_dir: FileMetadata = FileMetadata.of(model_dir)
-        cache_dir: Optional[str] = kwargs.get('cache_dir', None)
+        cache_dir: Optional[str] = kwargs.get("cache_dir", None)
         if cache_dir is None:
             cache_dir: str = tempfile.TemporaryDirectory().name  ## Does not exist yet
         cache_dir: FileMetadata = FileMetadata.of(cache_dir)
         if all_are_none(name, task) and model_dir is not None:
             # print(f'(pid={os.getpid()}) Loading "{AlgorithmClass}" model from dir: "{model_dir.path}"')
             model_params: Dict = {
-                **get_default(Algorithm.load_params(model_dir=model_dir, raise_error=False, tmpdir=cache_dir.path), {}),
+                **get_default(
+                    Algorithm.load_params(model_dir=model_dir, raise_error=False, tmpdir=cache_dir.path), {}
+                ),
                 **kwargs,
             }
             try:
-                name: str = model_params['algorithm']
-                task: str = model_params['task']
+                name: str = model_params["algorithm"]
+                task: str = model_params["task"]
             except Exception as e:
                 raise ValueError(
                     f'Cannot load algorithm and task from "{model_dir.path}"; '
-                    f'found model params file with contents:\n{model_params}.'
-                    f'\nError: {String.format_exception_msg(e)}'
+                    f"found model params file with contents:\n{model_params}."
+                    f"\nError: {String.format_exception_msg(e)}"
                 )
         if all_are_not_none(name, task):
             if isinstance(name, type):
@@ -210,40 +228,38 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
                         concrete_subclasses.add(Subclass.__class__.__name__)
                     elif is_abstract(Subclass) and Subclass != Algorithm:
                         abstract_task_subclasses.add(Subclass.__class__.__name__)
-            algorithm_error: str = f'{Algorithm.class_name}.of(name=..., task=..., etc)'
-            abstract_task_subclasses_error: str = ', '.join([
-                f'{s}.of(name=..., task=..., etc)' for s in random_sample(
-                    list(abstract_task_subclasses),
-                    n=2,
-                    replacement=False
-                )
-            ])
-            concrete_subclasses_error: str = ', '.join([
-                f'{s}.of(**hyperparams)' for s in random_sample(
-                    list(concrete_subclasses),
-                    n=2,
-                    replacement=False
-                )
-            ])
+            algorithm_error: str = f"{Algorithm.class_name}.of(name=..., task=..., etc)"
+            abstract_task_subclasses_error: str = ", ".join(
+                [
+                    f"{s}.of(name=..., task=..., etc)"
+                    for s in random_sample(list(abstract_task_subclasses), n=2, replacement=False)
+                ]
+            )
+            concrete_subclasses_error: str = ", ".join(
+                [
+                    f"{s}.of(**hyperparams)"
+                    for s in random_sample(list(concrete_subclasses), n=2, replacement=False)
+                ]
+            )
             raise ValueError(
                 f'"{Algorithm.class_name}" is an abstract class and cannot be instantised. '
-                f'To create an instance, please invoke .of(...) in one of the following ways:\n'
-                f'(1) Using Algorithm base class: {algorithm_error}\n'
-                f'(2) Using a task-specific base subclass: e.g. {abstract_task_subclasses_error}, etc.\n'
-                f'(3) Using a concrete subclass: e.g. {concrete_subclasses_error}, etc.'
+                f"To create an instance, please invoke .of(...) in one of the following ways:\n"
+                f"(1) Using Algorithm base class: {algorithm_error}\n"
+                f"(2) Using a task-specific base subclass: e.g. {abstract_task_subclasses_error}, etc.\n"
+                f"(3) Using a concrete subclass: e.g. {concrete_subclasses_error}, etc."
             )
         if not issubclass(AlgorithmClass, cls):
             ## Ensures that when you call Embedder.of(), you actually get an embedder.
             raise ValueError(
-                f'Invoking {cls.class_name}.of(...) has retrieved {AlgorithmClass.class_name}, which is not '
-                f'a subclass of {cls.class_name} as required. To retrieve any subclass of `{Algorithm.class_name}`, '
-                f'please invoke {Algorithm.class_name}.of(...) instead.'
+                f"Invoking {cls.class_name}.of(...) has retrieved {AlgorithmClass.class_name}, which is not "
+                f"a subclass of {cls.class_name} as required. To retrieve any subclass of `{Algorithm.class_name}`, "
+                f"please invoke {Algorithm.class_name}.of(...) instead."
             )
         if task is None:
             if len(AlgorithmClass.tasks) > 1:
                 raise ValueError(
                     f'"{cls.class_name}" has multiple tasks, please specify one by passing '
-                    f'`task=...` when invoking {cls.class_name}.of(...)'
+                    f"`task=...` when invoking {cls.class_name}.of(...)"
                 )
             task: TaskOrStr = AlgorithmClass.tasks[0]
         if model_dir is None:
@@ -255,10 +271,12 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
         else:
             # print(f'(pid={os.getpid()}) Loading "{AlgorithmClass}" model from dir: "{model_dir.path}"')
             model_params: Dict = {
-                **get_default(Algorithm.load_params(model_dir=model_dir, raise_error=False, tmpdir=cache_dir.path), {}),
+                **get_default(
+                    Algorithm.load_params(model_dir=model_dir, raise_error=False, tmpdir=cache_dir.path), {}
+                ),
                 **kwargs,
             }
-            model_params.pop('algorithm', None)
+            model_params.pop("algorithm", None)
             model: Algorithm = AlgorithmClass(**model_params)
         if init:
             if model_dir is not None and model_dir.is_remote_storage():
@@ -287,55 +305,59 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
     @classmethod
     @safe_validate_arguments
     def calculate_dataset_stats(
-            cls,
-            dataset: Dataset,
-            *,
-            data_split: Optional[DataSplit] = None,
-            batch_size: Optional[conint(ge=1)] = None,
-            **kwargs
+        cls,
+        dataset: Dataset,
+        *,
+        data_split: Optional[DataSplit] = None,
+        batch_size: Optional[conint(ge=1)] = None,
+        **kwargs,
     ) -> Optional[Metrics]:
         data_split: DataSplit = get_default(data_split, dataset.data_split)
         if data_split is None:
-            raise ValueError(f'Must pass data_split in either {Dataset.class_name} or explicitly.')
+            raise ValueError(f"Must pass data_split in either {Dataset.class_name} or explicitly.")
         stats: Optional[Metrics] = None
         if len(cls.dataset_statistics) > 0:
             ## Get from algorithm class's `dataset_statistics` (always calculate num_rows) and dedupe:
-            dataset_stats: List[Metric] = [Metric.of(s).clear() for s in
-                                           ['row_count'] + as_list(cls.dataset_statistics)]
-            dataset_stats: Dict[str, Metric] = {statistic.display_name: statistic for statistic in dataset_stats}
+            dataset_stats: List[Metric] = [
+                Metric.of(s).clear() for s in ["row_count"] + as_list(cls.dataset_statistics)
+            ]
+            dataset_stats: Dict[str, Metric] = {
+                statistic.display_name: statistic for statistic in dataset_stats
+            }
             dataset_stats: List[Metric] = list(dataset_stats.values())
             required_assets: Set[MLType] = set(flatten1d([m.required_assets for m in dataset_stats]))
             ## Do not fetch assets unless we need to.
-            kwargs['fetch_assets'] = False if len(required_assets) == 0 else True
-            kwargs['steps'] = None  ## Do not pass steps to the iteration, instead run for exactly one epoch.
+            kwargs["fetch_assets"] = False if len(required_assets) == 0 else True
+            kwargs["steps"] = None  ## Do not pass steps to the iteration, instead run for exactly one epoch.
             if not all([statistic.is_rolling for statistic in dataset_stats]):
                 raise ValueError(
-                    f'All `dataset_statistics` must be rolling; following are non-rolling: '
-                    f'{[stat for stat in dataset_stats if stat.is_rolling is False]}'
+                    f"All `dataset_statistics` must be rolling; following are non-rolling: "
+                    f"{[stat for stat in dataset_stats if stat.is_rolling is False]}"
                 )
-            for batch_i, batch in enumerate(cls.dataset_iter(
+            for batch_i, batch in enumerate(
+                cls.dataset_iter(
                     dataset,
                     data_split=data_split,
                     batch_size=batch_size,
                     validate_inputs=False,
                     shuffle=False,
-                    **kwargs
-            )):
+                    **kwargs,
+                )
+            ):
                 dataset_stats: List[Metric] = [
-                    statistic.evaluate(batch, rolling=True)
-                    for statistic in dataset_stats
+                    statistic.evaluate(batch, rolling=True) for statistic in dataset_stats
                 ]
             stats: Metrics = Metrics(metrics={data_split: dataset_stats})
         return stats
 
     @safe_validate_arguments
     def train(
-            self,
-            datasets: Optional[Union[Dataset, Datasets]] = None,
-            metrics: Optional[Union[List[Union[Metric, Dict, str]], Metrics]] = None,
-            *,
-            trainer: str = 'local',
-            **kwargs,
+        self,
+        datasets: Optional[Union[Dataset, Datasets]] = None,
+        metrics: Optional[Union[List[Union[Metric, Dict, str]], Metrics]] = None,
+        *,
+        trainer: str = "local",
+        **kwargs,
     ):
         """
         Creates a Trainer and calls train.
@@ -344,31 +366,23 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
         :param trainer: the trainer to use. Defaults to "local" for LocalTrainer.
         :param kwargs: additional keyword args to pass to Trainer.of and .train() function itself.
         """
-        if datasets is None and 'dataset' in kwargs:
-            datasets = kwargs['dataset']
+        if datasets is None and "dataset" in kwargs:
+            datasets = kwargs["dataset"]
         from fmcore.framework.trainer.Trainer import Trainer
+
         if not isinstance(datasets, Datasets):
             datasets: Datasets = Datasets.of(train=datasets)
         if metrics is not None and not isinstance(metrics, Metrics):
             metrics: Metrics = Metrics.of(train=metrics)
 
-        trainer = Trainer.of(
-            trainer=trainer,
-            algorithm=self,
-            **kwargs
-        )
-        trainer.train(
-            datasets=datasets,
-            metrics=metrics,
-            model=self,
-            **kwargs
-        )
+        trainer = Trainer.of(trainer=trainer, algorithm=self, **kwargs)
+        trainer.train(datasets=datasets, metrics=metrics, model=self, **kwargs)
 
     @safe_validate_arguments
     def train_iter(
-            self,
-            dataset: Any,
-            **kwargs,
+        self,
+        dataset: Any,
+        **kwargs,
     ) -> Generator[Dict, None, None]:
         """
         Creates a generator for a single iteration of training loop, i.e. an epoch.
@@ -379,14 +393,14 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
             return
         train_batch_generator: Any = dataset
         if isinstance(dataset, Dataset):
-            kwargs['data_split'] = DataSplit.TRAIN
+            kwargs["data_split"] = DataSplit.TRAIN
             train_batch_generator: Generator = self.dataset_iter(dataset=dataset, **kwargs)
         for batch_i, batch in enumerate(train_batch_generator):
             batch: Dataset = self._task_preprocess(batch)
             if not isinstance(batch, self.inputs):
                 raise ValueError(
-                    f'{self.class_name} can only train on data of type {self.inputs}; '
-                    f'{type(batch)} was passed. Use the from_* methods to create an instance of {self.inputs}.'
+                    f"{self.class_name} can only train on data of type {self.inputs}; "
+                    f"{type(batch)} was passed. Use the from_* methods to create an instance of {self.inputs}."
                 )
             try:
                 # print(f'(pid={os.getpid()}) Train Batch#{batch_i + 1}, length={len(batch)}')
@@ -399,10 +413,10 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
             train_step_metrics: Dict = get_default(train_step_metrics, {})
             if not isinstance(train_step_metrics, dict):
                 raise ValueError(
-                    f'Expected output of {self.class_name}.train_step() to be a dict of batch-level training metrics '
-                    f'(e.g. batch loss); found object of type: {type(train_step_metrics)}'
+                    f"Expected output of {self.class_name}.train_step() to be a dict of batch-level training metrics "
+                    f"(e.g. batch loss); found object of type: {type(train_step_metrics)}"
                 )
-            train_step_metrics['batch_size'] = len(batch)
+            train_step_metrics["batch_size"] = len(batch)
             if isinstance(dataset, Dataset) and not dataset.in_memory():
                 del batch
             yield train_step_metrics
@@ -421,13 +435,13 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
 
     @safe_validate_arguments
     def predict(
-            self,
-            dataset: Any,
-            *,
-            data_schema: Optional[MLTypeSchema] = None,
-            yield_partial: bool = False,
-            validate_outputs: Optional[FractionalBool] = None,
-            **kwargs
+        self,
+        dataset: Any,
+        *,
+        data_schema: Optional[MLTypeSchema] = None,
+        yield_partial: bool = False,
+        validate_outputs: Optional[FractionalBool] = None,
+        **kwargs,
     ) -> Union[Iterator[Predictions], Predictions]:
         dataset: Any = self.prepare_prediction_dataset(dataset, data_schema=data_schema, **kwargs)
         generator = self.predict_iter(
@@ -443,16 +457,16 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
             predictions: Predictions = Predictions.concat(predictions)
             if not isinstance(predictions, self.outputs):
                 raise ValueError(
-                    f'{self.class_name} should return outputs of type {self.outputs}; '
-                    f'found {type(predictions)} after concatenation.'
+                    f"{self.class_name} should return outputs of type {self.outputs}; "
+                    f"found {type(predictions)} after concatenation."
                 )
             return predictions
 
     def prepare_prediction_dataset(
-            self,
-            dataset: Any,
-            data_schema: Optional[MLTypeSchema] = None,
-            **kwargs,
+        self,
+        dataset: Any,
+        data_schema: Optional[MLTypeSchema] = None,
+        **kwargs,
     ) -> Any:
         if isinstance(dataset, Predictions):
             dataset: Dataset = dataset.as_task_data()
@@ -461,27 +475,27 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
             dataset: ScalableDataFrame = ScalableDataFrame.of(dataset)
             if data_schema is None:
                 raise ValueError(
-                    f'Error calling .predict(): when passing raw data instead of a {Dataset} or {Predictions} object, '
-                    f'you must pass `data_schema` as well.'
+                    f"Error calling .predict(): when passing raw data instead of a {Dataset} or {Predictions} object, "
+                    f"you must pass `data_schema` as well."
                 )
             dataset: Dataset = Dataset.of(
                 task=self.task,  ## Copy the task from the Algorithm object
                 data=dataset,
                 data_schema=data_schema,
-                **kwargs
+                **kwargs,
             )
         return dataset
 
     @safe_validate_arguments
     def predict_iter(
-            self,
-            dataset: Any,
-            *,
-            batch_size: Optional[conint(ge=1)] = None,
-            shuffle: bool = False,
-            data_split: Optional[DataSplit] = None,
-            validate_outputs: Optional[FractionalBool],
-            **kwargs
+        self,
+        dataset: Any,
+        *,
+        batch_size: Optional[conint(ge=1)] = None,
+        shuffle: bool = False,
+        data_split: Optional[DataSplit] = None,
+        validate_outputs: Optional[FractionalBool],
+        **kwargs,
     ) -> Generator[Predictions, None, None]:
         shuffle: bool = False  ## Do not shuffle while predicting.
         batch_size: Optional[conint(ge=1)] = get_default(
@@ -493,17 +507,13 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
         if isinstance(dataset, Dataset):
             data_split: DataSplit = get_default(data_split, dataset.data_split, DataSplit.PREDICT)
             predict_batch_generator: Generator = self.dataset_iter(
-                dataset=dataset,
-                data_split=data_split,
-                batch_size=batch_size,
-                shuffle=shuffle,
-                **kwargs
+                dataset=dataset, data_split=data_split, batch_size=batch_size, shuffle=shuffle, **kwargs
             )
         for batch in predict_batch_generator:
             if not isinstance(batch, self.inputs):
                 raise ValueError(
-                    f'{self.class_name} can only predict using input data of type {self.inputs}; '
-                    f'found {type(batch)}. Use from_* methods to create an instance of {self.inputs}.'
+                    f"{self.class_name} can only predict using input data of type {self.inputs}; "
+                    f"found {type(batch)}. Use from_* methods to create an instance of {self.inputs}."
                 )
             should_validate: bool = resolve_fractional_bool(validate_outputs)  ## Do NOT pass "seed" here
             batch: Dataset = self._task_preprocess(batch)
@@ -514,19 +524,13 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
                 Log.error(String.format_exception_msg(e))
                 raise e
             predictions: Predictions = self._create_predictions(
-                batch,
-                predictions=predictions,
-                validated=should_validate,
-                **kwargs
+                batch, predictions=predictions, validated=should_validate, **kwargs
             )
-            predictions: Predictions = self.postprocess(
-                predictions,
-                **kwargs
-            )
+            predictions: Predictions = self.postprocess(predictions, **kwargs)
             if not isinstance(predictions, self.outputs):
                 raise ValueError(
-                    f'{self.class_name} should return outputs of type {self.outputs}; '
-                    f'found {type(predictions)}. Use from_* methods to create an instance of {self.outputs}.'
+                    f"{self.class_name} should return outputs of type {self.outputs}; "
+                    f"found {type(predictions)}. Use from_* methods to create an instance of {self.outputs}."
                 )
             yield predictions
             if isinstance(dataset, Dataset) and not dataset.in_memory():
@@ -543,13 +547,13 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
     @classmethod
     @safe_validate_arguments
     def dataset_iter(
-            cls,
-            dataset: Dataset,
-            *,
-            data_split: Optional[DataSplit] = None,
-            validate_inputs: Optional[FractionalBool] = None,
-            fetch_assets: bool = True,
-            **kwargs
+        cls,
+        dataset: Dataset,
+        *,
+        data_split: Optional[DataSplit] = None,
+        validate_inputs: Optional[FractionalBool] = None,
+        fetch_assets: bool = True,
+        **kwargs,
     ) -> Generator[Union[Dataset, Any], None, None]:
         """
         Retrieves Dataset batches from a dataset.
@@ -557,19 +561,21 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
         data_split: DataSplit = get_default(data_split, dataset.data_split)
         if data_split is None:
             raise ValueError(
-                f'Must pass data_split in either {Dataset.class_name}.of(), '
-                f'or explicitly when calling .dataset_iter()'
+                f"Must pass data_split in either {Dataset.class_name}.of(), "
+                f"or explicitly when calling .dataset_iter()"
             )
 
-        feature_mltypes: Tuple[MLType, ...] = get_default(cls.feature_mltypes, ())  ## By default, gets all features
+        feature_mltypes: Tuple[MLType, ...] = get_default(
+            cls.feature_mltypes, ()
+        )  ## By default, gets all features
         if len(feature_mltypes) > 0:  ## If we have zero feature-MLTypes, keep all features.
-            filtered_features_schema: MLTypeSchema = dict(dataset.columns(
-                mltypes=feature_mltypes,
-                schema_portion='features',
-                return_mltypes=True
-            ))
+            filtered_features_schema: MLTypeSchema = dict(
+                dataset.columns(mltypes=feature_mltypes, schema_portion="features", return_mltypes=True)
+            )
             ## Setting this will cause the reader to filter out other columns in dataset.read_batches()
-            dataset.data_schema: Schema = dataset.data_schema.set_features(filtered_features_schema, override=True)
+            dataset.data_schema: Schema = dataset.data_schema.set_features(
+                filtered_features_schema, override=True
+            )
 
         batching_params: Dict = {
             **cls.default_batching_params,
@@ -582,7 +588,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
             validate=validate_inputs,
             fetch_assets=fetch_assets,
             map=cls.preprocess,
-            map_apply='batch',
+            map_apply="batch",
             **batching_params,
         )
 
@@ -596,38 +602,29 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
 
     @safe_validate_arguments
     def evaluate(
-            self,
-            dataset: Any,
-            metrics: Optional[Union[Union[Metric, Dict, str], List[Union[Metric, Dict, str]]]] = None,
-            **kwargs
+        self,
+        dataset: Any,
+        metrics: Optional[Union[Union[Metric, Dict, str], List[Union[Metric, Dict, str]]]] = None,
+        **kwargs,
     ) -> List[Metric]:
-        if metrics is None and 'metric' in kwargs:
-            metrics = kwargs['metric']
+        if metrics is None and "metric" in kwargs:
+            metrics = kwargs["metric"]
         if metrics is None:
-            raise ValueError(f'Must pass argument `metrics` to .evaluate')
+            raise ValueError("Must pass argument `metrics` to .evaluate")
         metrics: List[Union[Metric, Dict, str]] = as_list(metrics)
         if any_are_none(metrics):
-            raise ValueError(f'Metrics list is empty for {dataset.data_split.name.capitalize()} dataset')
+            raise ValueError(f"Metrics list is empty for {dataset.data_split.name.capitalize()} dataset")
         metrics: List[Metric] = [Metric.of(metric) for metric in metrics]
         if np.all([metric.is_rolling for metric in metrics]):
             evaluated_metrics: List[Metric] = [metric.clear() for metric in metrics]
             ## If all metrics support rolling calculation, then call calculate_rolling_metric...this saves memory as we
             ## only need one batch to be in memory at a time.
-            for partial_predictions in self.predict(
-                    dataset,
-                    yield_partial=True,
-                    **kwargs
-            ):
+            for partial_predictions in self.predict(dataset, yield_partial=True, **kwargs):
                 evaluated_metrics: List[Metric] = [
-                    metric.evaluate(partial_predictions, rolling=True)
-                    for metric in evaluated_metrics
+                    metric.evaluate(partial_predictions, rolling=True) for metric in evaluated_metrics
                 ]
         else:
-            predictions: Predictions = self.predict(
-                dataset,
-                yield_partial=False,
-                **kwargs
-            )
+            predictions: Predictions = self.predict(dataset, yield_partial=False, **kwargs)
             evaluated_metrics: List[Metric] = [
                 self._evaluate_metric(
                     predictions=predictions,
@@ -639,8 +636,8 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
 
     @staticmethod
     def _evaluate_metric(
-            predictions: Predictions,
-            metric: Metric,
+        predictions: Predictions,
+        metric: Metric,
     ):
         try:
             return metric.evaluate(predictions, inplace=False)
@@ -648,7 +645,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
             Log.error(String.format_exception_msg(e))
             Log.warning(
                 f'\nError, please see stack trace above. Could not calculate metric for "{metric.display_name}"'
-                f'\nThis metric will not be included in the output. Calculating other metrics...'
+                f"\nThis metric will not be included in the output. Calculating other metrics..."
             )
 
     @classmethod
@@ -662,9 +659,9 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
         return abstract_base_class_param_names
 
     def save_params(
-            self,
-            model_dir: Union[FileMetadata, str],
-            model_params_file_name: str = MODEL_PARAMS_FILE_NAME,
+        self,
+        model_dir: Union[FileMetadata, str],
+        model_params_file_name: str = MODEL_PARAMS_FILE_NAME,
     ):
         model_dir: FileMetadata = FileMetadata.of(model_dir)
         with model_dir.open(file_name=model_params_file_name, mode="wb+") as out:
@@ -672,7 +669,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
 
     def _model_params(self) -> Dict[str, Any]:
         model_params: Dict[str, Any] = self.dict(include=self.save_param_names())
-        model_params['algorithm'] = self.class_name
+        model_params["algorithm"] = self.class_name
         return model_params
 
     def __hash__(self) -> str:
@@ -680,18 +677,18 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
 
     @classmethod
     def load_params(
-            cls,
-            model_dir: Union[FileMetadata, str],
-            model_params_file_name: str = MODEL_PARAMS_FILE_NAME,
-            raise_error: bool = True,
-            tmpdir: Optional[str] = None,
-            **kwargs,
+        cls,
+        model_dir: Union[FileMetadata, str],
+        model_params_file_name: str = MODEL_PARAMS_FILE_NAME,
+        raise_error: bool = True,
+        tmpdir: Optional[str] = None,
+        **kwargs,
     ) -> Optional[Dict]:
         model_dir: FileMetadata = FileMetadata.of(model_dir)
         with model_dir.open(file_name=model_params_file_name, mode="rb", tmpdir=tmpdir) as inp:
             model_params: Dict = pickle.load(inp)
             if not isinstance(model_params, dict):
-                raise ValueError(f'Loaded data must be a dict; found data of type {type(model_params)}')
+                raise ValueError(f"Loaded data must be a dict; found data of type {type(model_params)}")
             return model_params
 
     def save(self, model_dir: FileMetadata):

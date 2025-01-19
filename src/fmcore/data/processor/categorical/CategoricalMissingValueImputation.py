@@ -1,10 +1,10 @@
 from typing import *
-import pandas as pd
-from fmcore.constants import MLType, DataLayout
-from fmcore.util import AutoEnum, auto, is_null
-from fmcore.data.processor import SingleColumnProcessor, CategoricalInputProcessor, CategoricalOutputProcessor
-from fmcore.data.sdf import ScalableSeries, ScalableSeriesRawType
+
 from pydantic import root_validator
+
+from fmcore.data.processor import CategoricalInputProcessor, CategoricalOutputProcessor, SingleColumnProcessor
+from fmcore.data.sdf import ScalableSeries
+from fmcore.util import AutoEnum, auto, is_null
 
 
 class CategoricalImputationStrategy(AutoEnum):
@@ -12,7 +12,9 @@ class CategoricalImputationStrategy(AutoEnum):
     CONSTANT = auto()
 
 
-class CategoricalMissingValueImputation(SingleColumnProcessor, CategoricalInputProcessor, CategoricalOutputProcessor):
+class CategoricalMissingValueImputation(
+    SingleColumnProcessor, CategoricalInputProcessor, CategoricalOutputProcessor
+):
     """
     This calculates or fills in the value to be filled in place of nan based on strategy passed as input.
     Params:
@@ -30,12 +32,16 @@ class CategoricalMissingValueImputation(SingleColumnProcessor, CategoricalInputP
 
     @root_validator(pre=False)
     def set_imputed_value(cls, params: Dict):
-        if params['params'].strategy is CategoricalImputationStrategy.CONSTANT:
-            if params['params'].fill_value is None:
-                raise ValueError(f'Cannot have empty `fill_value` when `strategy` is {CategoricalImputationStrategy.CONSTANT}')
-            params['imputed_value'] = params['params'].fill_value
-        elif params['params'].fill_value is not None:
-            raise ValueError(f'`fill_value` can only be passed when strategy={CategoricalImputationStrategy.CONSTANT}')
+        if params["params"].strategy is CategoricalImputationStrategy.CONSTANT:
+            if params["params"].fill_value is None:
+                raise ValueError(
+                    f"Cannot have empty `fill_value` when `strategy` is {CategoricalImputationStrategy.CONSTANT}"
+                )
+            params["imputed_value"] = params["params"].fill_value
+        elif params["params"].fill_value is not None:
+            raise ValueError(
+                f"`fill_value` can only be passed when strategy={CategoricalImputationStrategy.CONSTANT}"
+            )
         return params
 
     def _fit_series(self, data: ScalableSeries):
@@ -45,7 +51,7 @@ class CategoricalMissingValueImputation(SingleColumnProcessor, CategoricalInputP
             if self.params.strategy is CategoricalImputationStrategy.MODE:
                 self.imputed_value = self._get_mode(data)
             else:
-                raise NotImplementedError(f'Unsupported strategy: {self.params.strategy}')
+                raise NotImplementedError(f"Unsupported strategy: {self.params.strategy}")
 
     def _get_mode(self, data: ScalableSeries) -> Any:
         imputed_value: Any = data.mode().compute().iloc[0]

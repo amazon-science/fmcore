@@ -27,18 +27,19 @@ class LoadBalancingStrategy(AutoEnum):
 
 
 def get_result(
-        x,
-        *,
-        wait: float = 1.0,  ## 1000 ms
+    x,
+    *,
+    wait: float = 1.0,  ## 1000 ms
 ) -> Optional[Any]:
     if isinstance(x, Future):
         return get_result(x.result(), wait=wait)
     if _IS_RAY_INSTALLED and isinstance(x, ray.ObjectRef):
         from ray.exceptions import GetTimeoutError
+
         while True:
             try:
                 return ray.get(x, timeout=wait)
-            except GetTimeoutError as e:
+            except GetTimeoutError:
                 pass
     return x
 
@@ -78,7 +79,7 @@ def is_successful(x, *, pending_returns_false: bool = False) -> Optional[bool]:
     try:
         get_result(x)
         return True
-    except Exception as e:
+    except Exception:
         return False
 
 
@@ -91,7 +92,7 @@ def is_failed(x, *, pending_returns_false: bool = False) -> Optional[bool]:
     try:
         get_result(x)
         return False
-    except Exception as e:
+    except Exception:
         return True
 
 
@@ -113,15 +114,16 @@ def wait_if_future(x):
     elif _IS_RAY_INSTALLED and isinstance(x, ray.ObjectRef):
         ray.wait([x])
 
+
 def retry(
-        fn,
-        *args,
-        retries: int = 5,
-        wait: float = 10.0,
-        jitter: float = 0.5,
-        silent: bool = True,
-        return_num_failures: bool = False,
-        **kwargs
+    fn,
+    *args,
+    retries: int = 5,
+    wait: float = 10.0,
+    jitter: float = 0.5,
+    silent: bool = True,
+    return_num_failures: bool = False,
+    **kwargs,
 ) -> Union[Any, Tuple[Any, int]]:
     """
     Retries a function call a certain number of times, waiting between calls (with a jitter in the wait period).
@@ -153,37 +155,38 @@ def retry(
             num_failures += 1
             latest_exception = String.format_exception_msg(e)
             if not silent:
-                print(f'Function call failed with the following exception (attempts: {retry_num + 1}):\n{latest_exception}')
+                print(
+                    f"Function call failed with the following exception (attempts: {retry_num + 1}):\n{latest_exception}"
+                )
                 if retry_num < (retries - 1):
-                    print(f'Retrying {retries - (retry_num + 1)} more time(s)...\n')
+                    print(f"Retrying {retries - (retry_num + 1)} more time(s)...\n")
             time.sleep(np.random.uniform(wait - wait * jitter, wait + wait * jitter))
-    raise RuntimeError(f'Function call failed {retries + 1} time(s).\nLatest exception:\n{latest_exception}\n')
+    raise RuntimeError(
+        f"Function call failed {retries + 1} time(s).\nLatest exception:\n{latest_exception}\n"
+    )
 
 
 def wait(
-        futures: Union[Tuple, List, Set, Dict, Any],
-        *,
-        check_done: bool = True,
-        item_wait: float = 0.1,  ## 100 ms
-        iter_wait: float = 1.0,  ## 1000 ms
-        **kwargs,
+    futures: Union[Tuple, List, Set, Dict, Any],
+    *,
+    check_done: bool = True,
+    item_wait: float = 0.1,  ## 100 ms
+    iter_wait: float = 1.0,  ## 1000 ms
+    **kwargs,
 ) -> NoReturn:
     """Join operation on a single future or a collection of futures."""
     progress_bar: Optional[Dict] = Alias.get_progress_bar(kwargs)
 
     if isinstance(futures, (list, tuple, set, np.ndarray)):
         futures: List[Any] = list(futures)
-        completed_futures: List[bool] = [
-            is_done(fut) if check_done else False
-            for fut in futures
-        ]
+        completed_futures: List[bool] = [is_done(fut) if check_done else False for fut in futures]
         pbar: ProgressBar = ProgressBar.of(
             progress_bar,
             total=len(futures),
             initial=sum(completed_futures),
-            desc='Waiting',
+            desc="Waiting",
             prefer_kwargs=False,
-            unit='item',
+            unit="item",
         )
         while not all(completed_futures):
             for i, fut in enumerate(futures):
@@ -193,20 +196,19 @@ def wait(
                         pbar.update(1)
                     time.sleep(item_wait)
             time.sleep(iter_wait)
-        pbar.success('Done', close=False)
+        pbar.success("Done", close=False)
     elif isinstance(futures, dict):
         futures: List[Tuple[Any, Any]] = list(futures.items())
         completed_futures: List[bool] = [
-            (is_done(fut_k) and is_done(fut_v)) if check_done else False
-            for fut_k, fut_v in futures
+            (is_done(fut_k) and is_done(fut_v)) if check_done else False for fut_k, fut_v in futures
         ]
         pbar: ProgressBar = ProgressBar.of(
             progress_bar,
             total=len(futures),
             initial=sum(completed_futures),
-            desc='Waiting',
+            desc="Waiting",
             prefer_kwargs=False,
-            unit='item',
+            unit="item",
         )
         while not all(completed_futures):
             for i, (fut_k, fut_v) in enumerate(futures):
@@ -216,19 +218,19 @@ def wait(
                         pbar.update(1)
                     time.sleep(item_wait)
             time.sleep(iter_wait)
-        pbar.success('Done', close=False)
+        pbar.success("Done", close=False)
     else:
         wait_if_future(futures)
 
 
 def accumulate(
-        futures: Union[Tuple, List, Set, Dict, Any],
-        *,
-        check_done: bool = True,
-        item_wait: Optional[float] = None,
-        iter_wait: Optional[float] = None,
-        succeeded_only: bool = False,
-        **kwargs,
+    futures: Union[Tuple, List, Set, Dict, Any],
+    *,
+    check_done: bool = True,
+    item_wait: Optional[float] = None,
+    iter_wait: Optional[float] = None,
+    succeeded_only: bool = False,
+    **kwargs,
 ) -> Union[List, Tuple, Set, Dict, Any]:
     """
     Description:
@@ -255,7 +257,7 @@ def accumulate(
     Example usage (with a list of futures from ThreadPoolExecutor; similar for ProcessPoolExecutor):
         >>> executor = ThreadPoolExecutor(max_workers=4)
         >>> futures = [
-                executor.submit(time.sleep, i) 
+                executor.submit(time.sleep, i)
                 for i in range(5)
             ]  ## Create 5 futures that sleep for 0,1,2,3,4 seconds
         >>> results = accumulate(
@@ -270,7 +272,7 @@ def accumulate(
                 time.sleep(random.random())  ## Simulate varying compute times
                 return a + b
         >>> futures = [
-                slow_add.remote(i, i) 
+                slow_add.remote(i, i)
                 for i in range(10)
             ]  ## Submit 10 parallel additions
         >>> results = accumulate(
@@ -296,15 +298,14 @@ def accumulate(
             item_wait: float = get_default(item_wait, _RAY_ACCUMULATE_ITEM_WAIT)
             iter_wait: float = get_default(iter_wait, _RAY_ACCUMULATE_ITER_WAIT)
         if succeeded_only:
-            return type(futures)([
-                accumulate(fut, progress_bar=False, check_done=check_done, succeeded_only=succeeded_only)
-                for fut in futures
-                if is_successful(fut)
-            ])
-        completed_futures: List[bool] = [
-            is_done(fut) if check_done else False
-            for fut in futures
-        ]
+            return type(futures)(
+                [
+                    accumulate(fut, progress_bar=False, check_done=check_done, succeeded_only=succeeded_only)
+                    for fut in futures
+                    if is_successful(fut)
+                ]
+            )
+        completed_futures: List[bool] = [is_done(fut) if check_done else False for fut in futures]
         accumulated_futures: List = [
             accumulate(fut, progress_bar=False, check_done=check_done) if future_is_complete else fut
             for future_is_complete, fut in zip(completed_futures, futures)
@@ -313,9 +314,9 @@ def accumulate(
             progress_bar,
             total=len(futures),
             initial=sum(completed_futures),
-            desc='Collecting',
+            desc="Collecting",
             prefer_kwargs=False,
-            unit='item',
+            unit="item",
         )
         while not all(completed_futures):
             for i, fut in enumerate(accumulated_futures):
@@ -326,7 +327,7 @@ def accumulate(
                         pbar.update(1)
                     time.sleep(item_wait)
             time.sleep(iter_wait)
-        pbar.success('Done', close=False)
+        pbar.success("Done", close=False)
         return type(futures)(accumulated_futures)  ## Convert
     elif isinstance(futures, dict) and len(futures) > 0:
         if isinstance(first_item(futures)[0], Future) or isinstance(first_item(futures)[1], Future):
@@ -337,32 +338,39 @@ def accumulate(
             iter_wait: float = get_default(iter_wait, _RAY_ACCUMULATE_ITER_WAIT)
         futures: List[Tuple] = list(futures.items())
         if succeeded_only:
-            return dict([
-                (
-                    accumulate(fut_k, progress_bar=False, check_done=check_done, succeeded_only=succeeded_only),
-                    accumulate(fut_v, progress_bar=False, check_done=check_done, succeeded_only=succeeded_only),
-                )
-                for fut_k, fut_v in futures
-                if (is_successful(fut_k) and is_successful(fut_v))
-            ])
+            return dict(
+                [
+                    (
+                        accumulate(
+                            fut_k, progress_bar=False, check_done=check_done, succeeded_only=succeeded_only
+                        ),
+                        accumulate(
+                            fut_v, progress_bar=False, check_done=check_done, succeeded_only=succeeded_only
+                        ),
+                    )
+                    for fut_k, fut_v in futures
+                    if (is_successful(fut_k) and is_successful(fut_v))
+                ]
+            )
         completed_futures: List[bool] = [
-            (is_done(fut_k) and is_done(fut_v)) if check_done else False
-            for fut_k, fut_v in futures
+            (is_done(fut_k) and is_done(fut_v)) if check_done else False for fut_k, fut_v in futures
         ]
         accumulated_futures: List[Tuple] = [
             (
                 accumulate(fut_k, progress_bar=False, check_done=check_done),
-                accumulate(fut_v, progress_bar=False, check_done=check_done)
-            ) if future_is_complete else (fut_k, fut_v)
+                accumulate(fut_v, progress_bar=False, check_done=check_done),
+            )
+            if future_is_complete
+            else (fut_k, fut_v)
             for future_is_complete, (fut_k, fut_v) in zip(completed_futures, futures)
         ]
         pbar: ProgressBar = ProgressBar.of(
             progress_bar,
             total=len(futures),
             initial=sum(completed_futures),
-            desc='Collecting',
+            desc="Collecting",
             prefer_kwargs=False,
-            unit='item',
+            unit="item",
         )
         while not all(completed_futures):
             for i, (fut_k, fut_v) in enumerate(accumulated_futures):
@@ -371,24 +379,24 @@ def accumulate(
                     if completed_futures[i] is True:
                         accumulated_futures[i] = (
                             accumulate(fut_k, progress_bar=False, check_done=check_done),
-                            accumulate(fut_v, progress_bar=False, check_done=check_done)
+                            accumulate(fut_v, progress_bar=False, check_done=check_done),
                         )
                         pbar.update(1)
                     time.sleep(item_wait)
             time.sleep(iter_wait)
-        pbar.success('Done', close=False)
+        pbar.success("Done", close=False)
         return dict(accumulated_futures)
     else:
         return get_result(futures)
 
 
 def accumulate_iter(
-        futures: Union[Tuple, List, Set, Dict],
-        *,
-        item_wait: Optional[float] = None,
-        iter_wait: Optional[float] = None,
-        allow_partial_results: bool = False,
-        **kwargs,
+    futures: Union[Tuple, List, Set, Dict],
+    *,
+    item_wait: Optional[float] = None,
+    iter_wait: Optional[float] = None,
+    allow_partial_results: bool = False,
+    **kwargs,
 ):
     """
     Here we iteratively accumulate and yield completed futures as they have completed.
@@ -398,9 +406,9 @@ def accumulate_iter(
     pbar: ProgressBar = ProgressBar.of(
         progress_bar,
         total=len(futures),
-        desc='Iterating',
+        desc="Iterating",
         prefer_kwargs=False,
-        unit='item',
+        unit="item",
     )
     if isinstance(futures, (list, set, tuple)) and len(futures) > 0:
         if isinstance(first_item(futures), Future):
@@ -410,14 +418,8 @@ def accumulate_iter(
             item_wait: float = get_default(item_wait, _RAY_ACCUMULATE_ITEM_WAIT)
             iter_wait: float = get_default(iter_wait, _RAY_ACCUMULATE_ITER_WAIT)
         ## Copy as list:
-        futures: List = [
-            fut
-            for fut in futures
-        ]
-        yielded_futures: List[bool] = [
-            False
-            for fut in futures
-        ]
+        futures: List = [fut for fut in futures]
+        yielded_futures: List[bool] = [False for fut in futures]
         while not all(yielded_futures):
             for i, fut in enumerate(futures):
                 if yielded_futures[i] is False and is_done(fut):
@@ -432,23 +434,17 @@ def accumulate_iter(
                             raise e
                         yield fut
             time.sleep(iter_wait)
-        pbar.success('Done', close=False)
+        pbar.success("Done", close=False)
     elif isinstance(futures, dict) and len(futures) > 0:
         ## Copy as list:
-        futures: List[Tuple[Any, Any]] = [
-            (fut_k, fut_v)
-            for fut_k, fut_v in futures.items()
-        ]
+        futures: List[Tuple[Any, Any]] = [(fut_k, fut_v) for fut_k, fut_v in futures.items()]
         if isinstance(first_item(futures)[0], Future) or isinstance(first_item(futures)[1], Future):
             item_wait: float = get_default(item_wait, _LOCAL_ACCUMULATE_ITEM_WAIT)
             iter_wait: float = get_default(iter_wait, _LOCAL_ACCUMULATE_ITER_WAIT)
         else:
             item_wait: float = get_default(item_wait, _RAY_ACCUMULATE_ITEM_WAIT)
             iter_wait: float = get_default(iter_wait, _RAY_ACCUMULATE_ITER_WAIT)
-        yielded_futures: List[bool] = [
-            False
-            for fut_k, fut_v in futures
-        ]
+        yielded_futures: List[bool] = [False for fut_k, fut_v in futures]
         while not all(yielded_futures):
             for i, (fut_k, fut_v) in enumerate(futures):
                 if yielded_futures[i] is False and (is_done(fut_k) and is_done(fut_v)):
@@ -464,7 +460,7 @@ def accumulate_iter(
                             raise e
                         yield (fut_k, fut_v)
             time.sleep(iter_wait)
-        pbar.success('Done', close=False)
+        pbar.success("Done", close=False)
     else:
         if not isinstance(futures, (list, set, tuple, dict)):
-            raise NotImplementedError(f'Cannot iteratively collect from object of type: {type_str(futures)}.')
+            raise NotImplementedError(f"Cannot iteratively collect from object of type: {type_str(futures)}.")

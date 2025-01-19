@@ -1,19 +1,16 @@
-import io, threading
+import io
+import logging
 import os.path
-from pathlib import Path
-from typing import *
-import time, json, math, numpy as np, pandas as pd, random
+import threading
 from datetime import datetime
-from abc import abstractmethod, ABC
+from typing import *
+
+from pydantic import conint
+
+from fmcore.constants import Storage
 from fmcore.data import FileMetadata
 from fmcore.framework.tracker.Tracker import Tracker
-from fmcore.util import optional_dependency, only_item, safe_validate_arguments, String, \
-    all_are_true, all_are_false, any_are_not_none, any_are_none, FileSystemUtil, as_list, get_default, \
-    set_param_from_alias, Log, String, JupyterNotebook, unset, keep_keys, get_fn_args, Alias
-from fmcore.constants import Storage
-from collections import deque
-from pydantic import root_validator, Extra, conint
-import logging
+from fmcore.util import Alias, JupyterNotebook, String, get_fn_args, keep_keys, safe_validate_arguments, unset
 
 
 class LogTrackerFormatter(logging.Formatter):
@@ -30,21 +27,16 @@ _ALL_LOG_FILE_HANDLERS: Dict[str, Any] = {}
 
 
 class LogFileTracker(Tracker):
-    aliases = ['log', 'log_file', 'logger', 'file']
-    tracker_name = 'log'
+    aliases = ["log", "log_file", "logger", "file"]
+    tracker_name = "log"
 
     log_file: Optional[FileMetadata] = None
     name: Optional[str] = None
     logger: Optional[logging.Logger] = None  ## File logger
     logger_handler: Optional[logging.Handler] = None
-    dict_exclude = ('logger', 'logger_handler')
+    dict_exclude = ("logger", "logger_handler")
 
-    def initialize(
-            self,
-            *,
-            init_msg: bool = True,
-            **kwargs
-    ):
+    def initialize(self, *, init_msg: bool = True, **kwargs):
         log_fpath: str = Alias.get_log_file(kwargs)
         log_file: FileMetadata = FileMetadata.of(log_fpath)
         log_file.get_dir(return_metadata=True).mkdir()
@@ -52,12 +44,13 @@ class LogFileTracker(Tracker):
         assert not log_file.is_path_valid_dir()
         process_id: int = os.getpid()
         thread_id: int = threading.get_ident()
+        assert isinstance(thread_id, int)
         self.log_file: FileMetadata = log_file
         if self.name is None:
             if JupyterNotebook.is_notebook():
-                self.name = f'{JupyterNotebook.name(extension=True)} (pid={process_id})'
+                self.name = f"{JupyterNotebook.name(extension=True)} (pid={process_id})"
             else:
-                self.name = f'(pid={process_id})'
+                self.name = f"(pid={process_id})"
         self.logger, self.logger_handler = self.create_logger(
             logger_name=self.name,
             log_file=self.log_file,
@@ -69,15 +62,15 @@ class LogFileTracker(Tracker):
         if init_msg:
             init_msg: str = f'{self.name} logging to "{self.log_file.path}" started at: {String.now()}'
             div_len: int = len(init_msg) + 8
-            upper_div: str = (f'▔' * div_len) + '\n' + (f'▔' * div_len)
-            lower_div: str = (f'▁' * div_len) + '\n' + (f'▁' * div_len)
-            init_msg: str = f'\n{upper_div}\n    {init_msg}    \n{lower_div}'
+            upper_div: str = ("▔" * div_len) + "\n" + ("▔" * div_len)
+            lower_div: str = ("▁" * div_len) + "\n" + ("▁" * div_len)
+            init_msg: str = f"\n{upper_div}\n    {init_msg}    \n{lower_div}"
             self.info(init_msg)
 
     @staticmethod
     def create_logger(
-            logger_name: str,
-            log_file: FileMetadata,
+        logger_name: str,
+        log_file: FileMetadata,
     ) -> Tuple[logging.Logger, logging.FileHandler]:
         global _ALL_LOG_FILE_HANDLERS
         ## Create a logger instance
@@ -90,7 +83,7 @@ class LogFileTracker(Tracker):
             file_handler.setLevel(logging.DEBUG)
             ## Disable printing to sysout, we will do that separately:
             file_handler.stream = None
-            formatter = LogTrackerFormatter(f'[{logger_name} @ %(asctime)s] %(message)s')
+            formatter = LogTrackerFormatter(f"[{logger_name} @ %(asctime)s] %(message)s")
             file_handler.setFormatter(formatter)
             _ALL_LOG_FILE_HANDLERS[log_file.path]: logging.FileHandler = file_handler
         file_handler: logging.FileHandler = _ALL_LOG_FILE_HANDLERS[log_file.path]
@@ -121,11 +114,16 @@ class LogFileTracker(Tracker):
 
     @safe_validate_arguments
     def tail(self, n: conint(ge=1) = 10, *, last_start: bool = True, return_logs: bool = False) -> List[str]:
-        with io.open(self.log_file.path, 'r', encoding='utf-8') as file:
+        with io.open(self.log_file.path, "r", encoding="utf-8") as file:
             log_lines: List[str] = []
             for line_i, line in enumerate(reversed(list(file))):
-                log_lines.append(line.removesuffix('\n'))
-                if last_start is True and len(log_lines) >= 2 and '▔▔' in log_lines[-1] and '▔▔' in log_lines[-2]:
+                log_lines.append(line.removesuffix("\n"))
+                if (
+                    last_start is True
+                    and len(log_lines) >= 2
+                    and "▔▔" in log_lines[-1]
+                    and "▔▔" in log_lines[-2]
+                ):
                     break
                 elif len(log_lines) == n:
                     break
@@ -140,8 +138,8 @@ class LogFileTracker(Tracker):
             self.logger_handler.close()
             if self.logger is not None:
                 self.logger.removeHandler(self.logger_handler)
-        unset(self, 'logger')
-        unset(self, 'logger_handler')
+        unset(self, "logger")
+        unset(self, "logger_handler")
 
     @property
     def id(self) -> str:

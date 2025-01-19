@@ -1,10 +1,12 @@
+from abc import ABC
 from typing import *
-from abc import ABC, abstractmethod
+
 import numpy as np
-from fmcore.util import is_list_like
-from fmcore.data import ScalableDataFrame, ScalableSeries, ScalableSeriesRawType, ScalableDataFrameRawType
+
+from fmcore.constants import MLType, Task
+from fmcore.data import ScalableSeries
 from fmcore.framework import Algorithm, Dataset, Predictions
-from fmcore.constants import Task, MLType, MLTypeSchema, DataLayout
+from fmcore.util import is_list_like
 
 
 class RankingData(Dataset):
@@ -12,7 +14,7 @@ class RankingData(Dataset):
     ground_truths_schema = {}  ## No ground-truths
 
 
-RETRIEVAL_FORMAT_MSG: str = f"""
+RETRIEVAL_FORMAT_MSG: str = """
  Retrieval results returned by algorithm must be a column of vectors.
  """.strip()
 
@@ -21,7 +23,7 @@ class RankedResults(Predictions):
     tasks = Task.RANKING
     ground_truths_schema = {}  ## No ground-truths
     predictions_schema = {
-        'embeddings': MLType.VECTOR,
+        "embeddings": MLType.VECTOR,
     }
 
     @property
@@ -36,16 +38,9 @@ class Ranker(Algorithm, ABC):
     outputs = RankedResults
 
     def _create_predictions(
-            self,
-            batch: Dataset,
-            predictions: Union[List, np.ndarray],
-            **kwargs
+        self, batch: Dataset, predictions: Union[List, np.ndarray], **kwargs
     ) -> Embeddings:
         if not is_list_like(predictions):
             raise ValueError(RETRIEVAL_FORMAT_MSG)
-        embeddings: Dict = {'embeddings': predictions}
-        return Embeddings.from_task_data(
-            data=batch,
-            predictions=embeddings,
-            **kwargs
-        )
+        embeddings: Dict = {"embeddings": predictions}
+        return Embeddings.from_task_data(data=batch, predictions=embeddings, **kwargs)

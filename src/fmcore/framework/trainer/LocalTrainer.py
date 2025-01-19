@@ -1,18 +1,20 @@
-from typing import *
-import time, traceback, gc, os, warnings
+import gc
+import os
+import warnings
 from functools import partial
-from fmcore.util import Log, FileSystemUtil, String, get_default, all_are_not_none, safe_validate_arguments, Timer
+from typing import *
+
 from fmcore.data import FileMetadata
-from fmcore.framework.trainer.Trainer import Trainer
-from fmcore.framework.tracker.Tracker import Tracker
-from fmcore.framework.task_data import DataSplit, Datasets, Dataset
-from fmcore.framework.predictions import Predictions
-from fmcore.framework.algorithm import Algorithm, TaskOrStr
+from fmcore.framework.algorithm import Algorithm
 from fmcore.framework.metric import Metric, Metrics
+from fmcore.framework.task_data import Dataset, Datasets, DataSplit
+from fmcore.framework.tracker.Tracker import Tracker
+from fmcore.framework.trainer.Trainer import Trainer
+from fmcore.util import String, Timer, safe_validate_arguments
 
 
 class LocalTrainer(Trainer):
-    aliases = ['local', 'SimpleTrainer', 'simple']
+    aliases = ["local", "SimpleTrainer", "simple"]
 
     def initialize(self, **kwargs):
         pass
@@ -20,7 +22,7 @@ class LocalTrainer(Trainer):
     @staticmethod
     def local_logger(text: str, verbosity: int, tracker: Tracker):
         pid: int = os.getpid()
-        text: str = f'(pid={pid}): {text}'
+        text: str = f"(pid={pid}): {text}"
         if verbosity == 0:  ## Don't log anything.
             return
         else:
@@ -28,44 +30,41 @@ class LocalTrainer(Trainer):
 
     @safe_validate_arguments
     def _run_training(
-            self,
-            datasets: Datasets,
-            *,
-            tracker: Tracker,
-            progress_bar: Optional[Dict],
-            metrics: Optional[Metrics] = None,
-            load_model: Optional[FileMetadata] = None,
-            save_model: Optional[FileMetadata] = None,
-            model: Optional[Algorithm] = None,
-            return_model: bool = False,
-            **kwargs,
+        self,
+        datasets: Datasets,
+        *,
+        tracker: Tracker,
+        progress_bar: Optional[Dict],
+        metrics: Optional[Metrics] = None,
+        load_model: Optional[FileMetadata] = None,
+        save_model: Optional[FileMetadata] = None,
+        model: Optional[Algorithm] = None,
+        return_model: bool = False,
+        **kwargs,
     ) -> Optional[Algorithm]:
         timer: Timer = Timer(silent=True)
         timer.start()
         if self.k_fold.num_folds != 1:
-            warnings.warn(f'{self.class_name} does not support the `k_folds` parameter.')
+            warnings.warn(f"{self.class_name} does not support the `k_folds` parameter.")
 
-        train_dataset, train_metrics, \
-        validation_dataset, validation_metrics, \
-        test_dataset, test_metrics = self._extract_datasets_and_metrics(
-            datasets=datasets,
-            metrics=metrics,
+        train_dataset, train_metrics, validation_dataset, validation_metrics, test_dataset, test_metrics = (
+            self._extract_datasets_and_metrics(
+                datasets=datasets,
+                metrics=metrics,
+            )
         )
         train_stats: Optional[Metrics] = self.AlgorithmClass.calculate_dataset_stats(
             dataset=train_dataset,
             batch_size=self.stats_batch_size,
             data_split=DataSplit.TRAIN,
         )
-        train_dataset_length: Metric = train_stats.find(data_split=DataSplit.TRAIN, select='row_count')
+        train_dataset_length: Metric = train_stats.find(data_split=DataSplit.TRAIN, select="row_count")
         train_dataset_length: int = train_dataset_length.value
         trainer_created_model: bool = False
         if model is None:
             ## Create a new model. Otherwise, continue training.
             model: Algorithm = self.AlgorithmClass.of(
-                hyperparams=self._create_hyperparams(),
-                model_dir=load_model,
-                stats=train_stats,
-                **kwargs
+                hyperparams=self._create_hyperparams(), model_dir=load_model, stats=train_stats, **kwargs
             )
             trainer_created_model: bool = True
         logger: Callable = partial(
@@ -121,38 +120,42 @@ class LocalTrainer(Trainer):
             raise e
 
     def _local_trainer_progress_bar(
-            self,
-            progress_bar: Optional[Dict],
-            *,
-            train_dataset_length: int,
-            **kwargs,
+        self,
+        progress_bar: Optional[Dict],
+        *,
+        train_dataset_length: int,
+        **kwargs,
     ) -> Optional[Dict]:
         ## Show epoch's progress bar only when printing important information.
         if self.verbosity == 1 and progress_bar is not False:
             if not isinstance(progress_bar, dict):
                 progress_bar: Dict = dict()
-            progress_bar.setdefault('total', train_dataset_length)
+            progress_bar.setdefault("total", train_dataset_length)
         else:
             progress_bar: Optional[Dict] = None
         return progress_bar
 
-    def _train_start_msg(self, *, model: Algorithm, train_dataset: Dataset, tracker: Tracker, **kwargs) -> str:
-        if tracker.tracker_name == 'noop':
-            tracker_msg: str = 'Logs will not be tracked.'
+    def _train_start_msg(
+        self, *, model: Algorithm, train_dataset: Dataset, tracker: Tracker, **kwargs
+    ) -> str:
+        if tracker.tracker_name == "noop":
+            tracker_msg: str = "Logs will not be tracked."
         else:
             tracker_msg: str = f'{tracker.class_name}@{tracker.id} will save logs to: "{tracker.log_dir}"'
-        return String.dedupe(
-            f'\nTraining following {model.task} model '
-            f'for {model.hyperparams.epochs} epochs '
-            f'on {train_dataset.display_name} dataset:',
-            dedupe=String.SPACE,
-        ) + f'\n{str(model)}' \
-            f'\n{tracker_msg}'
+        return (
+            String.dedupe(
+                f"\nTraining following {model.task} model "
+                f"for {model.hyperparams.epochs} epochs "
+                f"on {train_dataset.display_name} dataset:",
+                dedupe=String.SPACE,
+            )
+            + f"\n{str(model)}"
+            f"\n{tracker_msg}"
+        )
 
     def _train_end_msg(self, *, model: Algorithm, timer: Timer, tracker: Tracker, **kwargs) -> str:
-        if tracker.tracker_name == 'noop':
-            tracker_msg: str = 'Logs have not been tracked.'
+        if tracker.tracker_name == "noop":
+            tracker_msg: str = "Logs have not been tracked."
         else:
             tracker_msg: str = f'{tracker.class_name}@{tracker.id} has saved logs to "{tracker.log_dir}"'
-        return f'...training completed in {timer.time_taken_str}.\n' \
-               f'{tracker_msg}'
+        return f"...training completed in {timer.time_taken_str}.\n{tracker_msg}"

@@ -5,8 +5,8 @@ from fmcore.util.language._import import _IS_TORCH_INSTALLED
 
 if _IS_TORCH_INSTALLED:
     import torch
-    from torch.utils.data import IterableDataset as TorchIterableDataset, DataLoader as TorchDataLoader
-
+    from torch.utils.data import DataLoader as TorchDataLoader
+    from torch.utils.data import IterableDataset as TorchIterableDataset
 
     class PyTorchTaskDataDataset(TorchIterableDataset):
         """
@@ -109,11 +109,11 @@ if _IS_TORCH_INSTALLED:
         """
 
         def __init__(
-                self,
-                dataset: InputOutputDataMixin,
-                **kwargs,
+            self,
+            dataset: InputOutputDataMixin,
+            **kwargs,
         ):
-            kwargs.pop('device', None)
+            kwargs.pop("device", None)
             self.dataset: InputOutputDataMixin = dataset
             self.batching_kwargs: Dict[str, Any] = kwargs
             # print(f'pid={os.getpid()} corresponds to rank={self.rank}, num_workers={self.num_workers}\n')
