@@ -17,3 +17,5 @@ __pycache__/
 /build
 /doc/_apidoc/
 *.swp
+
+.vscode/settings.json
