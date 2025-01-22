@@ -3,8 +3,6 @@ from typing import *
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_scalar as pd_is_scalar
-from pandas.core.frame import DataFrame as PandasDataFrame
-from pandas.core.frame import Series as PandasSeries
 
 
 def get_default(*vals) -> Optional[Any]:
@@ -29,8 +27,8 @@ def get_true(*vals) -> bool:
 
 
 if_else = lambda cond, x, y: (x if cond is True else y)  ## Ternary operator
-is_series = lambda x: isinstance(x, PandasSeries)
-is_df = lambda x: isinstance(x, PandasDataFrame)
+is_series = lambda x: isinstance(x, pd.Series)
+is_df = lambda x: isinstance(x, pd.DataFrame)
 
 
 ## ======================== None utils ======================== ##
