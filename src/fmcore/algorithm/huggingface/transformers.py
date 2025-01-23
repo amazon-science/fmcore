@@ -4,17 +4,25 @@ from abc import ABC
 from collections import OrderedDict
 from contextlib import contextmanager
 from math import inf
-from typing import *
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    Union,
+)
 
 import numpy as np
-from pydantic import Extra, root_validator
-from pydantic.typing import Literal
-
-from fmcore.constants import MLType
-from fmcore.data import FileMetadata
-from fmcore.util import (
+from bears import FileMetadata
+from bears.util import (
     Alias,
     Parameters,
+    String,
     as_list,
     get_default,
     ignore_warnings,
@@ -22,6 +30,9 @@ from fmcore.util import (
     safe_validate_arguments,
     set_param_from_alias,
 )
+from pydantic import ConfigDict, model_validator
+
+from fmcore.constants import MLType
 
 with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers", "huggingface_hub"):
     import huggingface_hub
@@ -52,7 +63,11 @@ with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers",
         MODEL_MAPPING_NAMES,
         _BaseAutoModelClass,
     )
-    from transformers.utils.logging import disable_progress_bar, enable_progress_bar, is_progress_bar_enabled
+    from transformers.utils.logging import (
+        disable_progress_bar,
+        enable_progress_bar,
+        is_progress_bar_enabled,
+    )
 
     from fmcore.framework import Dataset
     from fmcore.framework.dl.torch import (
@@ -63,7 +78,7 @@ with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers",
         PyTorchClassifierMixin,
         PyTorchMultiLabelClassifierMixin,
     )
-    from fmcore.framework.task.text_generation import (
+    from fmcore.framework._task.text_generation import (
         GENERATED_TEXTS_COL,
         GenerationOutputScoresFormat,
         GenerativeLM,
@@ -95,7 +110,8 @@ with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers",
         cache_dir: Optional[Union[FileMetadata, Dict, str]] = None
         init_empty: bool = False
 
-        @root_validator(pre=True)
+        @model_validator(mode="before")
+        @classmethod
         def set_aliases(cls, params: Dict) -> Dict:
             Alias.set_cache_dir(params)
             if params.get("cache_dir") is not None:
@@ -133,7 +149,7 @@ with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers",
             else:
                 # print(
                 #     f"Loading tokenizer from: '{model_dir.path}' using params: "
-                #     f"{self.hyperparams.model_config}"
+                #     f"{self.hyperparams.model_config_}"
                 # )
                 with disable_hf_logging():
                     return self.AutoModelClass.from_pretrained(
@@ -141,7 +157,7 @@ with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers",
                         device_map=self.hyperparams.device_map,
                         torch_dtype=self.hyperparams.torch_dtype,
                         **{
-                            **self.hyperparams.model_config,
+                            **self.hyperparams.model_config_,
                             **dict(
                                 cache_dir=cache_dir,
                                 trust_remote_code=True,
@@ -154,7 +170,7 @@ with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers",
             return AutoConfig.from_pretrained(
                 self.hyperparams.model_name,
                 **{
-                    **self.hyperparams.model_config,
+                    **self.hyperparams.model_config_,
                     **dict(
                         cache_dir=self.cache_dir.path if self.cache_dir is not None else None,
                         trust_remote_code=True,
@@ -239,14 +255,16 @@ with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers",
             )
 
     class HFTokenizerConfig(Parameters):
-        class Config(Parameters.Config):
-            extra = Extra.allow
+        model_config = ConfigDict(
+            extra="allow",
+        )
 
         tokenizer_name: Optional[str] = None
         pad_token: Optional[str] = None
         truncation_side: Literal["left", "right"] = "right"  ## Keeps tokens at the start of the string
 
-        @root_validator(pre=True)
+        @model_validator(mode="before")
+        @classmethod
         def set_aliases(cls, params: Dict) -> Dict:
             set_param_from_alias(
                 params,
@@ -261,8 +279,9 @@ with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers",
             return params
 
     class HFTokenizerEncode(Parameters):
-        class Config(Parameters.Config):
-            extra = Extra.allow
+        model_config = ConfigDict(
+            extra="allow",
+        )
 
         max_length: Optional[int] = None
         padding: Literal["longest", "max_length", "do_not_pad"] = "longest"  ## Same as padding="True"
@@ -270,7 +289,8 @@ with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers",
             "longest_first"  ## Same as truncation="True"
         )
 
-        @root_validator(pre=True)
+        @model_validator(mode="before")
+        @classmethod
         def set_aliases(cls, params: Dict) -> Dict:
             set_param_from_alias(
                 params,
@@ -285,8 +305,9 @@ with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers",
             return params
 
     class HFTokenizerDecode(Parameters):
-        class Config(Parameters.Config):
-            extra = Extra.allow
+        model_config = ConfigDict(
+            extra="allow",
+        )
 
         skip_special_tokens: bool = True
         clean_up_tokenization_spaces: bool = True
@@ -320,7 +341,8 @@ with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers",
             tokenizer_config: HFTokenizerConfig = dict()
             tokenizer_encode: HFTokenizerEncode = dict()
             tokenizer_special_tokens: Optional[Dict] = None
-            model_config: Dict[str, Any] = dict()
+            ## "model_config" would clash with Pydantic v2's model_config, so adding underscore.
+            model_config_: Dict[str, Any] = dict()
             device_map: Optional[Union[Dict, str]] = None
             torch_dtype: Optional[Union[torch.dtype, str]] = None
             optimizer: Optimizer = dict(
@@ -330,8 +352,18 @@ with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers",
                 eps=1e-8,
             )
 
-            @root_validator(pre=True)
+            @model_validator(mode="before")
+            @classmethod
             def set_hf_text_model_params(cls, params: Dict) -> Dict:
+                ## Allow setting via "model_config" or "model_config_":
+                set_param_from_alias(
+                    params,
+                    param="model_config_",
+                    alias=[
+                        "model_config",
+                    ],
+                )
+
                 set_param_from_alias(
                     params,
                     param="model_name",
@@ -485,7 +517,8 @@ with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers",
 
         @staticmethod
         def mean_pooling(model_output, attention_mask) -> Tensor:
-            token_embeddings = model_output[0]  ## First element of model_output contains all token embeddings
+            ## First element of model_output contains all token embeddings:
+            token_embeddings = model_output[0]
             token_embeddings = token_embeddings.masked_fill(~attention_mask[..., None].bool(), 0.0)
             sentence_embeddings = token_embeddings.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
             return sentence_embeddings
@@ -504,7 +537,7 @@ with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers",
             return AutoConfig.from_pretrained(
                 self.hyperparams.model_name,
                 **{
-                    **self.hyperparams.model_config,
+                    **self.hyperparams.model_config_,
                     **dict(
                         num_labels=self.num_labels,
                         cache_dir=self.cache_dir.path if self.cache_dir is not None else None,
@@ -624,7 +657,8 @@ with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers",
             )
             tokenizer_decode: HFTokenizerDecode = dict()
 
-            @root_validator(pre=True)
+            @model_validator(mode="before")
+            @classmethod
             def set_generative_lm_params(cls, params: Dict) -> Dict:
                 set_param_from_alias(
                     params,
@@ -669,7 +703,8 @@ with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers",
                 gen_kwargs: Dict = {
                     **input,
                     **self.hyperparams.generation_params.hf_dict(),
-                    **dict(return_dict_in_generate=True),  ## Always return a *DecoderOnlyOutput
+                    ## Always return a *DecoderOnlyOutput:
+                    **dict(return_dict_in_generate=True),
                 }
                 if self.stop_sequences is not None:
                     gen_kwargs["stopping_criteria"] = HFSubstringMatchStoppingCriteria(

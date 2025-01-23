@@ -10,41 +10,31 @@ authors = [
 ]
 description = "A specialized toolkit for scaling experimental research with Foundation Models."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11.11"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
 ]
 license-files = ["LICENSE"]
 dependencies = [
+    "autoenum",
+    "bears",
     "requests",
     "pyyaml",
     "urllib3",
-    "pandas==1.*",
-    "numpy==1.*",
-    "pydantic==1.10.15",
-    "scikit-learn",
-    "xlrd",
-    "XlsxWriter",
-    "openpyxl",
-    "fastparquet",
-    "pyarrow",
-    "s3fs",
-    "tqdm",
-    "boto3",
-    "cloudpickle>=3.0.0",
 ]
 
 [project.optional-dependencies]
 all = [
+    "bears[all]",
     "pytest",
     "orjson",
-    "ray==2.9.2",
+    "ray",
     "ray[default]",
     "ray[tune]",
     "ray[serve]",
     "dask[complete]",
-    "dask==2024.2.0",
+    "dask",
     "gpustat",
     "nvitop",
     "altair",
@@ -56,8 +46,8 @@ all = [
     "hvplot>=0.10.0",
     "matplotlib",
     "tiktoken",
-    "torch==2.3.0",
-    "transformers==4.42.4",
+    "torch",
+    "transformers>=4.42.4",
     "einops",
     "accelerate",
     "deepspeed",
@@ -110,7 +100,6 @@ ignore = [
     "E731", # lambda-assignment: https://docs.astral.sh/ruff/rules/lambda-assignment/
     "E741", # ambiguous-variable-name: https://docs.astral.sh/ruff/rules/ambiguous-variable-name/
     
-    ## Ignored because of bad interaction with `from typing import *`
-    "F405", # undefined-local-with-import-star-usage: https://docs.astral.sh/ruff/rules/undefined-local-with-import-star-usage/
-    "F403", # undefined-local-with-import-star: https://docs.astral.sh/ruff/rules/undefined-local-with-import-star/
+    ## Ignored because it causes no harm (and is needed sometimes):
+    "F841",     # unused-variable: https://docs.astral.sh/ruff/rules/unused-variable/
 ]

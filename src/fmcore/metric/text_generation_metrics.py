@@ -2,40 +2,12 @@ import gc
 import math
 import random
 from abc import ABC
-from typing import *
+from collections import Counter
+from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-from pydantic import Extra, confloat, conint, root_validator
-from pydantic.typing import Literal
-
-from fmcore.constants import AggregationStrategy, DataLayout, DataSplit, MLType, Parallelize, Task, TaskOrStr
-from fmcore.framework import (
-    GENERATED_TEXTS_COL,
-    PROMPT_TEMPLATE_INDEX_COL_PREFIX,
-    TEXT_PROMPT_COL,
-    ClassificationData,
-    Dataset,
-    Datasets,
-    Evaluator,
-    FileMetadata,
-    Metric,
-    Metrics,
-    NextTokens,
-    PercentageMetric,
-    Predictions,
-    Prompts,
-    RayTuneTrainer,
-    RayTuneTrainerFinalModelsError,
-    TabularMetric,
-    TextGenerations,
-    TextGenerationsPredictionsBase,
-    Trainer,
-)
-from fmcore.framework.dl.torch import clear_device_cache
-from fmcore.framework.evaluator.RayEvaluator import LoadBalancingStrategy
-from fmcore.framework.trainer.RayTuneTrainer import _ray_agg_final_model_metric_stats
-from fmcore.util import (
+from bears.util import (
     Alias,
     EnvUtil,
     String,
@@ -62,6 +34,34 @@ from fmcore.util import (
     set_param_from_alias,
     type_str,
 )
+from pydantic import ConfigDict, confloat, conint, model_validator
+
+from fmcore.constants import AggregationStrategy, DataLayout, DataSplit, MLType, Parallelize, Task, TaskOrStr
+from fmcore.framework import (
+    GENERATED_TEXTS_COL,
+    PROMPT_TEMPLATE_INDEX_COL_PREFIX,
+    TEXT_PROMPT_COL,
+    ClassificationData,
+    Dataset,
+    Datasets,
+    Evaluator,
+    FileMetadata,
+    Metric,
+    Metrics,
+    NextTokens,
+    PercentageMetric,
+    Predictions,
+    Prompts,
+    RayTuneTrainer,
+    RayTuneTrainerFinalModelsError,
+    TabularMetric,
+    TextGenerations,
+    TextGenerationsPredictionsBase,
+    Trainer,
+)
+from fmcore.framework.dl.torch import clear_device_cache
+from fmcore.framework._evaluator.RayEvaluator import LoadBalancingStrategy
+from fmcore.framework._trainer.RayTuneTrainer import _ray_agg_final_model_metric_stats
 
 
 class TextLength(TabularMetric):
@@ -282,8 +282,9 @@ class RagasFaithfulness(RagasMetricBase):
     aliases = ["faithfulness"]
 
     class Params(RagasMetricBase.Params):
-        class Config(PercentageMetric.Params.Config):
-            extra = Extra.allow
+        model_config = ConfigDict(
+            extra="allow",
+        )
 
         statement_extraction_prompt: str = (
             """
@@ -319,8 +320,10 @@ Supported: """.strip()
             "As per my knowledge",
         ]
 
-        @root_validator(pre=False)
+        @model_validator(mode="before")
+        @classmethod
         def _set_faithfulness_params(cls, params: Dict) -> Dict:
+            cls.set_default_param_values(params)
             if String.punct_normalize(params["algorithm"]) in {
                 String.punct_normalize("bedrock")
             } and String.punct_normalize("anthropic.claude") in String.punct_normalize(
@@ -733,7 +736,7 @@ class RagasContextRelevance(RagasMetricBase):
     """
     From the paper: https://arxiv.org/abs/2309.15217
     "The context c(q) is considered relevant to the extent that it exclusively contains information that is
-    needed to answer the question. In particular, this metric aims to penalise the inclusion of redundant
+    needed to answer the question. In particular, this metric aims to penalize the inclusion of redundant
     information.
 
     [Step 1] To estimate context relevance, given a question q and its context c(q), the LLM extracts a
@@ -752,8 +755,9 @@ class RagasContextRelevance(RagasMetricBase):
     aliases = ["context_relevance"]
 
     class Params(RagasMetricBase.Params):
-        class Config(PercentageMetric.Params.Config):
-            extra = Extra.allow
+        model_config = ConfigDict(
+            extra="allow",
+        )
 
         relevant_context_extraction_prompt: str = (
             """
@@ -771,8 +775,10 @@ Relevant Sentences: """.strip()
             ("Relevant Sentences:", "Assistant:"),
         ]
 
-        @root_validator(pre=False)
+        @model_validator(mode="before")
+        @classmethod
         def _set_context_relevance_params(cls, params: Dict) -> Dict:
+            cls.set_default_param_values(params)
             if String.punct_normalize(params["algorithm"]) in {
                 String.punct_normalize("bedrock")
             } and String.punct_normalize("anthropic.claude") in String.punct_normalize(
@@ -1081,8 +1087,9 @@ with optional_dependency("mauve-text"):
 
     class Mauve(PercentageMetric):
         class Params(PercentageMetric.Params):
-            class Config(PercentageMetric.Params.Config):
-                extra = Extra.allow
+            model_config = ConfigDict(
+                extra="allow",
+            )
 
             references_col: str
             generations_col: str = GENERATED_TEXTS_COL
@@ -1151,8 +1158,9 @@ with optional_dependency("nltk", "spacy"):
 
     class EntityCount(TabularMetric):
         class Params(TabularMetric.Params):
-            class Config(TabularMetric.Params.Config):
-                extra = Extra.allow
+            model_config = ConfigDict(
+                extra="allow",
+            )
 
             num_cpus: int = 8
             num_gpus: int = 0
@@ -1160,13 +1168,13 @@ with optional_dependency("nltk", "spacy"):
             batch_size: int = 50
             generations_col: str = GENERATED_TEXTS_COL
 
-        ## Overvall counts of entities:
+        ## Overall counts of entities:
         _entity_counts: Counter = Counter()
-        ## Overvall counts of entity-labels:
+        ## Overall counts of entity-labels:
         _entity_label_counts: Counter = Counter()
         ## "Apple" can be the company or the fruit; this counts the spread of labels for each identified entity:
         _entitywise_label_counts: Dict[str, Counter] = {}
-        ## Number of entites per row
+        ## Number of entities per row
         _row_num_entities: Counter = Counter()
         _num_rows: int = 0
         _entity_count_df: Optional[pd.DataFrame] = None
@@ -1280,8 +1288,9 @@ with optional_dependency("nltk", "spacy"):
         aliases = ["Self-BLEU"]
 
         class Params(TabularMetric.Params):
-            class Config(TabularMetric.Params.Config):
-                extra = Extra.allow
+            model_config = ConfigDict(
+                extra="allow",
+            )
 
             num_cpus: int = 8
             num_gpus: int = 0
@@ -1367,10 +1376,10 @@ with optional_dependency("nltk", "spacy"):
                 nlp: Language = spacy.load(spacy_tokenization_model, disable=["parser", "tagger", "ner"])
                 tokenized_docs: List[List[str]] = []
                 for sent_doc in nlp.pipe(docs, n_process=max_workers, batch_size=batch_size):
-                    toks: List[str] = []
+                    tokens: List[str] = []
                     for tok in sent_doc:
-                        toks.append(tok.text)
-                    tokenized_docs.append(toks)
+                        tokens.append(tok.text)
+                    tokenized_docs.append(tokens)
                 return tokenized_docs
 
         @classmethod
@@ -1529,7 +1538,8 @@ class LabelPreservation(Metric):
         max_retries: int = 1
         verbosity: int = 0
 
-        @root_validator(pre=True)
+        @model_validator(mode="before")
+        @classmethod
         def _set_metric_params(cls, params: Dict) -> Dict:
             Alias.set_metrics(params)
             if params.get("metrics") is not None:
@@ -1639,7 +1649,8 @@ class TextGenerationStudent(Metric):
         verbosity: int = 0
         save_to: Optional[FileMetadata] = None
 
-        @root_validator(pre=True)
+        @model_validator(mode="before")
+        @classmethod
         def _set_metric_params(cls, params: Dict) -> Dict:
             Alias.set_metrics(params)
             params["metrics"]: Metrics = Metrics.of(params["metrics"])
@@ -1853,7 +1864,7 @@ with optional_dependency("sentence_transformers"):
     from sentence_transformers import SentenceTransformer
     from sklearn.metrics.pairwise import cosine_similarity
 
-    from fmcore.framework.task.dense_retrieval import _normalize_l2
+    from fmcore.framework._task.dense_retrieval import _normalize_l2
 
     class LabelwiseCosineSimilarity(TabularMetric):
         class Params(TabularMetric.Params):
@@ -2005,22 +2016,22 @@ with optional_dependency("sentence_transformers"):
                 agg: AggregationStrategy = AggregationStrategy(agg)
             labelspace: List[str] = sorted(list(pairwise_cosine_sims[index_col].apply(get_lb).unique()))
             assert len(labelspace) > 1
-            labelsiwise_cosine_sims = {}
+            labelwise_cosine_sims = {}
             for idx_i, cosine_sims in zip(
                 pairwise_cosine_sims[index_col], pairwise_cosine_sims["cosine_sims"]
             ):
-                labelsiwise_cosine_sims.setdefault(get_lb(idx_i), {})
+                labelwise_cosine_sims.setdefault(get_lb(idx_i), {})
                 for idx_j, cosine_sim in cosine_sims.items():
-                    labelsiwise_cosine_sims[get_lb(idx_i)].setdefault(get_lb(idx_j), [])
-                    labelsiwise_cosine_sims[get_lb(idx_i)][get_lb(idx_j)].append(round(float(cosine_sim), 6))
-            labelsiwise_cosine_sims_agg: Dict[str, Dict[str, Union[float, List[float]]]] = {}
-            for lb_i, d in labelsiwise_cosine_sims.items():
+                    labelwise_cosine_sims[get_lb(idx_i)].setdefault(get_lb(idx_j), [])
+                    labelwise_cosine_sims[get_lb(idx_i)][get_lb(idx_j)].append(round(float(cosine_sim), 6))
+            labelwise_cosine_sims_agg: Dict[str, Dict[str, Union[float, List[float]]]] = {}
+            for lb_i, d in labelwise_cosine_sims.items():
                 assert isinstance(lb_i, str)
-                labelsiwise_cosine_sims_agg.setdefault(lb_i, {})
-                for lb_j, cosine_sims_list in labelsiwise_cosine_sims[lb_i].items():
+                labelwise_cosine_sims_agg.setdefault(lb_i, {})
+                for lb_j, cosine_sims_list in labelwise_cosine_sims[lb_i].items():
                     assert isinstance(lb_j, str)
-                    labelsiwise_cosine_sims_agg[lb_i][lb_j] = self._aggregate(cosine_sims_list, agg=agg)
-            return pd.DataFrame(labelsiwise_cosine_sims_agg)[labelspace]
+                    labelwise_cosine_sims_agg[lb_i][lb_j] = self._aggregate(cosine_sims_list, agg=agg)
+            return pd.DataFrame(labelwise_cosine_sims_agg)[labelspace]
 
         @classmethod
         def _aggregate(
