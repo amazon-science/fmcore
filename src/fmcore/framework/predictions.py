@@ -586,7 +586,7 @@ def save_predictions(
 #     GROUND_TRUTH_I_TEMPLATE = 'ground_truth_%s'
 #
 #     @classmethod
-#     def get_index_df(cls, index: ScalableSeries) -> PandasDataFrame:
+#     def get_index_df(cls, index: ScalableSeries) -> pd.DataFrame:
 #         """
 #         Returns a Pandas Series with INDEX column named as "INDEX"
 #         eg:
@@ -594,7 +594,7 @@ def save_predictions(
 #             ASIN_1      ASIN_1
 #             ASIN_2      ASIN_2
 #         @param index:
-#         @return: PandasDataFrame
+#         @return: pd.DataFrame
 #         """
 #         index_df = index.pandas()
 #         index_df = index_df.to_frame(cls.INDEX_COL_NAME).set_index(index_df)
@@ -602,9 +602,9 @@ def save_predictions(
 #
 #     @classmethod
 #     def get_scores_df(cls, index: ScalableSeries, scores: ScalableDataFrame,
-#                       predicted_scores_template: str) -> PandasDataFrame:
+#                       predicted_scores_template: str) -> pd.DataFrame:
 #         """
-#         Returns a PandasDataFrame with INDEX column and predicted_score columns
+#         Returns a pd.DataFrame with INDEX column and predicted_score columns
 #         eg:
 #                     INDEX   predicted_score_1   predicted_score_2
 #             0      ASIN_1   0.09823             0.99873
@@ -612,7 +612,7 @@ def save_predictions(
 #         @param predicted_scores_template:
 #         @param index:
 #         @param scores:
-#         @return: PandasDataFrame
+#         @return: pd.DataFrame
 #         """
 #
 #         if isinstance(scores, ScalableSeries):
@@ -631,9 +631,9 @@ def save_predictions(
 #             index: ScalableSeries,
 #             ground_truths: ScalableDataFrame,
 #             ground_truths_template: str
-#     ) -> PandasDataFrame:
+#     ) -> pd.DataFrame:
 #         """
-#         Returns a PandasDataFrame with INDEX column and ground_truth columns
+#         Returns a pd.DataFrame with INDEX column and ground_truth columns
 #         eg:
 #                     INDEX   ground_truth_1   ground_truth_2
 #             0      ASIN_1   category_1       category_8
@@ -641,7 +641,7 @@ def save_predictions(
 #         @param ground_truths_template:
 #         @param index:
 #         @param ground_truths:
-#         @return: PandasDataFrame
+#         @return: pd.DataFrame
 #         """
 #         if isinstance(ground_truths, ScalableSeries):
 #             ground_truths = ScalableDataFrame.of(ground_truths)
@@ -654,7 +654,7 @@ def save_predictions(
 #         return PredictionsUtil.create_df(index=index, data=ground_truths, cols=ground_truth_cols)
 #
 #     @staticmethod
-#     def create_df(index: ScalableSeries, data: ScalableDataFrame, cols: List[str]) -> PandasDataFrame:
+#     def create_df(index: ScalableSeries, data: ScalableDataFrame, cols: List[str]) -> pd.DataFrame:
 #         """
 #         Converting to Pandas due to following reasons
 #             1. set_index method is not implemented in sdf. Reasoning behind this is List of Dicts wont have indices
@@ -666,7 +666,7 @@ def save_predictions(
 #         @param index:
 #         @param data:
 #         @param cols:
-#         @return: PandasDataFrame
+#         @return: pd.DataFrame
 #         """
 #         df = data.pandas()  # Converting to Pandas as list of dict wont have set_index methods
 #         index_df = index.pandas()

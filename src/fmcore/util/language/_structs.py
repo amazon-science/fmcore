@@ -7,8 +7,6 @@ from typing import *
 
 import numpy as np
 import pandas as pd
-from pandas.core.frame import DataFrame as PandasDataFrame
-from pandas.core.frame import Series as PandasSeries
 from pydantic.typing import Literal
 
 from ._alias import set_param_from_alias
@@ -17,9 +15,9 @@ from ._import import optional_dependency
 from ._utils import get_default, is_not_null
 
 ListOrTuple = Union[List, Tuple]
-DataFrameOrSeries = Union[PandasSeries, PandasDataFrame]
-SeriesOrArray1D = Union[PandasSeries, List, Tuple, np.ndarray]
-DataFrameOrArray2D = Union[PandasSeries, PandasDataFrame, List, List[List], np.ndarray]
+DataFrameOrSeries = Union[pd.Series, pd.DataFrame]
+SeriesOrArray1D = Union[pd.Series, List, Tuple, np.ndarray]
+DataFrameOrArray2D = Union[pd.Series, pd.DataFrame, List, List[List], np.ndarray]
 SeriesOrArray1DOrDataFrameOrArray2D = Union[SeriesOrArray1D, DataFrameOrArray2D]
 
 
@@ -50,9 +48,9 @@ def is_list_like(l: Any) -> bool:
     with optional_dependency("dask"):
         from dask.dataframe.core import Series as DaskSeries
 
-        if isinstance(l, (list, tuple, ValuesView, ItemsView, PandasSeries, DaskSeries)):
+        if isinstance(l, (list, tuple, ValuesView, ItemsView, pd.Series, DaskSeries)):
             return True
-    if isinstance(l, (list, tuple, ValuesView, ItemsView, PandasSeries)):
+    if isinstance(l, (list, tuple, ValuesView, ItemsView, pd.Series)):
         return True
     if isinstance(l, np.ndarray) and l.ndim == 1:
         return True
@@ -215,7 +213,7 @@ def is_set_like(l: Any) -> bool:
     return isinstance(l, (set, frozenset, KeysView))
 
 
-def is_list_or_set_like(l: Union[List, Tuple, np.ndarray, PandasSeries, Set, frozenset]):
+def is_list_or_set_like(l: Union[List, Tuple, np.ndarray, pd.Series, Set, frozenset]):
     return is_list_like(l) or is_set_like(l)
 
 
@@ -541,9 +539,9 @@ def iter_dict(d, depth: int = 1, *, _cur_depth: int = 0):
 
 ## ======================== Utils for multiple collections ======================== ##
 def only_item(
-    d: Union[Dict, List, Tuple, Set, np.ndarray, PandasSeries],
+    d: Union[Dict, List, Tuple, Set, np.ndarray, pd.Series],
     raise_error: bool = True,
-) -> Union[Dict, List, Tuple, Set, np.ndarray, PandasSeries, Any]:
+) -> Union[Dict, List, Tuple, Set, np.ndarray, pd.Series, Any]:
     if not (is_list_or_set_like(d) or is_dict_like(d)):
         return d
     if len(d) == 1:
@@ -583,19 +581,19 @@ def is_2d_array(l: Union[List, Tuple]):
     return is_list_like(l) and len(l) > 0 and is_list_like(l[0])
 
 
-def convert_1d_or_2d_array_to_dataframe(data: SeriesOrArray1DOrDataFrameOrArray2D) -> PandasDataFrame:
+def convert_1d_or_2d_array_to_dataframe(data: SeriesOrArray1DOrDataFrameOrArray2D) -> pd.DataFrame:
     if is_1d_array(data):
-        data: PandasSeries = convert_1d_array_to_series(data)
-    if isinstance(data, PandasSeries) or is_2d_array(data):
-        data: PandasDataFrame = pd.DataFrame(data)
-    assert isinstance(data, PandasDataFrame)
+        data: pd.Series = convert_1d_array_to_series(data)
+    if isinstance(data, pd.Series) or is_2d_array(data):
+        data: pd.DataFrame = pd.DataFrame(data)
+    assert isinstance(data, pd.DataFrame)
     return data
 
 
 def convert_1d_array_to_series(data: SeriesOrArray1D):
     if len(data) == 0:
         raise ValueError("Cannot convert empty data structure to series")
-    if isinstance(data, PandasSeries):
+    if isinstance(data, pd.Series):
         return data
     if not is_list_like(data):
         raise ValueError("Cannot convert non list-like data structure to series")
@@ -676,7 +674,7 @@ def is_sorted(l: Union[List[Any], Tuple[Any, ...]], *, reverse: bool = False) ->
 def get_unique(data: SeriesOrArray1DOrDataFrameOrArray2D, exclude_nans: bool = True) -> Set[Any]:
     if data is None:
         return set()
-    if isinstance(data, PandasSeries) or isinstance(data, PandasDataFrame):
+    if isinstance(data, pd.Series) or isinstance(data, pd.DataFrame):
         data: np.ndarray = data.values
     if is_2d_array(data):
         data: np.ndarray = convert_1d_or_2d_array_to_dataframe(data).values
@@ -763,14 +761,14 @@ def first_value(d: Dict, *, raise_error: bool = True) -> Optional[Any]:
 
 
 ## ======================== Pandas utils ======================== ##
-def get_num_non_null_columns_per_row(df: PandasDataFrame) -> PandasSeries:
+def get_num_non_null_columns_per_row(df: pd.DataFrame) -> pd.Series:
     ## Ref: https://datascience.stackexchange.com/a/16801/35826
-    assert isinstance(df, PandasDataFrame)
+    assert isinstance(df, pd.DataFrame)
     return (~df.isna()).sum(axis=1)
 
 
-def get_max_num_non_null_columns_per_row(df: PandasDataFrame) -> int:
-    assert isinstance(df, PandasDataFrame)
+def get_max_num_non_null_columns_per_row(df: pd.DataFrame) -> int:
+    assert isinstance(df, pd.DataFrame)
     return get_num_non_null_columns_per_row(df).max()
 
 

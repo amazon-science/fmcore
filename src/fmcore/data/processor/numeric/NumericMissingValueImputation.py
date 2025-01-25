@@ -1,6 +1,6 @@
 from typing import *
 
-from pandas.core.frame import Series as PandasSeries
+import pandas as pd
 from pydantic import root_validator
 
 from fmcore.constants import MLType
@@ -61,7 +61,7 @@ class NumericMissingValueImputation(SingleColumnProcessor):
             )
         return params
 
-    def _fit_series(self, data: PandasSeries):
+    def _fit_series(self, data: pd.Series):
         if self.params.strategy is not NumericImputationStrategy.CONSTANT:
             if self.imputed_value is not None:
                 raise self.AlreadyFitError

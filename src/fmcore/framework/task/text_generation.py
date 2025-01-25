@@ -5,7 +5,6 @@ from typing import *
 
 import numpy as np
 import pandas as pd
-from pandas.core.groupby import DataFrameGroupBy as PandasDataFrameGroupBy
 from pydantic import Extra, confloat, conint, constr, root_validator
 from pydantic.typing import Literal
 
@@ -1351,7 +1350,9 @@ class FewShotTextClassifier(LanguageModelTaskMixin, Classifier):
         entailment_df.loc[:, batch.data_schema.index_col] = entailment_df[batch.data_schema.index_col].apply(
             lambda row_idx: str(row_idx).split(PROMPT_TEMPLATE_EXPANDER_SEP)[0]
         )
-        entailment_df_row_gb: PandasDataFrameGroupBy = entailment_df.groupby(batch.data_schema.index_col)
+        entailment_df_row_gb: pandas.core.groupby.generic.DataFrameGroupBy = entailment_df.groupby(
+            batch.data_schema.index_col
+        )
         for row_idx in batch.index():
             row_entailment_df: pd.DataFrame = entailment_df.loc[entailment_df_row_gb.groups[str(row_idx)]]
             if len(row_entailment_df) != len(labelspace):

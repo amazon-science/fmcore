@@ -4,12 +4,12 @@ from concurrent.futures._base import Executor
 from typing import *
 
 import numpy as np
+import pandas as pd
 from pydantic import Extra, root_validator
 
 from fmcore.constants.DataProcessingConstants import Parallelize
 from fmcore.util.language import (
     Alias,
-    PandasSeries,
     Parameters,
     ProgressBar,
     filter_kwargs,
@@ -195,7 +195,7 @@ def dispatch_executor(
 
 
 def dispatch_apply(
-    struct: Union[List, Tuple, np.ndarray, PandasSeries, Set, frozenset, Dict],
+    struct: Union[List, Tuple, np.ndarray, pd.Series, Set, frozenset, Dict],
     *args,
     fn: Callable,
     parallelize: Parallelize,
