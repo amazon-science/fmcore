@@ -1,19 +1,10 @@
 import json
-from typing import *
+from typing import Any, ClassVar, Dict, List, Optional, Set, Union
 
-from pydantic import confloat, conint, constr, root_validator
-
-from fmcore.constants import Parallelize
-from fmcore.data import FileMetadata
-from fmcore.framework.task.text_generation import (
-    GENERATED_TEXTS_COL,
-    GenerativeLM,
-    Prompts,
-    TextGenerationParams,
-    TextGenerationParamsMapper,
-)
-from fmcore.util import (
+from bears import FileMetadata
+from bears.util import (
     Log,
+    String,
     accumulate,
     any_are_none,
     any_item,
@@ -25,6 +16,16 @@ from fmcore.util import (
     retry,
     set_param_from_alias,
     stop_executor,
+)
+from pydantic import confloat, conint, constr, model_validator
+
+from fmcore.constants import Parallelize
+from fmcore.framework._task.text_generation import (
+    GENERATED_TEXTS_COL,
+    GenerativeLM,
+    Prompts,
+    TextGenerationParams,
+    TextGenerationParamsMapper,
 )
 
 with optional_dependency("boto3"):
@@ -141,11 +142,17 @@ with optional_dependency("boto3"):
         )
         if "anthropic.claude-3" in model_name:
             generated_text: str = call_claude_v3(
-                bedrock=bedrock, prompt=prompt, model_name=model_name, **generation_params
+                bedrock=bedrock,
+                prompt=prompt,
+                model_name=model_name,
+                **generation_params,
             )
         elif "claude" in model_name:
             generated_text: str = call_claude_v1_v2(
-                bedrock=bedrock, prompt=prompt, model_name=model_name, **generation_params
+                bedrock=bedrock,
+                prompt=prompt,
+                model_name=model_name,
+                **generation_params,
             )
         else:
             bedrock_invoke_model_params = {"prompt": prompt, **generation_params}
@@ -189,7 +196,8 @@ with optional_dependency("boto3"):
             max_workers: int = 1
             generation_params: Union[TextGenerationParams, Dict, str]
 
-            @root_validator(pre=True)
+            @model_validator(mode="before")
+            @classmethod
             def set_bedrock_params(cls, params: Dict) -> Dict:
                 set_param_from_alias(
                     params,
@@ -272,7 +280,8 @@ with optional_dependency("boto3"):
 
         def predict_step(self, batch: Prompts, **kwargs) -> Any:
             generated_texts: List = []
-            for prompt in batch.prompts().tolist():  ## Template has already been applied
+            for prompt in batch.prompts().tolist():
+                ## Template has already been applied
                 generated_text: Any = dispatch(
                     self.prompt_model_with_retries,
                     prompt,

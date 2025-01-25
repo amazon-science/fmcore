@@ -1,5 +1,6 @@
 ## Import in dependency order:
-import fmcore.util
+_LIBRARY_NAME: str = 'fmcore'
+import bears.util
 import fmcore.constants
 import fmcore.data
 import fmcore.framework

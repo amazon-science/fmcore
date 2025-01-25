@@ -1,13 +1,15 @@
 import os
-from typing import *
+from typing import (
+    Optional,
+)
 
 import numpy as np
 import pandas as pd
+from bears import FileMetadata
+from bears.util import optional_dependency
 
 from fmcore.constants import MLType, Storage
-from fmcore.data import FileMetadata
 from fmcore.framework import RegressionData, Regressor
-from fmcore.util import optional_dependency
 
 with optional_dependency("sklearn", "joblib"):
     import joblib

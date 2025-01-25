@@ -1,11 +1,20 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import *
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Set,
+    Tuple,
+)
 
 import numpy as np
 import pandas as pd
+from bears.util import argmax, as_tuple, check_isinstance, dict_key_with_best_value, type_str
 from pydantic import confloat
-from pydantic.typing import Literal
 
 from fmcore.constants import AggregationStrategy, DataSplit, Task
 from fmcore.framework import (
@@ -18,8 +27,7 @@ from fmcore.framework import (
     TabularMetric,
     TopKClassificationPredictions,
 )
-from fmcore.framework.trainer.RayTuneTrainer import _RAY_TRAINING_ITERATION, _RAY_TRIAL_ID
-from fmcore.util import argmax, as_tuple, check_isinstance, dict_key_with_best_value, type_str
+from fmcore.framework._trainer.RayTuneTrainer import _RAY_TRAINING_ITERATION, _RAY_TRIAL_ID
 
 
 def _check_clf_preds(data: Predictions):

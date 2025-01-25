@@ -10,7 +10,7 @@ def session_fixture():
     yield
 
     # Teardown code: Clean up resources after all tests have run
-    from fmcore.util.concurrency._asyncio import _cleanup_event_loop
+    from bears.util.concurrency._asyncio import _cleanup_event_loop
 
     print("Tearing down resources after the test session.", end="")
     _cleanup_event_loop()
@@ -18,4 +18,6 @@ def session_fixture():
 
 
 def test_import_main_module():
-    pass
+    import fmcore
+
+    assert fmcore._LIBRARY_NAME == "fmcore"

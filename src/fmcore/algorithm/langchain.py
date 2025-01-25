@@ -1,12 +1,11 @@
 import os
-from typing import *
+from typing import Any, ClassVar, Dict, List, Literal, Optional, Type, Union
 
-from pydantic import confloat, conint, root_validator
-from pydantic.typing import Literal
+from bears import FileMetadata
+from bears.util import Log, MappedParameters, String, optional_dependency, retry
+from pydantic import confloat, conint, model_validator
 
-from fmcore.data import FileMetadata
-from fmcore.framework.task.text_generation import GENERATED_TEXTS_COL, GenerativeLM, Prompts
-from fmcore.util import Log, MappedParameters, optional_dependency, retry
+from fmcore.framework._task.text_generation import GENERATED_TEXTS_COL, GenerativeLM, Prompts
 
 with optional_dependency("langchain"):
     from langchain import Anthropic, HuggingFaceHub, LLMChain, OpenAI, PromptTemplate
@@ -14,7 +13,7 @@ with optional_dependency("langchain"):
     from langchain.llms.base import BaseLLM
 
     class LangChainLLM(MappedParameters):
-        _mapping = {
+        mapping_dict: ClassVar[Dict[str, Type]] = {
             "OpenAI": OpenAI,
             "ChatOpenAI": ChatOpenAI,
             "Anthropic": Anthropic,
@@ -33,7 +32,8 @@ with optional_dependency("langchain"):
             retry_wait: confloat(ge=0) = 30.0
             retry_jitter: confloat(ge=0) = 0.25
 
-            @root_validator(pre=True)
+            @model_validator(mode="before")
+            @classmethod
             def set_langchain_params(cls, params: Dict) -> Dict:
                 params["batch_size"] = 1
                 params["llm"]: LangChainLLM = LangChainLLM.of(params["llm"])

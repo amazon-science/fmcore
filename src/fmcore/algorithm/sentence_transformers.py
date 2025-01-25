@@ -1,13 +1,17 @@
 import os
-from typing import *
+from typing import (
+    Dict,
+    List,
+    Optional,
+)
 
-from pydantic import root_validator
+from bears import FileMetadata
+from bears.util import optional_dependency, set_param_from_alias
+from pydantic import model_validator
 
 from fmcore.constants import MLType, Storage
-from fmcore.data import FileMetadata
 from fmcore.framework.dl.torch import PyTorchBaseModel
-from fmcore.framework.task import EmbeddingData
-from fmcore.util import optional_dependency, set_param_from_alias
+from fmcore.framework._task import EmbeddingData
 
 with optional_dependency("torch", "transformers"):
     import torch
@@ -30,7 +34,8 @@ with optional_dependency("torch", "transformers"):
             padding: bool = True
             truncation: bool = True
 
-            @root_validator(pre=True)
+            @model_validator(mode="before")
+            @classmethod
             def set_aliases(cls, params: Dict) -> Dict:
                 set_param_from_alias(
                     params,

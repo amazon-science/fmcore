@@ -1,7 +1,7 @@
 from importlib import import_module
 import os
 from pathlib import Path
-from fmcore.util.language import String
+from bears.util.language import String
 
 __THIS_FILE__ = __file__  ## Needed when calling reload() from outside this file.
 
