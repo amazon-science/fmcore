@@ -31,6 +31,11 @@ DatasetSubclass = TypeVar("DatasetSubclass", bound=Dataset)
 
 
 class Dataset(InputOutputDataMixin, Registry, ABC):
+    """
+    A dataset is a collection of data that is used to train, validate, and test machine learning models.
+    It is a subclass of `InputOutputDataMixin` and `Registry`.
+    """
+
     _allow_multiple_subclasses: ClassVar[bool] = False
     _allow_subclass_override: ClassVar[bool] = True
     _allow_empty_features_schema: ClassVar[bool] = False
@@ -243,6 +248,18 @@ def load_dataset(
     task: Optional[TaskOrStr] = None,
     **kwargs,
 ) -> Optional[DatasetSubclass]:
+    """
+    Ensures that dataset metadata is read consistently by verifying or creating a .dataset-params.json file
+    if needed. This avoids incorrect merges when several parameter files exist with conflicting settings.
+
+    Example usage:
+        >>> ds = load_dataset("/path/to/dataset")
+        ## Prevents accidental merges by checking for consistent .dataset-params.json params:
+
+        >>> # `FileMetadata` can also be passed to specify source options:
+        >>> ds = load_dataset(FileMetadata(path="/tmp/myfile.parquet", format="parquet"))
+
+    """
     if dataset_source is None:
         return
     ## Don't want to mistake with similar params used for prediction:

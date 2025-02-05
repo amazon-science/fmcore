@@ -11,7 +11,6 @@ from typing import (
     Callable,
     Dict,
     List,
-    Literal,
     Optional,
     Tuple,
     Union,
@@ -25,6 +24,7 @@ from bears.util import (
     ProgressBar,
     RayActorComposite,
     RayInitConfig,
+    RayResources,
     RequestCounter,
     String,
     Timeout,
@@ -119,9 +119,8 @@ if _IS_RAY_INSTALLED:
             from fmcore.framework._evaluator import Evaluator
 
             self.verbosity = verbosity
-            self.evaluator: Optional[Evaluator] = (
-                None  ## Set this temporarily while loading when calling Evaluator.of(...)
-            )
+            ## Set this temporarily while loading when calling Evaluator.of(...):
+            self.evaluator: Optional[Evaluator] = None
             with algorithm_evaluator_verbosity(self.verbosity):
                 self.evaluator: Evaluator = Evaluator.of(**evaluator)
             self.actor = actor
@@ -316,10 +315,7 @@ if _IS_RAY_INSTALLED:
         nested_evaluator_name: Optional[str] = None
         num_models: Optional[conint(ge=1)] = None
         model: Optional[List[RayActorComposite]] = None  ## Stores the actors.
-        resources_per_model: Dict[Literal["cpu", "gpu"], Union[confloat(ge=0.0, lt=1.0), conint(ge=0)]] = {
-            "cpu": 1,
-            "gpu": 0,
-        }
+        resources_per_model: RayResources = RayResources(cpu=1, gpu=0)
         progress_update_frequency: int = 5
         ## By default, do not cache the model:
         cache_timeout: Optional[Union[Timeout, confloat(gt=0)]] = None
@@ -327,6 +323,7 @@ if _IS_RAY_INSTALLED:
         @model_validator(mode="before")
         @classmethod
         def ray_evaluator_params(cls, params: Dict) -> Dict:
+            params: Dict = cls._set_common_evaluator_params(params)
             set_param_from_alias(params, param="nested_evaluator_name", alias=["nested_evaluator"])
             set_param_from_alias(
                 params,
@@ -363,18 +360,6 @@ if _IS_RAY_INSTALLED:
                     f"instead pass it as: {cls.class_name}.evaluate(device=...)"
                 )
 
-            ## Remove extra param names:
-            params: Dict = cls._clear_extra_params(params)
-
-            if params.get("resources_per_model") is not None:
-                for resource_name, resource_requirement in params["resources_per_model"].items():
-                    if resource_requirement > 1.0 and round(resource_requirement) != resource_requirement:
-                        raise ValueError(
-                            f"When specifying `resources_per_model`, fractional resource-requirements are only allowed "
-                            f"when specifying a value <1.0; found fractional resource-requirement "
-                            f'"{resource_name}"={resource_requirement}. To fix this error, set an integer value for '
-                            f'"{resource_name}" in `resources_per_model`.'
-                        )
             return params
 
         def initialize(self, reinit_ray: bool = False, **kwargs):
@@ -444,11 +429,11 @@ if _IS_RAY_INSTALLED:
             RAY_NUM_GPUS: int = int(cluster_resources.get("GPU", 0))
 
             max_num_cpu_actors: int = max_num_resource_actors(
-                self.resources_per_model.get("cpu", 1),
+                self.resources_per_model.dict().get("cpu", 1),
                 RAY_NUM_CPUS,
             )
             max_num_gpu_actors: Union[int, float] = max_num_resource_actors(
-                self.resources_per_model.get("gpu", 0),
+                self.resources_per_model.dict().get("gpu", 0),
                 RAY_NUM_GPUS,
             )
             max_num_actors: int = min(max_num_gpu_actors, max_num_cpu_actors)
@@ -456,11 +441,11 @@ if _IS_RAY_INSTALLED:
 
         @property
         def model_num_cpus(self) -> Union[conint(ge=1), confloat(ge=0.0, lt=1.0)]:
-            return self.resources_per_model.get("cpu", 1)
+            return self.resources_per_model.dict().get("cpu", 1)
 
         @property
         def model_num_gpus(self) -> Union[conint(ge=0), confloat(ge=0.0, lt=1.0)]:
-            return self.resources_per_model.get("gpu", 0)
+            return self.resources_per_model.dict().get("gpu", 0)
 
         @property
         def num_actors(self) -> int:
@@ -503,7 +488,7 @@ if _IS_RAY_INSTALLED:
                 kwargs.pop("cache_dir")
             if "model_dir" in kwargs and kwargs["model_dir"] is None:
                 kwargs.pop("model_dir")
-            nested_evaluator: Dict = Evaluator.of(
+            nested_evaluator_params: Dict = Evaluator.of(
                 **{
                     **dict(
                         evaluator=nested_evaluator_name,
@@ -519,19 +504,21 @@ if _IS_RAY_INSTALLED:
                     ),
                     **kwargs,
                     **dict(
-                        init=False,  ## Do not initialize the evaluator on the local machine.
-                        init_model=False,  ## Do not initialize the evaluator model on the local machine.
+                        ## Since this call is just to create the nested evaluator params,
+                        ## we don't need to initialize it:
+                        init=False,
+                        init_model=False,
                         verbosity=0,  ## Ensures we do not print anything from the nested evaluator.
                     ),
                 }
             ).dict()
             if "stats" in kwargs:
-                nested_evaluator["stats"] = kwargs["stats"]
-            # print(f'nested_evaluator dict:\n{nested_evaluator}')
-            nested_evaluator["evaluator"]: str = nested_evaluator_name
+                nested_evaluator_params["stats"] = kwargs["stats"]
+            # print(f'nested_evaluator_params dict:\n{nested_evaluator_params}')
+            nested_evaluator_params["evaluator"]: str = nested_evaluator_name
             if self.model_num_gpus > 0:
-                nested_evaluator.setdefault("device", "cuda")
-            return nested_evaluator
+                nested_evaluator_params.setdefault("device", "cuda")
+            return nested_evaluator_params
 
         @staticmethod
         def ray_logger(text: str, should_log: bool, tracker: Tracker):
@@ -620,7 +607,7 @@ if _IS_RAY_INSTALLED:
                     resource_req_str: str = String.join_human(
                         [
                             f"{resource_req} {resource_name}(s)"
-                            for resource_name, resource_req in self.resources_per_model.items()
+                            for resource_name, resource_req in self.resources_per_model.dict().items()
                         ]
                     )
                     main_logger(

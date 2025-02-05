@@ -70,7 +70,7 @@ def stable_softmax(*x):  ## Ref: https://stackoverflow.com/a/49212689
     x: np.ndarray = np.array(x)
     z: np.ndarray = x - np.max(x)
     numerator: np.ndarray = np.exp(z)
-    denominator: np.float_ = np.sum(numerator)
+    denominator: np.float64 = np.sum(numerator)
     softmax: np.ndarray = numerator / denominator
     return softmax
 

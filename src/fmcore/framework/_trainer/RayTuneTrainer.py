@@ -14,6 +14,7 @@ from bears.util import (
     Log,
     MappedParameters,
     RayInitConfig,
+    RayResources,
     String,
     Timer,
     all_are_not_none,
@@ -29,11 +30,11 @@ from bears.util import (
     type_str,
 )
 from bears.util.language._import import _IS_RAY_INSTALLED, _IS_TORCH_INSTALLED
-from pydantic import ConfigDict, confloat, conint, model_validator
+from pydantic import conint, model_validator, ConfigDict
 
 from fmcore.constants import DataLayout
 from fmcore.framework._algorithm import Algorithm
-from fmcore.framework.dl.torch import PyTorch
+from fmcore.framework._dataset import Dataset, Datasets, DataSplit
 from fmcore.framework._metric import (
     CountingMetric,
     Metric,
@@ -42,9 +43,9 @@ from fmcore.framework._metric import (
     TabularMetric,
     metric_stats_str,
 )
-from fmcore.framework._dataset import Dataset, Datasets, DataSplit
 from fmcore.framework._tracker.Tracker import Tracker
 from fmcore.framework._trainer.Trainer import KFold, Trainer
+from fmcore.framework.dl.torch import PyTorch
 
 RayTuneTrainer = "RayTuneTrainer"
 _RAY_TRIAL_ID: str = "trial_id"
@@ -696,10 +697,7 @@ if _IS_RAY_INSTALLED:
         objective_dataset: Optional[DataSplit] = None
         max_dataset_rows_in_memory: int = int(1e6)
         progress_update_frequency: conint(ge=1) = 60
-        resources_per_model: Dict[Literal["cpu", "gpu"], Union[confloat(ge=0.0, lt=1.0), conint(ge=0)]] = {
-            "cpu": 1,
-            "gpu": 0,
-        }
+        resources_per_model: RayResources = RayResources(cpu=1, gpu=0)
         retrain_final_model: bool = True
         model_failure_retries: int = 0
         final_model_failure_behavior: Literal["warn", "error"] = "warn"
@@ -709,6 +707,7 @@ if _IS_RAY_INSTALLED:
         @model_validator(mode="before")
         @classmethod
         def ray_trainer_params(cls, params: Dict) -> Dict:
+            params: Dict = cls._set_common_trainer_params(params)
             ## Aliases for search_alg:
             set_param_from_alias(params, param="search_algorithm", alias=["search_alg"])
             set_param_from_alias(
@@ -782,18 +781,6 @@ if _IS_RAY_INSTALLED:
                     "progress_update_sec",
                 ],
             )
-            ## Remove extra param names:
-            params: Dict = cls._clear_extra_params(params)
-
-            if params.get("resources_per_model") is not None:
-                for resource_name, resource_requirement in params["resources_per_model"].items():
-                    if resource_requirement > 1.0 and round(resource_requirement) != resource_requirement:
-                        raise ValueError(
-                            f"When specifying `resources_per_model`, fractional resource-requirements are only allowed "
-                            f"when specifying a value <1.0; found fractional resource-requirement "
-                            f'"{resource_name}"={resource_requirement}. To fix this error, set an integer value for '
-                            f'"{resource_name}" in `resources_per_model`.'
-                        )
 
             ## Process K-fold:
             k_fold = params.get("k_fold", None)
@@ -1180,14 +1167,14 @@ if _IS_RAY_INSTALLED:
             AlgorithmClass: Type[Algorithm],
             datasets: Datasets,
             metrics: Optional[Metrics],
-            resources: Dict[Literal["cpu", "gpu"], confloat(ge=0)],  ## E.g. {"cpu": 3, "gpu": 1}
+            resources: RayResources,  ## E.g. RayResources({"cpu": 3, "gpu": 1})
             save_model: Optional[FileMetadata],
             is_n_models_without_tuning: bool,
             **kwargs,
         ) -> Type[tune.Trainable]:
             trainable: Type[tune.Trainable] = AlgorithmTrainable
             if _IS_TORCH_INSTALLED and issubclass(AlgorithmClass, PyTorch):
-                if resources.get("gpu", 0.0) > 0:
+                if resources.dict().get("gpu", 0.0) > 0:
                     kwargs.setdefault("device", "cuda")
             if is_n_models_without_tuning:
                 k_fold: KFold = KFold.NO_TUNING_K_FOLD
@@ -1228,7 +1215,7 @@ if _IS_RAY_INSTALLED:
             ## Ref: https://docs.ray.io/en/latest/tune/tutorials/tune-resources.html
             trainable: Type[tune.Trainable] = tune.with_resources(
                 trainable,
-                resources=resources,
+                resources=resources.dict(),
             )
             return trainable
 
