@@ -44,20 +44,62 @@ from bears.util import (
 from pydantic import ConfigDict, conint, model_validator
 
 from fmcore.constants import DataSplit, MLType, MLTypeSchema
-from ._metric import Metric, Metrics
-from ._task_mixins import TaskOrStr, TaskRegistryMixin
-from ._predictions import Predictions
+
 from ._dataset import Dataset, Datasets
+from ._metric import Metric, Metrics
+from ._predictions import Predictions
+from ._task_mixins import TaskOrStr, TaskRegistryMixin
 
 MODEL_PARAMS_FILE_NAME: str = "__model_params__.pkl"
 
 
 class Algorithm(TaskRegistryMixin, Registry, ABC):
-    _allow_multiple_subclasses: ClassVar[bool] = (
-        True  ## Allows multiple subclasses registered to the same task.
-    )
-    _allow_subclass_override: ClassVar[bool] = True  ## Allows replacement of subclass with same name.
+    """
+    Base class for all algorithm implementations including GenerativeLM, Classifier, etc.
 
+    This class provides a common interface and set of utilities for training and predicting using
+    Machine Learning algorithms.
+    It is task-agnostic, and concrete subclasses are required to define the following attributes:
+      - tasks: A list of tasks the algorithm supports.
+      - inputs: The Dataset type that the algorithm can process durning train_step.
+      - outputs: The Predictions type that the algorithm produces during predict_step.
+
+    The class encapsulates functionality for training, prediction, evaluation, and parameter management.
+    Its design ensures that any algorithm subclass adheres to a consistent usage pattern within the framework.
+    Subclasses must implement abstract methods (at least: initialize(), predict_step(), and _create_predictions())
+    Often, the framework will extend this with a subclass which is task-specific (e.g. Classifier,
+    Embedder, etc), adding additional utilities to make it easier to add concrete algorithms for a specific
+    task.
+
+    Example usage:
+        class MyClassifier(Algorithm):
+            tasks = ["classification"]
+            inputs = MyDataset  ## Replace with an appropriate Dataset subclass
+            outputs = MyPredictions  ## Replace with an appropriate Predictions subclass
+
+            def initialize(self, model_dir=None):
+                ## Initialize the classifier model; for example, load pre-trained weights from model_dir.
+                pass
+
+            def predict_step(self, batch, **kwargs):
+                ## Process the batch and perform a prediction operation.
+                return ...
+
+            def _create_predictions(self, batch, predictions, **kwargs):
+                ## Convert raw predictions into an instance of MyPredictions.
+                return MyPredictions(predictions)
+
+        # Instantiate and use MyClassifier:
+        classifier = MyClassifier.of(name="MyClassifier", task="classification")
+        predictions = classifier.predict(dataset)
+    """
+
+    ## Allows multiple subclasses registered to the same task.
+    _allow_multiple_subclasses: ClassVar[bool] = True
+    ## Allows replacement of subclass with same name.
+    _allow_subclass_override: ClassVar[bool] = True
+
+    ## Class variables for algorithm metadata
     dataset_statistics: ClassVar[Tuple[Union[str, Dict], ...]] = ()
     namespace: ClassVar[Optional[str]] = None
     description: ClassVar[Optional[str]] = None
@@ -67,12 +109,15 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
     num_steps_trained: int = 0
     num_rows_trained: int = 0
 
+    ## Input and output data types for the algorithm
     inputs: ClassVar[Type[Dataset]]
     feature_mltypes: ClassVar[Optional[Tuple[MLType, ...]]] = None
     outputs: ClassVar[Type[Predictions]]
 
+    ## Default parameters for batching
     default_batching_params: ClassVar[Dict[str, Any]] = {}
 
+    ## Configuration for the model
     model_config = ConfigDict(
         ## Mutable+Extra = allows dynamically adding new items.
         extra="allow",
@@ -80,12 +125,15 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
 
     @classmethod
     def _pre_registration_hook(cls):
+        ## Validate inputs and outputs before registration
         cls.inputs = cls._validate_inputs(cls.inputs)
         cls.outputs = cls._validate_outputs_type(cls.outputs)
+        ## Ensure 'row_count' is included in dataset statistics
         cls.dataset_statistics = tuple(as_set("row_count") | as_set(cls.dataset_statistics))
 
     @classmethod
     def _registry_keys(cls) -> Optional[Union[List[Any], Any]]:
+        ## Generate registry keys based on tasks and class names
         tasks: List = as_list(cls.tasks)
         return (
             tasks
@@ -95,6 +143,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
 
     @classmethod
     def _validate_inputs(cls, inputs: Type[Dataset]) -> Type[Dataset]:
+        ## Ensure the input dataset supports all tasks required by the algorithm
         for task in as_list(cls.tasks):
             if task not in as_list(inputs.tasks):
                 raise ValueError(
@@ -106,6 +155,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
 
     @classmethod
     def _validate_outputs_type(cls, outputs: Type[Predictions]) -> Type[Predictions]:
+        ## Ensure the output dataset supports all tasks required by the algorithm
         for task in as_list(cls.tasks):
             if task not in as_list(outputs.tasks):
                 raise ValueError(
@@ -116,15 +166,18 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
         return outputs
 
     def __init__(self, *, stats: Optional[Metrics] = None, **kwargs):
+        ## Initialize the algorithm with optional statistics
         super(Algorithm, self).__init__(stats=stats, **kwargs)
         self.stats = stats
 
     def __str__(self):
+        ## String representation of the algorithm with its parameters
         params_str: str = self.json(indent=4, include={"hyperparams"})
         out: str = f"{self.class_name} with params:\n{params_str}"
         return out
 
     class Hyperparameters(Parameters):
+        ## Hyperparameters for the algorithm
         seed: Optional[int] = None  ## Seed used for randomization.
         batch_size: Optional[conint(ge=1)] = None  ## Training batch size. None allows inference-only models
         epochs: Optional[conint(ge=1)] = None  ## Number of epochs to train. None allows inference-only models
@@ -137,6 +190,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
         @model_validator(mode="before")
         @classmethod
         def check_params(cls, params: Dict) -> Dict:
+            ## Ensure that only one of 'epochs' or 'steps' is provided
             if all_are_not_none(params.get("epochs"), params.get("steps")):
                 raise ValueError("Must pass at most one of `epochs` and `steps`; both were passed.")
             return params
@@ -146,6 +200,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
             include: Optional[Union[Tuple[str, ...], Set[str], Callable]] = None,
             **kwargs,
         ) -> Dict:
+            ## Convert hyperparameters to a dictionary
             if is_function(include):
                 include: Tuple[str, ...] = get_fn_args(include)
             if include is not None:
@@ -153,6 +208,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
             return super().dict(include=include, **kwargs)
 
         def __str__(self) -> str:
+            ## String representation of the hyperparameters
             params_str: str = self.json(indent=4)
             out: str = f"{self.class_name}:\n{params_str}"
             return out
@@ -161,16 +217,19 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
 
     @property
     def hyperparams_str(self) -> str:
+        ## String representation of hyperparameters for logging or display
         return ";".join([f"{k}={v}" for k, v in self.hyperparams.dict().items()])
 
     @classmethod
     def create_hyperparams(cls, hyperparams: Optional[Dict] = None) -> Hyperparameters:
+        ## Create an instance of Hyperparameters with default values
         hyperparams: Dict = get_default(hyperparams, {})
         return cls.Hyperparameters(**hyperparams)
 
     @model_validator(mode="before")
     @classmethod
     def convert_params(cls, params: Dict) -> Dict:
+        ## Convert and validate parameters for the algorithm
         cls.set_default_param_values(params)
         ## This allows us to create a new Algorithm instance without specifying `hyperparams`.
         ## If it is specified, we will pick cls.Hyperparameters, which can be overridden by the subclass.
@@ -195,6 +254,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
         model_dir: Optional[Union[FileMetadata, Dict, str]] = None,
         **kwargs,
     ) -> "Algorithm":
+        ## Factory method to create an instance of the algorithm
         kwargs: Dict = remove_nulls(kwargs)
         if "algorithm" in kwargs and name is None:
             name = kwargs.pop("algorithm")
@@ -208,7 +268,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
             cache_dir: str = tempfile.TemporaryDirectory().name  ## Does not exist yet
         cache_dir: FileMetadata = FileMetadata.of(cache_dir)
         if all_are_none(name, task) and model_dir is not None:
-            # print(f'(pid={os.getpid()}) Loading "{AlgorithmClass}" model from dir: "{model_dir.path}"')
+            ## Load model parameters from the specified directory
             model_params: Dict = {
                 **get_default(
                     Algorithm.load_params(model_dir=model_dir, raise_error=False, tmpdir=cache_dir.path), {}
@@ -238,7 +298,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
             else:
                 AlgorithmClass: Type[Algorithm] = cls
         if is_abstract(AlgorithmClass):
-            ## Throw an error:
+            ## Throw an error if the class is abstract
             abstract_task_subclasses: Set[str] = set()
             concrete_subclasses: Set[str] = set()
             for key, subclasses_dict in cls._registry.items():
@@ -282,13 +342,13 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
                 )
             task: TaskOrStr = AlgorithmClass.tasks[0]
         if model_dir is None:
-            # print(f'(pid={os.getpid()}) Creating "{AlgorithmClass}" model from scratch.')
+            ## Create a new model from scratch
             model: Algorithm = AlgorithmClass(
                 task=task,
                 **kwargs,
             )
         else:
-            # print(f'(pid={os.getpid()}) Loading "{AlgorithmClass}" model from dir: "{model_dir.path}"')
+            ## Load model parameters from the specified directory
             model_params: Dict = {
                 **get_default(
                     Algorithm.load_params(model_dir=model_dir, raise_error=False, tmpdir=cache_dir.path), {}
@@ -331,6 +391,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
         batch_size: Optional[conint(ge=1)] = None,
         **kwargs,
     ) -> Optional[Metrics]:
+        ## Calculate statistics for the given dataset
         data_split: DataSplit = get_default(data_split, dataset.data_split)
         if data_split is None:
             raise ValueError(f"Must pass data_split in either {Dataset.class_name} or explicitly.")

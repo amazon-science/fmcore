@@ -268,7 +268,7 @@ class TopKClassificationPredictions(ClassificationPredictions):
             labels: np.ndarray = np.array(labels)
         if isinstance(scores, (list, tuple)):
             scores: np.ndarray = np.array(scores)
-        if not all_are_np_subtypes(scores.dtype, {np.bool_, np.integer, np.floating}):
+        if not all_are_np_subtypes(scores.dtype, {np.bool, np.integer, np.floating}):
             raise ValueError(
                 f"Expected scores array to have dtype as bool, int or float; found: {scores.dtype}"
             )

@@ -12,8 +12,8 @@ from bears import FileMetadata
 from bears.util import String, Timer, safe_validate_arguments
 
 from fmcore.framework._algorithm import Algorithm
-from fmcore.framework._metric import Metric, Metrics
 from fmcore.framework._dataset import Dataset, Datasets, DataSplit
+from fmcore.framework._metric import Metric, Metrics
 from fmcore.framework._tracker.Tracker import Tracker
 from fmcore.framework._trainer.Trainer import Trainer
 

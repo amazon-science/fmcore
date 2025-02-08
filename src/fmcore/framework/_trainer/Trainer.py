@@ -27,13 +27,13 @@ from bears.util import (
     set_param_from_alias,
     type_str,
 )
-from pydantic import ConfigDict, conint, model_validator
+from pydantic import ConfigDict, conint
 
 from fmcore.constants import DataSplit, Task
 from fmcore.framework._algorithm import Algorithm, TaskOrStr
+from fmcore.framework._dataset import Dataset, Datasets, save_dataset
 from fmcore.framework._metric import CountingMetric, Metric, Metrics
 from fmcore.framework._predictions import Predictions, save_predictions
-from fmcore.framework._dataset import Dataset, Datasets, save_dataset
 from fmcore.framework._tracker import DEFAULT_TRACKER_PARAMS, Tracker
 
 TrainerSubclass = TypeVar("TrainerSubclass", bound="Trainer")
@@ -165,9 +165,8 @@ class Trainer(Parameters, Registry, ABC):
     ## Logging verbosity. 0 = zero logging, 1 = Basic logging, 2 = verbose logging.
     verbosity: conint(ge=0) = 1
 
-    @model_validator(mode="before")
     @classmethod
-    def _set_trainer_params(cls, params: Dict):
+    def _set_common_trainer_params(cls, params: Dict):
         set_param_from_alias(params, param="AlgorithmClass", alias=["algorithm"])
         set_param_from_alias(params, param="eval_batch_size", alias=["predict_batch_size"])
         set_param_from_alias(params, param="seed", alias=["random_state", "random_seed", "random_state_seed"])

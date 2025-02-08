@@ -403,7 +403,7 @@ class InputOutputDataMixin(TaskRegistryMixin, ABC):
         kwargs["exclude"] = as_set(kwargs["exclude"])
         orig_exclude: Set[str] = deepcopy(kwargs["exclude"])
         kwargs["exclude"].add("data")
-        params: Dict = super(self.__class__, self).dict(*args, **kwargs)
+        params: Dict = super(InputOutputDataMixin, self).dict(*args, **kwargs)
         if "data" not in orig_exclude:
             ## Add `data` key back in the correct format:
             if self.in_memory():

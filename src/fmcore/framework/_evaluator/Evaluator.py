@@ -39,7 +39,7 @@ from bears.util import (
     stop_daemon,
 )
 from bears.util.aws import S3Util
-from pydantic import ConfigDict, confloat, conint, model_validator
+from pydantic import ConfigDict, confloat, conint
 
 from fmcore import _LIBRARY_NAME
 from fmcore.constants import Storage, Task
@@ -58,7 +58,7 @@ class Evaluator(MutableParameters, Registry, ABC):
     _allow_subclass_override: ClassVar[bool] = True  ## Allows replacement of subclass with same name.
 
     model_config = ConfigDict(
-        extra="ignore",
+        extra="allow",
     )
 
     class RunConfig(Parameters):
@@ -88,9 +88,8 @@ class Evaluator(MutableParameters, Registry, ABC):
     ## Logging verbosity. 0 = zero logging, 1 = Basic logging, 2 = verbose logging, 3 = super verbose logging.
     verbosity: conint(ge=0) = 1
 
-    @model_validator(mode="before")
     @classmethod
-    def evaluator_params(cls, params: Dict):
+    def _set_common_evaluator_params(cls, params: Dict):
         Alias.set_AlgorithmClass(params)
         Alias.set_model_dir(params)
         Alias.set_cache_dir(params)

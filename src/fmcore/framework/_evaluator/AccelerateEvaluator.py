@@ -40,6 +40,7 @@ with optional_dependency("accelerate", "torch", "transformers"):
         @model_validator(mode="before")
         @classmethod
         def set_accelerate_evaluator_params(cls, params: Dict) -> Dict:
+            params: Dict = cls._set_common_evaluator_params(params)
             set_param_from_alias(
                 params, param="model_weights_dtype", alias=["weights_dtype", "model_dtype", "torch_dtype"]
             )
@@ -69,8 +70,6 @@ with optional_dependency("accelerate", "torch", "transformers"):
             cache_dir: Optional[Union[FileMetadata, Dict, str]] = None,
             **kwargs,
         ) -> PyTorch:
-            from fmcore.algorithm.alexa_teacher_models import ALEXA_TM_SEQ2SEQ_MODEL_NAMES
-
             kwargs.pop("device", None)  ## We manage the device-allocation in the rest of this function.
             kwargs.pop("model_dir", None)  ## Do not allow overriding model_dir
             kwargs.pop("num_devices", None)  ## Use the one passed to evaluator.
@@ -88,14 +87,6 @@ with optional_dependency("accelerate", "torch", "transformers"):
             # print(f'cuda_visible_devices: {EnvUtil.cuda_visible_devices()}')
             # print(f'num_devices: {num_devices}')
 
-            alexa_tm_model_name: Optional[str] = self._create_hyperparams().dict().get("model_name")
-            if alexa_tm_model_name is None:
-                alexa_tm_model_name: Optional[str] = (
-                    self._create_hyperparams().dict().get("lm", {}).get("hyperparams", {}).get("model_name")
-                )
-            # print(f'alexa_tm_model_name: {alexa_tm_model_name}')
-            if alexa_tm_model_name in ALEXA_TM_SEQ2SEQ_MODEL_NAMES:
-                return self._load_alexa_tm_model_copy(cache_dir=cache_dir, num_devices=num_devices, **kwargs)
             if self.use_hf_from_pretrained:
                 return self._load_hf_auto_model_class(cache_dir=cache_dir, num_devices=num_devices, **kwargs)
             return self._load_model_copy_accelerate(cache_dir=cache_dir, num_devices=num_devices, **kwargs)
@@ -273,56 +264,3 @@ with optional_dependency("accelerate", "torch", "transformers"):
                     f"{snapshot_matching_files}"
                 )
             return snapshot_matching_files[0]
-
-        def _load_alexa_tm_model_copy(
-            self,
-            cache_dir: FileMetadata,
-            num_devices: conint(ge=0),
-            **kwargs,
-        ) -> PyTorch:
-            from fmcore.algorithm.alexa_teacher_models import AlexaTMSeq2Seq
-
-            if num_devices % 2 != 0:
-                raise ValueError("AlexaTM 20B can only be distributed across an even number of devices.")
-            ## Load the model into CPU memory:
-            assert cache_dir is not None
-            model: Algorithm = Algorithm.of(
-                **{
-                    **dict(
-                        task=self.task,
-                        algorithm=self.AlgorithmClass,
-                        hyperparams=self.hyperparams,
-                        model_dir=self.model_dir,
-                    ),
-                    **kwargs,
-                    **dict(
-                        cache_dir=cache_dir,
-                        post_init=False,  ## When using accelerate, first init an empty model, then split.
-                    ),
-                }
-            )
-            if isinstance(model, LanguageModelTaskMixin):
-                pt_model: AlexaTMSeq2Seq = model.lm
-            else:
-                pt_model: AlexaTMSeq2Seq = model
-            if not isinstance(pt_model, AlexaTMSeq2Seq):
-                raise ValueError(f"Expected AlexaTM 20B model, found: {type_str(pt_model)}")
-            ## Move to GPU:
-            if self.model_weights_dtype == torch.float32:
-                pt_model.model.float()
-            elif self.model_weights_dtype == torch.float16:
-                pt_model.model.half()
-            elif self.model_weights_dtype == torch.bfloat16:
-                pt_model.model.bfloat16()
-            else:
-                raise NotImplementedError(
-                    f"Unsupported value for `model_weights_dtype`: {self.model_weights_dtype}"
-                )
-
-            pt_model.model.parallelize(num_devices)
-            pt_model.device = "cuda"
-            if isinstance(model, LanguageModelTaskMixin):
-                model.lm = pt_model
-            else:
-                model: AlexaTMSeq2Seq = pt_model
-            return model
