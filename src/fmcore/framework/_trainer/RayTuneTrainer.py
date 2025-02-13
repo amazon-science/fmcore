@@ -29,8 +29,8 @@ from bears.util import (
     set_param_from_alias,
     type_str,
 )
-from bears.util.language._import import _IS_RAY_INSTALLED, _IS_TORCH_INSTALLED
-from pydantic import conint, model_validator, ConfigDict
+from bears.util.language._import import _IS_RAY_INSTALLED, _IS_TORCH_INSTALLED, np_number
+from pydantic import ConfigDict, conint, model_validator
 
 from fmcore.constants import DataLayout
 from fmcore.framework._algorithm import Algorithm
@@ -93,7 +93,7 @@ def _ray_put_metric_value(metric: Metric) -> Any:
         assert isinstance(metric.value, pd.DataFrame)
         return _RAY_METRIC_IS_DATAFRAME_PREFIX + metric.value.to_json(orient="records")
     value: Any = metric.value
-    if isinstance(value, (int, float, str)) or np.issubdtype(type(value), np.number):
+    if isinstance(value, (int, float, str)) or np.issubdtype(type(value), np_number):
         return value
     buf = io.BytesIO()
     pickle.dump(value, buf)
@@ -106,7 +106,7 @@ def _ray_get_metric_value(value: Optional[Any]) -> Optional[Any]:
         return None
     if isinstance(value, str) and value.startswith(_RAY_METRIC_IS_DATAFRAME_PREFIX):
         return pd.DataFrame(json.loads(value.removeprefix(_RAY_METRIC_IS_DATAFRAME_PREFIX)))
-    if isinstance(value, (int, float, str)) or np.issubdtype(type(value), np.number):
+    if isinstance(value, (int, float, str)) or np.issubdtype(type(value), np_number):
         return value
     if not isinstance(value, io.BytesIO):
         raise ValueError(f"Expected metric value to be of type BytesIO, found type: {type_str(value)}")

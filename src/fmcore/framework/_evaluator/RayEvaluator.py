@@ -649,7 +649,7 @@ if _IS_RAY_INSTALLED:
                         progress_bar,
                         total=num_actors_created,
                         desc=f"Submitting {input_len_str} rows",
-                        unit="submissions",
+                        unit="batch",
                     )
                     ## Each actor streams data from Dask dataframe on the cluster:
                     if not isinstance(data, DaskScalableDataFrame):
@@ -693,7 +693,7 @@ if _IS_RAY_INSTALLED:
                         progress_bar,
                         total=math.ceil(input_len / submission_batch_size),
                         desc=f"Submitting {input_len_str} rows",
-                        unit="submissions",
+                        unit="batch",
                     )
                     ## Initialize to zero:
                     rows_completed: int = ray.get(row_counter.get_rows_completed.remote())

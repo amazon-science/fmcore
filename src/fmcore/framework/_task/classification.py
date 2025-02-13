@@ -17,6 +17,7 @@ import pandas as pd
 from bears import ScalableDataFrame, ScalableSeries
 from bears.processor import EncodingRange, LabelEncoding
 from bears.util import all_are_np_subtypes, as_list, as_tuple, is_list_or_set_like, safe_validate_arguments
+from bears.util.language._import import np_bool, np_floating, np_integer
 from pydantic import constr
 
 from fmcore.constants import DataLayout, DataSplit, MLType, MLTypeSchema, Task
@@ -268,7 +269,7 @@ class TopKClassificationPredictions(ClassificationPredictions):
             labels: np.ndarray = np.array(labels)
         if isinstance(scores, (list, tuple)):
             scores: np.ndarray = np.array(scores)
-        if not all_are_np_subtypes(scores.dtype, {np.bool, np.integer, np.floating}):
+        if not all_are_np_subtypes(scores.dtype, {np_bool, np_integer, np_floating}):
             raise ValueError(
                 f"Expected scores array to have dtype as bool, int or float; found: {scores.dtype}"
             )
