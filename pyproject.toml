@@ -18,7 +18,8 @@ classifiers = [
 license-files = ["LICENSE"]
 dependencies = [
     "autoenum",
-    "bears",
+    ## Pick up latest Git commit for bears package to ensure tests run:
+    "bears @ git+https://github.com/amazon-science/bears.git@main",
     "requests",
     "pyyaml",
     "urllib3",
@@ -70,6 +71,9 @@ all = [
 
 [tool.hatch.version]
 source = "vcs"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
