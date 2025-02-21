@@ -126,11 +126,14 @@ if _IS_RAY_INSTALLED:
             self.actor = actor
             self.request_counter: RequestCounter = request_counter
 
-        def is_available(self) -> bool:
+        def get_evaluator_status(self) -> str:
             try:
-                return self.evaluator is None
-            except Exception:
-                return False
+                if self.evaluator is None:
+                    return "Evaluator not initialized."
+                assert isinstance(self.evaluator, Evaluator)
+                return (self.evaluator.class_name, self.evaluator.model.class_name)
+            except Exception as e:
+                return String.format_exception_msg(e)
 
         def get_ip_address(self) -> Optional[str]:
             try:
@@ -363,6 +366,10 @@ if _IS_RAY_INSTALLED:
             return params
 
         def initialize(self, reinit_ray: bool = False, **kwargs):
+            if self.model_num_gpus <= 1 or self.AlgorithmClass.class_name == "VLLMGenerativeLM":
+                self.nested_evaluator_name: str = get_default(self.nested_evaluator_name, "local")
+            else:
+                self.nested_evaluator_name: str = get_default(self.nested_evaluator_name, "accelerate")
             ## Connect to the Ray cluster
             if not ray.is_initialized() or reinit_ray is True:
                 ray.init(
@@ -385,7 +392,7 @@ if _IS_RAY_INSTALLED:
             **kwargs,
         ) -> List[RayActorComposite]:
             num_actors: int = get_default(num_actors, self.num_actors)
-            progress_bar: Optional[Dict] = self._run_evaluation_progress_bar(progress_bar)
+            progress_bar: Union[Dict, bool] = self._run_evaluation_progress_bar(progress_bar)
             nested_evaluator_params: Dict = self._create_nested_evaluator_params(**kwargs)
 
             def actor_factory(*, request_counter: Any, actor_i: int, actor_id: str, **kwargs):
@@ -475,10 +482,7 @@ if _IS_RAY_INSTALLED:
             return num_actors
 
         def _create_nested_evaluator_params(self, **kwargs) -> Dict:
-            nested_evaluator_name: str = get_default(
-                self.nested_evaluator_name,
-                "accelerate" if self.model_num_gpus > 1 else "local",
-            )
+            nested_evaluator_name: str = self.nested_evaluator_name
             if self.model_dir is not None and not self.model_dir.is_remote_storage():
                 raise ValueError(
                     f"When passing `model_dir` to {self.class_name}.of(...), the model directory "
@@ -563,44 +567,44 @@ if _IS_RAY_INSTALLED:
             evaluated_predictions: Optional[Predictions] = None
             evaluated_metrics: Optional[List[Metric]] = None
 
-            try:
-                timer: Timer = Timer(silent=True)
-                timer.start()
-                ## Verbosity >= 1: progress bars
-                progress_bar: Optional[Dict] = self._run_evaluation_progress_bar(progress_bar)
-                ## Verbosity >= 2: basic logging
-                main_logger: Callable = partial(
-                    self.ray_logger,
-                    ## Unless we request silence (verbosity=0), print important information.
-                    should_log=self.verbosity >= 2,
-                    tracker=tracker,
+            timer: Timer = Timer(silent=True)
+            timer.start()
+            ## Verbosity >= 1: progress bars
+            progress_bar: Union[Dict, bool] = self._run_evaluation_progress_bar(progress_bar)
+            ## Verbosity >= 2: basic logging
+            main_logger: Callable = partial(
+                self.ray_logger,
+                ## Unless we request silence (verbosity=0), print important information.
+                should_log=self.verbosity >= 2,
+                tracker=tracker,
+            )
+            ## Verbosity >= 3: detailed logging
+            debug_logger: Callable = partial(
+                self.ray_logger,
+                ## Unless we request silence (verbosity=0), print important information.
+                should_log=self.verbosity >= 3,
+                tracker=tracker,
+            )
+            main_logger(self._evaluate_start_msg(tracker=tracker, **kwargs))
+            if batch_size is None:
+                raise ValueError(
+                    f"Could not find batch_size in model hyperparams; "
+                    f"please pass it explicitly like so: {self.class_name}.evaluate(batch_size=...)"
                 )
-                ## Verbosity >= 3: detailed logging
-                debug_logger: Callable = partial(
-                    self.ray_logger,
-                    ## Unless we request silence (verbosity=0), print important information.
-                    should_log=self.verbosity >= 3,
-                    tracker=tracker,
-                )
-                main_logger(self._evaluate_start_msg(tracker=tracker, **kwargs))
-                if batch_size is None:
+            if predictions_destination is not None:
+                if predictions_destination.storage is not Storage.S3:
                     raise ValueError(
-                        f"Could not find batch_size in model hyperparams; "
-                        f"please pass it explicitly like so: {self.class_name}.evaluate(batch_size=...)"
+                        f"Results can only be saved to {Storage.S3}; "
+                        f"found storage {predictions_destination.storage} having path: {predictions_destination.path}"
                     )
-                if predictions_destination is not None:
-                    if predictions_destination.storage is not Storage.S3:
-                        raise ValueError(
-                            f"Results can only be saved to {Storage.S3}; "
-                            f"found storage {predictions_destination.storage} having path: {predictions_destination.path}"
-                        )
-                    if not predictions_destination.is_path_valid_dir():
-                        raise ValueError(
-                            f"Expected predictions destination to be a valid directory; "
-                            f'found: "{predictions_destination.path}"...did you forget a "/" at the end?'
-                        )
-                    assert predictions_destination.format is not None  ## Checked in .evaluate().
+                if not predictions_destination.is_path_valid_dir():
+                    raise ValueError(
+                        f"Expected predictions destination to be a valid directory; "
+                        f'found: "{predictions_destination.path}"...did you forget a "/" at the end?'
+                    )
+                assert predictions_destination.format is not None  ## Checked in .evaluate().
 
+            try:
                 actors_were_created_in_this_call: bool = self.init_model(progress_bar=progress_bar, **kwargs)
                 num_actors_created: int = len(self.model)
                 if actors_were_created_in_this_call:
@@ -869,15 +873,16 @@ if _IS_RAY_INSTALLED:
                     )
                 )
                 return evaluated_predictions, evaluated_metrics
+            except Exception as e:
+                raise e
             except KeyboardInterrupt as e:
                 raise e
             finally:
                 if "row_counter" in locals():
                     accumulate(ray.kill(row_counter))
                     del row_counter
-                if (
-                    self.cache_timeout is None
-                ):  ## If we don't have a timeout, delete actors after every execution.
+                ## If we don't have a timeout, delete actors after every execution.
+                if self.cache_timeout is None:
                     self.cleanup_model()
                 return evaluated_predictions, evaluated_metrics
 
@@ -894,10 +899,10 @@ if _IS_RAY_INSTALLED:
             )
             return actor_usages
 
-        def _run_evaluation_progress_bar(self, progress_bar: Optional[Dict], **kwargs) -> Optional[Dict]:
+        def _run_evaluation_progress_bar(self, progress_bar: Optional[Dict], **kwargs) -> Union[Dict, bool]:
             if self.verbosity >= 2:
                 return progress_bar
-            return None
+            return False
 
         def _evaluate_start_msg(self, *, tracker: Tracker, **kwargs) -> str:
             if tracker.tracker_name == "noop":
