@@ -13,6 +13,7 @@ from typing import (
 
 from bears import FileMetadata
 from bears.util import Timeout, Timeout24Hr, Timer, confloat, get_default, safe_validate_arguments
+from pydantic import model_validator
 
 from fmcore.framework._algorithm import Algorithm
 from fmcore.framework._evaluator.Evaluator import Evaluator
@@ -26,6 +27,12 @@ class LocalEvaluator(Evaluator):
 
     ## Cache model locally for 15 mins:
     cache_timeout: Optional[Union[Timeout, confloat(gt=0)]] = Timeout24Hr(timeout=3 * 60 * 60)
+
+    @model_validator(mode="before")
+    @classmethod
+    def set_local_evaluator_params(cls, params: Dict) -> Dict:
+        params: Dict = cls._set_common_evaluator_params(params)
+        return params
 
     def _load_model(
         self,
