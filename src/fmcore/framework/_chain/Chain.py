@@ -284,7 +284,6 @@ class Chain(MutableParameters):
     def __call__(self, **kwargs) -> Union[ChainExecution, Future]:
         return self.run(**kwargs)
 
-    @safe_validate_arguments
     def run(
         self,
         *args,
@@ -844,6 +843,9 @@ class ChainExecution(MutableParameters):
                 Status.STOPPED
             )  ## This will cause the chain execution loop to exit after the current step
 
+
+## Needs to be done after ChainExecution is defined to avoid circular dependencies.
+Chain.run = safe_validate_arguments()(Chain.run)
 
 class FunctionStep(Step):
     fn: Any
