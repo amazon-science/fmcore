@@ -318,7 +318,7 @@ if _IS_RAY_INSTALLED:
         nested_evaluator_name: Optional[str] = None
         num_models: Optional[conint(ge=1)] = None
         model: Optional[List[RayActorComposite]] = None  ## Stores the actors.
-        resources_per_model: RayResources = RayResources(cpu=1, gpu=0)
+        resources_per_model: RayResources = RayResources(num_cpus=1, num_gpus=0)
         progress_update_frequency: int = 5
         ## By default, do not cache the model:
         cache_timeout: Optional[Union[Timeout, confloat(gt=0)]] = None
@@ -436,11 +436,11 @@ if _IS_RAY_INSTALLED:
             RAY_NUM_GPUS: int = int(cluster_resources.get("GPU", 0))
 
             max_num_cpu_actors: int = max_num_resource_actors(
-                self.resources_per_model.dict().get("cpu", 1),
+                self.resources_per_model.num_cpus,
                 RAY_NUM_CPUS,
             )
             max_num_gpu_actors: Union[int, float] = max_num_resource_actors(
-                self.resources_per_model.dict().get("gpu", 0),
+                self.resources_per_model.num_gpus,
                 RAY_NUM_GPUS,
             )
             max_num_actors: int = min(max_num_gpu_actors, max_num_cpu_actors)
@@ -452,7 +452,7 @@ if _IS_RAY_INSTALLED:
 
         @property
         def model_num_gpus(self) -> Union[conint(ge=0), confloat(ge=0.0, lt=1.0)]:
-            return self.resources_per_model.dict().get("gpu", 0)
+            return self.resources_per_model.num_gpus
 
         @property
         def num_actors(self) -> int:

@@ -10,6 +10,7 @@ import pandas as pd
 from bears.util import (
     Alias,
     EnvUtil,
+    RayResources,
     String,
     accumulate,
     accumulate_iter,
@@ -59,9 +60,9 @@ from fmcore.framework import (
     TextGenerationsPredictionsBase,
     Trainer,
 )
-from fmcore.framework.dl.torch import clear_device_cache
 from fmcore.framework._evaluator.RayEvaluator import LoadBalancingStrategy
 from fmcore.framework._trainer.RayTuneTrainer import _ray_agg_final_model_metric_stats
+from fmcore.framework.dl.torch import clear_device_cache
 
 
 class TextLength(TabularMetric):
@@ -171,7 +172,7 @@ class RagasMetricBase(TabularMetric, ABC):
         llm_evaluator: Optional[Evaluator] = None
         algorithm: str
         hyperparams: Dict
-        resources_per_model: Dict[Literal["cpu", "gpu"], Union[confloat(ge=0.0, lt=1.0), conint(ge=0)]]
+        resources_per_model: RayResources
         num_models: Optional[conint(ge=1)]
         max_parallel_models: int = 0  ## 0 = no limit
         submission_batch_size: conint(ge=1) = 12
@@ -1640,7 +1641,7 @@ class TextGenerationStudent(Metric):
         split_seed: int = 42
         objective_metric: Optional[Union[Metric, Dict, str]] = None
         objective_type: Literal["maximize", "minimize"] = "maximize"
-        resources_per_model: Dict[Literal["cpu", "gpu"], Union[confloat(ge=0.0, lt=1.0), conint(ge=0)]]
+        resources_per_model: RayResources
         tune_num_models: Optional[conint(ge=1)] = None
         test_num_models: conint(ge=1)
         max_parallel_models: int = 0  ## 0 = no limit

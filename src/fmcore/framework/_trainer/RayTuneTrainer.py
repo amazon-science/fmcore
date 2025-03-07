@@ -697,7 +697,7 @@ if _IS_RAY_INSTALLED:
         objective_dataset: Optional[DataSplit] = None
         max_dataset_rows_in_memory: int = int(1e6)
         progress_update_frequency: conint(ge=1) = 60
-        resources_per_model: RayResources = RayResources(cpu=1, gpu=0)
+        resources_per_model: RayResources = RayResources(num_cpus=1, num_gpus=0)
         retrain_final_model: bool = True
         model_failure_retries: int = 0
         final_model_failure_behavior: Literal["warn", "error"] = "warn"
@@ -1167,14 +1167,14 @@ if _IS_RAY_INSTALLED:
             AlgorithmClass: Type[Algorithm],
             datasets: Datasets,
             metrics: Optional[Metrics],
-            resources: RayResources,  ## E.g. RayResources({"cpu": 3, "gpu": 1})
+            resources: RayResources,  ## E.g. RayResources({"num_cpus": 3, "num_gpus": 1})
             save_model: Optional[FileMetadata],
             is_n_models_without_tuning: bool,
             **kwargs,
         ) -> Type[tune.Trainable]:
             trainable: Type[tune.Trainable] = AlgorithmTrainable
             if _IS_TORCH_INSTALLED and issubclass(AlgorithmClass, PyTorch):
-                if resources.dict().get("gpu", 0.0) > 0:
+                if resources.num_gpus > 0:
                     kwargs.setdefault("device", "cuda")
             if is_n_models_without_tuning:
                 k_fold: KFold = KFold.NO_TUNING_K_FOLD
