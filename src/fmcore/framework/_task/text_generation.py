@@ -752,12 +752,12 @@ class GenerativeLM(Algorithm, ABC):
 
 
 class LanguageModelTaskMixin(Algorithm, ABC):
-    lm: Optional[Union[GenerativeLM, Any]] = None
+    lm: Optional[Any] = None
     icl_dataset: Optional[Dataset] = None
     icl_sampler: Optional[ICLSampler] = None  ## Will be not-None when icl_dataset is not-None.
 
     class Hyperparameters(Algorithm.Hyperparameters):
-        lm: Optional[Dict]  ## Params for llm
+        lm: Optional[Dict] = None  ## Params for llm
         batch_size: Optional[conint(ge=1)] = 1  ## By default, predict 1 row at a time.
         prompt_template: constr(min_length=1)
         icl_template: Optional[constr(min_length=1)] = None

@@ -36,8 +36,8 @@ from fmcore.constants import (
     MLTypeSchema,
     TaskOrStr,
 )
-from fmcore.framework._task_mixins import InputOutputDataMixin, SchemaValidationError
 from fmcore.framework._dataset import Dataset
+from fmcore.framework._task_mixins import InputOutputDataMixin, SchemaValidationError
 
 Predictions = "Predictions"
 Visualization = "Visualization"
@@ -69,6 +69,11 @@ class Predictions(InputOutputDataMixin, Registry, ABC):
     @model_validator(mode="before")
     @classmethod
     def _set_predictions_params(cls, params: Dict) -> Dict:
+        if "data_schema" not in params:
+            raise ValueError(
+                f"Cannot create instance of class '{cls.class_name}' without passing `data_schema` parameter."
+            )
+
         params["data_schema"]: Schema = Schema.of(params["data_schema"], schema_template=cls.schema_template)
         # data_schema: Union[Schema, MLTypeSchema] = params['data_schema']
         # if isinstance(data_schema, dict):

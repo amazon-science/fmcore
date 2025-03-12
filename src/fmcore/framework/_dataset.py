@@ -85,6 +85,10 @@ class Dataset(InputOutputDataMixin, Registry, ABC):
     @model_validator(mode="before")
     @classmethod
     def _set_dataset_params(cls, params: Dict) -> Dict:
+        if "data_schema" not in params:
+            raise ValueError(
+                f"Cannot create instance of class '{cls.class_name}' without passing `data_schema` parameter."
+            )
         data_schema: Union[Schema, MLTypeSchema] = params["data_schema"]
         if isinstance(data_schema, dict):
             ## We need to infer the schema:

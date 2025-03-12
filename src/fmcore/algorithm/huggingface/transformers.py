@@ -1,4 +1,5 @@
 import gc
+import os
 import time
 from abc import ABC
 from collections import OrderedDict
@@ -35,6 +36,8 @@ from pydantic import ConfigDict, model_validator
 from fmcore.constants import MLType
 
 with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers", "huggingface_hub"):
+    os.environ["HF_HUB_DOWNLOAD_TIMEOUT"] = "300"
+
     import huggingface_hub
     import torch
     from torch import Tensor
@@ -70,14 +73,6 @@ with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers",
     )
 
     from fmcore.framework import Dataset
-    from fmcore.framework.dl.torch import (
-        Loss,
-        Optimizer,
-        PyTorch,
-        PyTorchBaseModel,
-        PyTorchClassifierMixin,
-        PyTorchMultiLabelClassifierMixin,
-    )
     from fmcore.framework._task.text_generation import (
         GENERATED_TEXTS_COL,
         GenerationOutputScoresFormat,
@@ -85,6 +80,14 @@ with optional_dependency("torch", "sentencepiece", "transformers", "tokenizers",
         Prompts,
         TextGenerationParams,
         TextGenerationParamsMapper,
+    )
+    from fmcore.framework.dl.torch import (
+        Loss,
+        Optimizer,
+        PyTorch,
+        PyTorchBaseModel,
+        PyTorchClassifierMixin,
+        PyTorchMultiLabelClassifierMixin,
     )
 
     def mapping_to_auto_model_classes(mapping_names: Union[List, Dict, OrderedDict]) -> Dict[str, str]:

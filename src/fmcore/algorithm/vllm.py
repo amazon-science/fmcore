@@ -29,6 +29,7 @@ with optional_dependency("vllm"):
             gpu_memory_utilization: confloat(gt=0.0, le=1.0) = 0.95
             max_model_len: conint(ge=1)
             generation_params: Union[TextGenerationParams, Dict, str]
+            api_key: Optional[str] = None
 
             @model_validator(mode="before")
             @classmethod
@@ -46,14 +47,25 @@ with optional_dependency("vllm"):
                     params,
                     param="max_model_len",
                     alias=[
+                        "max_length",
                         "max_len",
-                        "max_model_len",
                         "max_sequence_length",
                         "max_sequence_len",
                         "max_input_length",
                         "max_input_len",
+                        "max_model_length",
+                        "max_model_len",
                     ],
                 )
+                set_param_from_alias(
+                    params,
+                    param="api_key",
+                    alias=[
+                        "token",
+                        "api_token",
+                    ],
+                )
+
                 params["generation_params"] = TextGenerationParamsMapper.of(
                     params["generation_params"]
                 ).initialize()
@@ -74,10 +86,11 @@ with optional_dependency("vllm"):
                 gpu_memory_utilization=self.hyperparams.gpu_memory_utilization,
                 max_model_len=self.hyperparams.max_model_len,
             )
-
+            kwargs["hf_overrides"]: Dict = dict()
             if self.cache_dir is not None:
                 kwargs["download_dir"] = self.cache_dir.path
-
+            if self.hyperparams.api_key is not None:
+                kwargs["hf_overrides"]["api_key"] = self.hyperparams.api_key
             print(f"Initializing vllm with kwargs: {kwargs}")
             self.llm = LLM(**kwargs)
 
@@ -103,6 +116,7 @@ with optional_dependency("vllm"):
             outputs = self.llm.generate(
                 prompts,
                 sampling_params=sampling_params,
+                use_tqdm=False,
             )
 
             result = {GENERATED_TEXTS_COL: [output.outputs[0].text for output in outputs]}

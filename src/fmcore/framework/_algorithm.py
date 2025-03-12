@@ -230,6 +230,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
     @classmethod
     def convert_params(cls, params: Dict) -> Dict:
         ## Convert and validate parameters for the algorithm
+        # print(f'params for {cls.class_name}=\n{params}')
         cls.set_default_param_values(params)
         ## This allows us to create a new Algorithm instance without specifying `hyperparams`.
         ## If it is specified, we will pick cls.Hyperparameters, which can be overridden by the subclass.
