@@ -73,7 +73,7 @@ class BaseLLM(MutableTyped, Registry, ABC):
         - Acts as a factory by retrieving the necessary constructor parameters and instantiating the subclass.
 
         Args:
-            config (LLMConfig): The configuration containing provider details.
+            llm_config (LLMConfig): The configuration containing provider details.
 
         Returns:
             BaseLLM: An instance of the corresponding LLM subclass.
@@ -131,33 +131,5 @@ class BaseLLM(MutableTyped, Registry, ABC):
 
         Returns:
             Iterator[BaseMessageChunk]: A stream of LLM response chunks.
-        """
-        pass
-
-    @abstractmethod
-    def batch(self, message_batches: List[List[BaseMessage]]) -> List[BaseMessage]:
-        """
-        Synchronously processes multiple batches of messages.
-
-        Args:
-            message_batches (List[List[BaseMessage]]): A list of message batches.
-
-        Returns:
-            List[BaseMessage]: The responses for each batch.
-        """
-        pass
-
-    @abstractmethod
-    async def abatch(
-        self, message_batches: List[List[BaseMessage]]
-    ) -> List[BaseMessage]:
-        """
-        Asynchronously processes multiple batches of messages.
-
-        Args:
-            message_batches (List[List[BaseMessage]]): A list of message batches.
-
-        Returns:
-            List[BaseMessage]: The responses for each batch.
         """
         pass

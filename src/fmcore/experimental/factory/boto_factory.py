@@ -33,23 +33,15 @@ class BotoFactory:
 
         def refresh() -> dict:
             """Refreshes credentials by assuming the specified role."""
-            sts_client = boto3.client(
-                AWSConstants.AWS_SERVICE_STS, region_name=region_name
-            )
-            response = sts_client.assume_role(
-                RoleArn=role_arn, RoleSessionName=session_name
-            )
+            sts_client = boto3.client(AWSConstants.AWS_SERVICE_STS, region_name=region_name)
+            response = sts_client.assume_role(RoleArn=role_arn, RoleSessionName=session_name)
             credentials = response[AWSConstants.CREDENTIALS]
             return {
-                AWSConstants.AWS_CREDENTIALS_ACCESS_KEY: credentials[
-                    AWSConstants.ACCESS_KEY_ID
-                ],
+                AWSConstants.AWS_CREDENTIALS_ACCESS_KEY: credentials[AWSConstants.ACCESS_KEY_ID],
                 AWSConstants.AWS_CREDENTIALS_SECRET_KEY: credentials[
                     AWSConstants.SECRET_ACCESS_KEY
                 ],
-                AWSConstants.AWS_CREDENTIALS_TOKEN: credentials[
-                    AWSConstants.SESSION_TOKEN
-                ],
+                AWSConstants.AWS_CREDENTIALS_TOKEN: credentials[AWSConstants.SESSION_TOKEN],
                 AWSConstants.AWS_CREDENTIALS_EXPIRY_TIME: credentials[
                     AWSConstants.EXPIRATION
                 ].isoformat(),
@@ -82,17 +74,13 @@ class BotoFactory:
             boto3.Session: A configured Boto3 session.
         """
         return (
-            cls.__get_refreshable_session(
-                role_arn=role_arn, session_name="BedrockRealtime"
-            )
+            cls.__get_refreshable_session(role_arn=role_arn, session_name="BedrockRealtime")
             if role_arn
             else boto3.Session(region_name=region)
         )
 
     @classmethod
-    def get_client(
-        cls, *, service_name: str, region: str, role_arn: str
-    ) -> boto3.client:
+    def get_client(cls, *, service_name: str, region: str, role_arn: str) -> boto3.client:
         """
         Retrieves a cached Boto3 client or creates a new one.
 

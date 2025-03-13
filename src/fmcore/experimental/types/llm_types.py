@@ -34,7 +34,5 @@ class LLMConfig(MutableTyped):
     """
 
     model_id: str
-    provider_params: Union[
-        BedrockProviderParams, LambdaProviderParams, OpenAIProviderParams
-    ]
+    provider_params: Union[BedrockProviderParams, LambdaProviderParams, OpenAIProviderParams]
     model_params: ModelParams = ModelParams()
