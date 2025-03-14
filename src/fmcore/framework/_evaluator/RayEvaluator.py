@@ -432,16 +432,16 @@ if _IS_RAY_INSTALLED:
         @property
         def max_num_actors(self) -> int:
             cluster_resources: Dict = ray.cluster_resources()
-            RAY_NUM_CPUS: int = int(cluster_resources["CPU"])
-            RAY_NUM_GPUS: int = int(cluster_resources.get("GPU", 0))
+            ray_cluster_num_cpus: int = int(cluster_resources["CPU"])
+            ray_cluster_num_gpus: int = int(cluster_resources.get("GPU", 0))
 
             max_num_cpu_actors: int = max_num_resource_actors(
                 self.resources_per_model.num_cpus,
-                RAY_NUM_CPUS,
+                ray_cluster_num_cpus,
             )
             max_num_gpu_actors: Union[int, float] = max_num_resource_actors(
                 self.resources_per_model.num_gpus,
-                RAY_NUM_GPUS,
+                ray_cluster_num_gpus,
             )
             max_num_actors: int = min(max_num_gpu_actors, max_num_cpu_actors)
             return max_num_actors
@@ -457,8 +457,8 @@ if _IS_RAY_INSTALLED:
         @property
         def num_actors(self) -> int:
             cluster_resources: Dict = ray.cluster_resources()
-            RAY_NUM_CPUS: int = int(cluster_resources["CPU"])
-            RAY_NUM_GPUS: int = int(cluster_resources.get("GPU", 0))
+            ray_cluster_num_cpus: int = int(cluster_resources["CPU"])
+            ray_cluster_num_gpus: int = int(cluster_resources.get("GPU", 0))
 
             model_num_cpus: Union[conint(ge=1), confloat(ge=0.0, lt=1.0)] = self.model_num_cpus
             model_num_gpus: Union[conint(ge=0), confloat(ge=0.0, lt=1.0)] = self.model_num_gpus
@@ -468,14 +468,14 @@ if _IS_RAY_INSTALLED:
                 warnings.warn(
                     f"`num_models` is not specified. Since each model-copy requires "
                     f"{model_num_cpus} cpus and {model_num_gpus} gpus, we create {max_num_actors} model-copies so as "
-                    f"to utilize the entire Ray cluster (having {RAY_NUM_CPUS} cpus and {RAY_NUM_GPUS} gpus). "
+                    f"to utilize the entire Ray cluster (having {ray_cluster_num_cpus} cpus and {ray_cluster_num_gpus} gpus). "
                     f"To reduce the cluster-utilization, explicitly pass `num_models`."
                 )
                 num_actors: int = max_num_actors
             elif num_actors > max_num_actors:
                 warnings.warn(
                     f"Requested {num_actors} model-copies (each with {model_num_cpus} cpus and {model_num_gpus} gpus); "
-                    f"however, the Ray cluster only has {RAY_NUM_CPUS} cpus and {RAY_NUM_GPUS} gpus, "
+                    f"however, the Ray cluster only has {ray_cluster_num_cpus} cpus and {ray_cluster_num_gpus} gpus, "
                     f"thus we can create at most {max_num_actors} model-copies."
                 )
             num_actors: int = min(num_actors, max_num_actors)
@@ -512,7 +512,8 @@ if _IS_RAY_INSTALLED:
                         ## we don't need to initialize it:
                         init=False,
                         init_model=False,
-                        verbosity=0,  ## Ensures we do not print anything from the nested evaluator.
+                        ## Ensures we do not print anything from the nested evaluator:
+                        verbosity=0,
                     ),
                 }
             ).dict()
@@ -548,7 +549,7 @@ if _IS_RAY_INSTALLED:
             load_balancing_strategy: LoadBalancingStrategy = LoadBalancingStrategy.LEAST_USED,
             read_as: Optional[DataLayout] = DataLayout.PANDAS,
             submission_batch_size: Optional[conint(ge=1)] = None,
-            submission_max_queued: conint(ge=0) = 2,
+            worker_queue_len: conint(ge=0) = 2,
             submission_batch_wait: confloat(ge=0) = 15,
             evaluation_timeout: confloat(ge=0, allow_inf_nan=True) = math.inf,
             allow_partial_predictions: bool = False,
@@ -644,7 +645,7 @@ if _IS_RAY_INSTALLED:
                     num_cpus=0.1,
                     max_concurrency=max(
                         num_actors_created + 2,
-                        submission_max_queued * num_actors_created + 2,
+                        worker_queue_len * num_actors_created + 2,
                     ),
                 ).remote()
                 dataset_params: Dict = dataset.dict(exclude={"data"})
@@ -681,7 +682,7 @@ if _IS_RAY_INSTALLED:
                         )
                         submissions_progress_bar.update(1)
                     ## Initialize with number of rows completed so far:
-                    rows_completed: int = ray.get(row_counter.get_rows_completed.remote())
+                    rows_completed: int = get_result(row_counter.get_rows_completed.remote())
                     rows_completed_progress_bar: ProgressBar = ProgressBar.of(
                         progress_bar,
                         total=input_len,
@@ -700,7 +701,7 @@ if _IS_RAY_INSTALLED:
                         unit="batch",
                     )
                     ## Initialize to zero:
-                    rows_completed: int = ray.get(row_counter.get_rows_completed.remote())
+                    rows_completed: int = 0
                     rows_completed_progress_bar: ProgressBar = ProgressBar.of(
                         progress_bar,
                         total=input_len,
@@ -716,8 +717,8 @@ if _IS_RAY_INSTALLED:
                             fetch_partitions=1,
                         )
                     ):
-                        ## When using DataLoadingStrategy.LOCAL, we can pick which actor to send the data to based on
-                        ## the LoadBalancingStrategy.
+                        ## When using DataLoadingStrategy.LOCAL, we pick which
+                        ## actor to send the data to based on LoadBalancingStrategy.
                         if load_balancing_strategy is LoadBalancingStrategy.ROUND_ROBIN:
                             actor_comp: RayActorComposite = self.model[part_i % num_actors_created]
                         elif load_balancing_strategy is LoadBalancingStrategy.RANDOM:
@@ -728,10 +729,10 @@ if _IS_RAY_INSTALLED:
                             ## After that, we will pick the actor with the least load which has most-recently completed
                             actor_usages: List[Tuple[int, float, str]] = self._get_actor_usages()
                             min_actor_usage: int = min([actor_usage for actor_usage, _, _ in actor_usages])
-                            while min_actor_usage > submission_max_queued:
+                            while min_actor_usage > worker_queue_len:
                                 debug_logger(
                                     f"Actor usages:\n{actor_usages}\n"
-                                    f"(All are above submission_least_used_threshold={submission_max_queued}, "
+                                    f"(All are above submission_least_used_threshold={worker_queue_len}, "
                                     f"waiting for {submission_batch_wait} seconds)."
                                 )
                                 time.sleep(submission_batch_wait)
@@ -793,7 +794,7 @@ if _IS_RAY_INSTALLED:
                         )
                         submissions_progress_bar.update(1)
                         ## Track progress while submitting, since submitting can take upto an hour:
-                        new_rows_completed: int = ray.get(row_counter.get_rows_completed.remote())
+                        new_rows_completed: int = get_result(row_counter.get_rows_completed.remote())
                         rows_completed_progress_bar.update(new_rows_completed - rows_completed)
                         rows_completed: int = new_rows_completed
                 else:
@@ -806,7 +807,7 @@ if _IS_RAY_INSTALLED:
                     and time.time() < rows_completed_start_time + evaluation_timeout
                 ):
                     time.sleep(self.progress_update_frequency)
-                    new_rows_completed: int = ray.get(row_counter.get_rows_completed.remote())
+                    new_rows_completed: int = get_result(row_counter.get_rows_completed.remote())
                     rows_completed_progress_bar.update(new_rows_completed - rows_completed)
                     rows_completed: int = new_rows_completed
                 rows_completed_progress_bar.success(f"Evaluated {input_len_str} rows")
