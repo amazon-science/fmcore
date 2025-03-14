@@ -21,7 +21,9 @@ from fmcore.experimental.utils.introspection_utils import IntrospectionUtils
 
 import dspy.adapters.chat_adapter as chat_adapter_module
 from fmcore.experimental.prompt_tuner.dspy.adapters.chat_adapter import custom_prepare_instructions
+
 chat_adapter_module.prepare_instructions = custom_prepare_instructions
+
 
 class DSPyPromptTuner(BasePromptTuner):
     """
@@ -94,8 +96,6 @@ class DSPyPromptTuner(BasePromptTuner):
         Raises:
             ValueError: If the optimization process fails or returns invalid results
         """
-        
-
 
         # Convert data to DSPy examples
         dataset: DspyDataset = DspyDataset(data=data, prompt_config=self.config.prompt_config)

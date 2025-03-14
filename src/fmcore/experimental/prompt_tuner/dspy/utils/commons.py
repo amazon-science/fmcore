@@ -232,11 +232,11 @@ class DSPyUtils:
 
             # Evaluate the criteria expression to get the final score
             expression_evaluator = Interpreter()
-            expression_evaluator .symtable.update(evaluation_response)
+            expression_evaluator.symtable.update(evaluation_response)
             return expression_evaluator(criteria)
 
         return evaluate_func
-    
+
     @staticmethod
     def convert_module_to_messages(module: dspy.Module) -> List[Dict[str, str]]:
         """
@@ -259,12 +259,11 @@ class DSPyUtils:
         # Get input field names from signature and create template variables
         signature: dspy.Signature = module.signature
         inputs = {
-            field_name: f"{{{{{field_name}}}}}" 
-            for field_name in signature.input_fields.keys()
+            field_name: f"{{{{{field_name}}}}}" for field_name in signature.input_fields.keys()
         }
 
         # Format the module into chat messages using the adapter
-        messages = adapter.format(signature=signature,demos=module.demos,inputs=inputs)
+        messages = adapter.format(signature=signature, demos=module.demos, inputs=inputs)
 
         return messages
 

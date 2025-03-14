@@ -46,31 +46,29 @@ class MIPROV2Optimizer(BaseDspyOptimizer):
         """
         # Initialize MIPROv2 optimizer with filtered constructor params
         constructor_params = IntrospectionUtils.filter_params(
-            func=MIPROv2, 
-            params=optimizer_params or {}
+            func=MIPROv2, params=optimizer_params or {}
         )
         optimizer = MIPROv2(
             metric=self.evaluate,
             prompt_model=self.teacher,
             task_model=self.student,
-            **constructor_params
+            **constructor_params,
         )
 
         # Run optimization with filtered compile params
         compile_params = IntrospectionUtils.filter_params(
-            func=MIPROv2.compile,
-            params=optimizer_params or {}
+            func=MIPROv2.compile, params=optimizer_params or {}
         )
         optimized_program = optimizer.compile(
             student=self.module,
             trainset=dataset.train,
             valset=dataset.dev,
             requires_permission_to_run=False,
-            **compile_params
+            **compile_params,
         )
 
         optimized_prompts = []
-        
+
         # MIPROv2 returns a list of candidate programs, each containing:
         # - A "program" object with the optimized DSPy module in predictor.predict
         # - A "score" indicating how well that program performed
@@ -78,15 +76,12 @@ class MIPROV2Optimizer(BaseDspyOptimizer):
             # Extract the optimized DSPy module from the candidate program
             optimized_module = candidate["program"].predictor.predict
             prompt_template = DSPyUtils.convert_module_to_prompt(module=optimized_module)
-            
-            optimized_prompt = OptimizedPrompt(
-                template=prompt_template,
-                score=candidate["score"]
-            )
-            
+
+            optimized_prompt = OptimizedPrompt(template=prompt_template, score=candidate["score"])
+
             optimized_prompts.append(optimized_prompt)
 
         # Sort prompts by score in descending order
         optimized_prompts.sort(key=lambda x: x.score, reverse=True)
-        
+
         return PromptTunerResult(prompts=optimized_prompts)

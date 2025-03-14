@@ -5,10 +5,17 @@ import textwrap
 from typing import Any, Dict, Optional, Type
 
 from dspy import ChatAdapter
-from dspy.adapters.chat_adapter import enumerate_fields, format_fields, get_dspy_field_type, prepare_schema, prepare_instructions
+from dspy.adapters.chat_adapter import (
+    enumerate_fields,
+    format_fields,
+    get_dspy_field_type,
+    prepare_schema,
+    prepare_instructions,
+)
 from dspy.adapters.chat_adapter import FieldInfoWithName, BuiltInCompletedOutputFieldInfo, FieldInfo
 from dspy.signatures.signature import Signature, SignatureMeta
 from dspy.utils.callback import BaseCallback
+
 
 def custom_prepare_instructions(signature: SignatureMeta):
     parts = []
@@ -19,7 +26,9 @@ def custom_prepare_instructions(signature: SignatureMeta):
 
     parts.append("Your input fields are:\n" + enumerate_fields(signature.input_fields))
     parts.append("Your output fields are:\n" + enumerate_fields(signature.output_fields))
-    parts.append("All interactions will be structured in the following way, with the appropriate values filled in.")
+    parts.append(
+        "All interactions will be structured in the following way, with the appropriate values filled in."
+    )
 
     def field_metadata(field_name, field_info):
         field_type = field_info.annotation
@@ -48,7 +57,9 @@ def custom_prepare_instructions(signature: SignatureMeta):
     def format_signature_fields_for_instructions(fields: Dict[str, FieldInfo]):
         return format_fields(
             fields_with_values={
-                FieldInfoWithName(name=field_name, info=field_info): field_metadata(field_name, field_info)
+                FieldInfoWithName(name=field_name, info=field_info): field_metadata(
+                    field_name, field_info
+                )
                 for field_name, field_info in fields.items()
             },
         )
