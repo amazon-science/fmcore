@@ -54,6 +54,7 @@ class BaseMetric(MutableTyped, Registry, ABC):
         Returns:
             BaseMetric: An initialized instance of the specified metric subclass.
         """
+
         BaseMetricClass = BaseMetric.get_subclass(key=metric_config.metric_name.name)
         constructor_params = BaseMetricClass._get_constructor_parameters(
             metric_config=metric_config

@@ -5,7 +5,11 @@ from jinja2 import Template
 from fmcore.experimental.llm.base_llm import BaseLLM
 from fmcore.experimental.metrics.base_metric import BaseMetric
 from fmcore.experimental.types.enums.metric_enums import SupportedMetrics
-from fmcore.experimental.types.metric_types import CustomMetricResult, MetricConfig, MetricResult
+from fmcore.experimental.types.metric_types import (
+    CustomMetricResult,
+    MetricConfig,
+    MetricResult,
+)
 
 
 class CustomMetric(BaseMetric):
@@ -46,5 +50,3 @@ class CustomMetric(BaseMetric):
         result: Dict = json_repair.loads(response.content)
 
         return CustomMetricResult(**result)
-
-

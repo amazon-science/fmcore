@@ -33,3 +33,12 @@ class PromptTunerConfig(MutableTyped):
     framework: PromptTunerFramework
     prompt_config: PromptConfig
     optimzer_config: OptimizerConfig
+
+
+class OptimizedPrompt(MutableTyped):
+    template: str
+    score: float
+
+
+class PromptTunerResult(MutableTyped):
+    prompts: List[OptimizedPrompt]

@@ -17,7 +17,10 @@ class DSPyLLMAdapter(dspy.LM):
         self.history = []
 
     def __call__(
-        self, prompt: Optional[str] = None, messages: Optional[List[BaseMessage]] = None, **kwargs
+        self,
+        prompt: Optional[str] = None,
+        messages: Optional[List[BaseMessage]] = None,
+        **kwargs,
     ) -> List[str]:
         """
         Executes inference with either a text prompt or predefined list of messages.
