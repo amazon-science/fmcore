@@ -552,7 +552,6 @@ def save_predictions(
         predictions_destination.format,
         **kwargs,
     )
-    json_writer: JsonWriter = JsonWriter()
 
     if predictions_destination.is_path_valid_dir():
         predictions_params_file: FileMetadata = predictions_destination.file_in_dir(
@@ -579,7 +578,14 @@ def save_predictions(
             format=FileFormat.JSON,
         )
 
-    writer.write_metadata(file=predictions_destination, data=predictions.data, overwrite=overwrite, **kwargs)
+    writer.write_metadata(
+        file=predictions_destination,
+        data=predictions.data,
+        overwrite=overwrite,
+        **kwargs,
+    )
+
+    json_writer: JsonWriter = JsonWriter(**kwargs)
     json_writer.write_metadata(
         file=predictions_params_file,
         data=predictions.dict(exclude={"data", "data_idx", "data_position", "validated"}),

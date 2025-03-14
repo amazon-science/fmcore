@@ -377,7 +377,6 @@ def save_dataset(
         dataset_destination.format,
         **kwargs,
     )
-    json_writer: JsonWriter = JsonWriter()
 
     if dataset_destination.is_path_valid_dir():
         dataset_params_file: FileMetadata = dataset_destination.file_in_dir(
@@ -403,8 +402,14 @@ def save_dataset(
             + DATASET_PARAMS_SAVE_FILE_ENDING,
             format=FileFormat.JSON,
         )
+    writer.write_metadata(
+        file=dataset_destination,
+        data=dataset.data,
+        overwrite=overwrite,
+        **kwargs,
+    )
 
-    writer.write_metadata(file=dataset_destination, data=dataset.data, overwrite=overwrite, **kwargs)
+    json_writer: JsonWriter = JsonWriter(**kwargs)
     json_writer.write_metadata(
         file=dataset_params_file,
         data=dataset.dict(exclude={"data", "data_idx", "data_position", "validated"}),
