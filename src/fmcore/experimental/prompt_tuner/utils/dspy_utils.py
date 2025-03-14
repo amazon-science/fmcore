@@ -20,14 +20,17 @@ class DSPyUtils:
         optimzer_config: OptimizerConfig,
         evaluate_func: Callable,
     ) -> Teleprompter:
-        if optimzer_config.type == DspyOptimizerType.MIPRO_V2:
-            return MIPROv2(
+        
+        # This will be a factory method that returns the appropriate optimizer based on the optimizer type
+        # TODO: Add more optimizers
+        optimizer: Teleprompter = MIPROv2(
                 prompt_model=teacher,
                 task_model=student,
                 metric=evaluate_func,
                 **optimzer_config.params,
             )
-        return BootstrapFewShot(**optimzer_config.params, metric=evaluate_func)
+    
+        return optimizer
 
     @staticmethod
     def create_dspy_signature(prompt_config: PromptConfig) -> Type[dspy.Signature]:
@@ -43,24 +46,24 @@ class DSPyUtils:
 
         # Create a DSPy Signature class dictionary with annotations
         attrs = {
-            '__annotations__': {},
-            '__doc__': prompt_config.prompt if prompt_config.prompt else ""
+            "__annotations__": {},
+            "__doc__": prompt_config.prompt if prompt_config.prompt else "",
         }
 
         # Dynamically add input and output fields with type annotations
         for field in prompt_config.input_fields:
             # Assume field has a type attribute, otherwise default to str
-            field_type = getattr(field, 'type', str)
-            attrs['__annotations__'][field.name] = field_type
+            field_type = getattr(field, "type", str)
+            attrs["__annotations__"][field.name] = field_type
             attrs[field.name] = dspy.InputField(desc=field.description)
-            
+
         for field in prompt_config.output_fields:
-            field_type = getattr(field, 'type', str)
-            attrs['__annotations__'][field.name] = field_type
+            field_type = getattr(field, "type", str)
+            attrs["__annotations__"][field.name] = field_type
             attrs[field.name] = dspy.OutputField(desc=field.description)
 
         # Create the class dynamically with type annotations
-        TaskSignature = type('TaskSignature', (dspy.Signature,), attrs)
+        TaskSignature = type("TaskSignature", (dspy.Signature,), attrs)
 
         return TaskSignature
 
@@ -85,7 +88,7 @@ class DSPyUtils:
             def forward(self, **kwargs):
                 prediction = self.predictor(**kwargs)
                 return prediction
-        
+
         return TaskModule(signature=signature)
 
     @staticmethod
@@ -106,20 +109,18 @@ class DSPyUtils:
 
         loader = DataLoader()
         input_keys = [field.name for field in prompt_config.input_fields]
-        examples = loader.from_pandas(
-            data,
-            fields=data.columns.tolist(),
-            input_keys=input_keys
-        )
-        
+        examples = loader.from_pandas(data, fields=data.columns.tolist(), input_keys=input_keys)
+
         return examples
 
     @staticmethod
-    def evaluate(example: dspy.Example, prediction: dspy.Prediction, metric: BaseMetric) -> MetricResult:
+    def evaluate(
+        example: dspy.Example, prediction: dspy.Prediction, metric: BaseMetric
+    ) -> MetricResult:
         row = {
             EvaluationFieldType.INPUT.name: example.toDict(),
             EvaluationFieldType.OUTPUT.name: prediction.toDict(),
         }
-    
+
         metric_result: MetricResult = metric.evaluate(data=row)
         return metric_result.model_dump(exclude_none=True)

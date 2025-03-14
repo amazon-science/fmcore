@@ -1,6 +1,7 @@
 from enum import auto
 from autoenum import AutoEnum
 
+
 class MetricFramework(AutoEnum):
     """Enum for different frameworks for metrics."""
 

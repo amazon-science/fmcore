@@ -5,20 +5,9 @@ from langchain_core.messages import HumanMessage
 from fmcore.experimental.llm.base_llm import BaseLLM
 from fmcore.experimental.metrics.base_metric import BaseMetric
 from fmcore.experimental.prompt_tuner.base_prompt_tuner import BasePromptTuner
-from fmcore.experimental.types.enums.metric_enums import SupportedMetrics
-from fmcore.experimental.types.enums.prompt_tuner_enums import (
-    DspyOptimizerType,
-    PromptTunerFramework,
-)
 from fmcore.experimental.types.llm_types import LLMConfig
 from fmcore.experimental.types.metric_types import MetricConfig
-from fmcore.experimental.prompt_tuner.dspy_prompt_tuner import DSPyPromptTuner
-from fmcore.experimental.types.prompt_tuner_types import (
-    OptimizerConfig,
-    PromptConfig,
-    PromptField,
-    PromptTunerConfig,
-)
+from fmcore.experimental.types.prompt_tuner_types import PromptTunerConfig
 
 
 def test_sync(llm):
@@ -104,9 +93,7 @@ def test_prompt_tuner():
         "framework": "DSPY",
         "prompt_config": {
             "prompt": "Is the content sarcastic?",
-            "input_fields": [
-                {"name": "content", "description": "content of the tweet"}
-            ],
+            "input_fields": [{"name": "content", "description": "content of the tweet"}],
             "output_fields": [{"name": "label", "description": "label of the tweet"}],
         },
         "optimzer_config": {
@@ -119,10 +106,10 @@ def test_prompt_tuner():
                         {
                             "rate_limit": 500,
                         }
-                    ]
-                }
+                    ],
+                },
             },
-            "teacher_config": {         
+            "teacher_config": {
                 "model_id": "anthropic.claude-3-haiku-20240307-v1:0",
                 "provider_params": {
                     "provider_type": "BEDROCK",
@@ -148,8 +135,8 @@ def test_prompt_tuner():
                 },
                 "metric_params": {
                     "name": "Custom Metric",
-                    "prompt": "You will be given a tweet and a label. Your task is to determine whether the LLM has correctly classified the sarcasm in the given input. Provide your judgment as `True` or `False`, along with a brief reason. \n\n\nTweet: {{INPUT.content}}  \nLabel: {{OUTPUT.label}} \n\n\nReturn the result in the following JSON format:  \n```json\n{\n  \"judge_prediction\": \"True/False\",\n  \"reason\": \"reason\"\n}\n```",
-                    "criteria": "judge_prediction == 'True'"
+                    "prompt": 'You will be given a tweet and a label. Your task is to determine whether the LLM has correctly classified the sarcasm in the given input. Provide your judgment as `True` or `False`, along with a brief reason. \n\n\nTweet: {{INPUT.content}}  \nLabel: {{OUTPUT.label}} \n\n\nReturn the result in the following JSON format:  \n```json\n{\n  "judge_prediction": "True/False",\n  "reason": "reason"\n}\n```',
+                    "criteria": "judge_prediction == 'True'",
                 },
                 "field_mapping": {
                     "INPUT": "INPUT",
@@ -164,8 +151,9 @@ def test_prompt_tuner():
     tuner_config = PromptTunerConfig(**tuner_config_dict)
 
     from datasets import load_dataset
+
     ds = load_dataset("nikesh66/Sarcasm-dataset")
-    df = ds['train'].to_pandas()
+    df = ds["train"].to_pandas()
 
     # Rename columns for easier reference
     df.rename(columns={"Tweet": "content", "Sarcasm (yes/no)": "label"}, inplace=True)
@@ -182,5 +170,5 @@ async def main():
 
 
 if __name__ == "__main__":
-    #asyncio.run(main())
+    # asyncio.run(main())
     test_prompt_tuner()

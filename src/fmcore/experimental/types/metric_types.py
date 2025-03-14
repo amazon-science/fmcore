@@ -40,9 +40,11 @@ class ClassificationMetricResult(MetricResult):
     label: str
     confidence: Optional[float] = None
 
+
 class CustomMetricResult(MetricResult):
     class Config(MetricConfig.Config):
         extra = "allow"
+
 
 class TextGenerationMetricResult(MetricResult):
     score: float = 0.0

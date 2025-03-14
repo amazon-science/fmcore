@@ -1,12 +1,11 @@
 import json_repair
 from typing import Dict, List
-from langchain_core.messages import BaseMessage,HumanMessage
+from langchain_core.messages import BaseMessage, HumanMessage
 from jinja2 import Template
 from fmcore.experimental.llm.base_llm import BaseLLM
 from fmcore.experimental.metrics.base_metric import BaseMetric
 from fmcore.experimental.types.enums.metric_enums import SupportedMetrics
 from fmcore.experimental.types.metric_types import CustomMetricResult, MetricConfig, MetricResult
-
 
 
 class CustomMetric(BaseMetric):
@@ -15,7 +14,6 @@ class CustomMetric(BaseMetric):
     metric_name: str
     llm: BaseLLM
     prompt_template: Template
-    
 
     @classmethod
     def _get_constructor_parameters(cls, *, metric_config: MetricConfig) -> Dict:
@@ -25,8 +23,13 @@ class CustomMetric(BaseMetric):
         prompt_template = Template(prompt)
 
         metric_name: str = metric_config.metric_params["name"]
-       
-        return {"config": metric_config, "prompt_template": prompt_template, "llm": llm, "metric_name": metric_name}
+
+        return {
+            "config": metric_config,
+            "prompt_template": prompt_template,
+            "llm": llm,
+            "metric_name": metric_name,
+        }
 
     def evaluate(self, data: Dict) -> MetricResult:
         prompt: str = self.prompt_template.render(**data)
@@ -43,3 +46,5 @@ class CustomMetric(BaseMetric):
         result: Dict = json_repair.loads(response.content)
 
         return CustomMetricResult(**result)
+
+

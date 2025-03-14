@@ -49,7 +49,7 @@ class DeepEvalUtils:
         if not field_mapping:
             # If no mapping provided, return params for all default fields
             field_mapping = cls.DEFAULT_FIELD_MAPPING
-            
+
         for field_type_str, customer_field in field_mapping.items():
             # Convert string to our enum (e.g. "INPUT" -> EvaluationFieldType.INPUT)
             evaluation_field_type = EvaluationFieldType.from_str(field_type_str)

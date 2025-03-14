@@ -7,7 +7,11 @@ from deepeval.test_case import LLMTestCase, LLMTestCaseParams
 from fmcore.experimental.adapters.deepeval_adapter import DeepEvalLLMAdapter
 from fmcore.experimental.llm.base_llm import BaseLLM
 from fmcore.experimental.metrics.base_metric import BaseMetric
-from fmcore.experimental.types.enums.metric_enums import MetricFramework, SupportedMetrics, EvaluationFieldType
+from fmcore.experimental.types.enums.metric_enums import (
+    MetricFramework,
+    SupportedMetrics,
+    EvaluationFieldType,
+)
 from fmcore.experimental.types.llm_types import LLMConfig
 from fmcore.experimental.types.metric_types import (
     MetricConfig,
@@ -36,12 +40,12 @@ class DeepEvalGEvalMetric(BaseMetric):
             geval_metric_params["evaluation_params"] = DeepEvalUtils.infer_evaluation_params(
                 field_mapping=metric_config.field_mapping
             )
-        
+
         if not metric_config.framework:
             metric_config.framework = MetricFramework.DEEPEVAL
 
         geval_metric_params["model"] = model
-        
+
         return {"config": metric_config, "geval_metric_params": geval_metric_params}
 
     def evaluate(self, data: Dict) -> MetricResult:
