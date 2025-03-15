@@ -16,6 +16,7 @@ from typing import (
     Union,
 )
 
+import numpy as np
 from autoenum import AutoEnum, auto
 from bears import FileMetadata
 from bears.core.frame import DaskScalableDataFrame, ScalableDataFrame
@@ -38,7 +39,6 @@ from bears.util import (
     ignore_stdout,
     ignore_warnings,
     max_num_resource_actors,
-    only_item,
     run_concurrent,
     safe_validate_arguments,
     set_param_from_alias,
@@ -551,6 +551,7 @@ if _IS_RAY_INSTALLED:
             submission_batch_size: Optional[conint(ge=1)] = None,
             worker_queue_len: conint(ge=0) = 2,
             submission_batch_wait: confloat(ge=0) = 15,
+            submission_batch_wait_jitter: confloat(ge=0.0, le=1.0) = 0.05,
             evaluation_timeout: confloat(ge=0, allow_inf_nan=True) = math.inf,
             allow_partial_predictions: bool = False,
             **kwargs,
@@ -564,9 +565,27 @@ if _IS_RAY_INSTALLED:
                 default=self._create_hyperparams().batch_size,
             )
             batch_size: Optional[int] = kwargs.pop("batch_size", None)
+            if batch_size is None:
+                raise ValueError(
+                    f"Could not find batch_size in model hyperparams; "
+                    f"please pass it explicitly like so: {self.class_name}.evaluate(batch_size=...)"
+                )
+            ## Set submission_batch_size if not already specified
+            if submission_batch_size is None:
+                submission_batch_size: int = batch_size * kwargs["batches_per_save"]  ## Heuristic
 
-            evaluated_predictions: Optional[Predictions] = None
-            evaluated_metrics: Optional[List[Metric]] = None
+            if predictions_destination is not None:
+                if predictions_destination.storage is not Storage.S3:
+                    raise ValueError(
+                        f"Results can only be saved to {Storage.S3}; "
+                        f"found storage {predictions_destination.storage} having path: {predictions_destination.path}"
+                    )
+                if not predictions_destination.is_path_valid_dir():
+                    raise ValueError(
+                        f"Expected predictions destination to be a valid directory; "
+                        f'found: "{predictions_destination.path}"...did you forget a "/" at the end?'
+                    )
+                assert predictions_destination.format is not None  ## Checked in .evaluate().
 
             timer: Timer = Timer(silent=True)
             timer.start()
@@ -587,24 +606,10 @@ if _IS_RAY_INSTALLED:
                 tracker=tracker,
             )
             main_logger(self._evaluate_start_msg(tracker=tracker, **kwargs))
-            if batch_size is None:
-                raise ValueError(
-                    f"Could not find batch_size in model hyperparams; "
-                    f"please pass it explicitly like so: {self.class_name}.evaluate(batch_size=...)"
-                )
-            if predictions_destination is not None:
-                if predictions_destination.storage is not Storage.S3:
-                    raise ValueError(
-                        f"Results can only be saved to {Storage.S3}; "
-                        f"found storage {predictions_destination.storage} having path: {predictions_destination.path}"
-                    )
-                if not predictions_destination.is_path_valid_dir():
-                    raise ValueError(
-                        f"Expected predictions destination to be a valid directory; "
-                        f'found: "{predictions_destination.path}"...did you forget a "/" at the end?'
-                    )
-                assert predictions_destination.format is not None  ## Checked in .evaluate().
 
+            ## Outputs:
+            evaluated_predictions: Optional[Predictions] = None
+            evaluated_metrics: Optional[List[Metric]] = None
             try:
                 actors_were_created_in_this_call: bool = self.init_model(progress_bar=progress_bar, **kwargs)
                 num_actors_created: int = len(self.model)
@@ -649,154 +654,52 @@ if _IS_RAY_INSTALLED:
                     ),
                 ).remote()
                 dataset_params: Dict = dataset.dict(exclude={"data"})
+
+                predictions: List[Optional[Predictions]] = []
+                rows_completed: int = 0
+                rows_completed_progress_bar: Optional[ProgressBar] = None
+
                 if data_loading_strategy is DataLoadingStrategy.DASK:
-                    submissions_progress_bar: ProgressBar = ProgressBar.of(
-                        progress_bar,
-                        total=num_actors_created,
-                        desc=f"Submitting {input_len_str} rows",
-                        unit="batch",
+                    predictions, rows_completed, rows_completed_progress_bar = self._run_evaluation_dask(
+                        data=data,
+                        dataset_params=dataset_params,
+                        input_len=input_len,
+                        input_len_str=input_len_str,
+                        num_actors_created=num_actors_created,
+                        batch_size=batch_size,
+                        predictions_destination=predictions_destination,
+                        return_predictions=return_predictions,
+                        metrics=metrics,
+                        row_counter=row_counter,
+                        progress_bar=progress_bar,
+                        failure_action=failure_action,
+                        data_loading_strategy=data_loading_strategy,
+                        debug_logger=debug_logger,
+                        **kwargs,
                     )
-                    ## Each actor streams data from Dask dataframe on the cluster:
-                    if not isinstance(data, DaskScalableDataFrame):
-                        raise ValueError(
-                            f"Can only use data_loading_strategy={DataLoadingStrategy.DASK} when read_as={DataLayout.DASK}; "
-                            f"found read_as={read_as}."
-                        )
-                    predictions: List[Optional[Predictions]] = []
-                    ## When using DataLoadingStrategy.DASK, each actor will evaluate a fixed set of set, so
-                    ## LoadBalancingStrategy does not come into play.
-                    for actor_i, actor_comp in enumerate(self.model):
-                        predictions.append(
-                            actor_comp.actor.evaluate_shard.remote(
-                                data,
-                                dataset_params=dataset_params,
-                                input_len=input_len,
-                                batch_size=batch_size,
-                                predictions_destination=predictions_destination,
-                                return_predictions=return_predictions or metrics is not None,
-                                row_counter=row_counter,
-                                failure_action=failure_action,
-                                data_loading_strategy=data_loading_strategy,
-                                **kwargs,
-                            )
-                        )
-                        submissions_progress_bar.update(1)
-                    ## Initialize with number of rows completed so far:
-                    rows_completed: int = get_result(row_counter.get_rows_completed.remote())
-                    rows_completed_progress_bar: ProgressBar = ProgressBar.of(
-                        progress_bar,
-                        total=input_len,
-                        desc=f"Evaluating {input_len_str} rows",
-                        initial=rows_completed,
-                    )
-                    submissions_progress_bar.success("Completed submissions")
                 elif data_loading_strategy is DataLoadingStrategy.LOCAL:
-                    ## Load each shard of data on the calling machine, and send to the cluster:
-                    if submission_batch_size is None:
-                        submission_batch_size: int = batch_size * kwargs["batches_per_save"]  ## Heuristic
-                    submissions_progress_bar: ProgressBar = ProgressBar.of(
-                        progress_bar,
-                        total=math.ceil(input_len / submission_batch_size),
-                        desc=f"Submitting {input_len_str} rows",
-                        unit="batch",
+                    predictions, rows_completed, rows_completed_progress_bar = self._run_evaluation_local(
+                        data=data,
+                        dataset_params=dataset_params,
+                        input_len=input_len,
+                        input_len_str=input_len_str,
+                        num_actors_created=num_actors_created,
+                        batch_size=batch_size,
+                        submission_batch_size=submission_batch_size,
+                        predictions_destination=predictions_destination,
+                        return_predictions=return_predictions,
+                        metrics=metrics,
+                        row_counter=row_counter,
+                        progress_bar=progress_bar,
+                        failure_action=failure_action,
+                        data_loading_strategy=data_loading_strategy,
+                        load_balancing_strategy=load_balancing_strategy,
+                        worker_queue_len=worker_queue_len,
+                        submission_batch_wait=submission_batch_wait,
+                        submission_batch_wait_jitter=submission_batch_wait_jitter,
+                        debug_logger=debug_logger,
+                        **kwargs,
                     )
-                    ## Initialize to zero:
-                    rows_completed: int = 0
-                    rows_completed_progress_bar: ProgressBar = ProgressBar.of(
-                        progress_bar,
-                        total=input_len,
-                        desc=f"Evaluating {input_len_str} rows",
-                        initial=rows_completed,
-                    )
-                    predictions: List[Optional[Predictions]] = []
-                    for part_i, part_data in enumerate(
-                        data.stream(
-                            batch_size=submission_batch_size,
-                            shuffle=False,
-                            stream_as=DataLayout.PANDAS,
-                            fetch_partitions=1,
-                        )
-                    ):
-                        ## When using DataLoadingStrategy.LOCAL, we pick which
-                        ## actor to send the data to based on LoadBalancingStrategy.
-                        if load_balancing_strategy is LoadBalancingStrategy.ROUND_ROBIN:
-                            actor_comp: RayActorComposite = self.model[part_i % num_actors_created]
-                        elif load_balancing_strategy is LoadBalancingStrategy.RANDOM:
-                            rnd_actor_i: int = random.choice(list(range(0, num_actors_created)))
-                            actor_comp: RayActorComposite = self.model[rnd_actor_i]
-                        elif load_balancing_strategy is LoadBalancingStrategy.LEAST_USED:
-                            ## When all actors unused, latest_last_completed_timestamp is -1, so we will pick a random actor
-                            ## After that, we will pick the actor with the least load which has most-recently completed
-                            actor_usages: List[Tuple[int, float, str]] = self._get_actor_usages()
-                            min_actor_usage: int = min([actor_usage for actor_usage, _, _ in actor_usages])
-                            while min_actor_usage > worker_queue_len:
-                                debug_logger(
-                                    f"Actor usages:\n{actor_usages}\n"
-                                    f"(All are above submission_least_used_threshold={worker_queue_len}, "
-                                    f"waiting for {submission_batch_wait} seconds)."
-                                )
-                                time.sleep(submission_batch_wait)
-                                actor_usages: List[Tuple[int, float, str]] = self._get_actor_usages()
-                                min_actor_usage: int = min(
-                                    [actor_usage for actor_usage, _, _ in actor_usages]
-                                )
-
-                            ## last_completed_timestamp = Most-recently used (it will be -1 if actor was unused).
-                            ## We do this to ensure faster prediction...if we use the least-recently used actor, it will
-                            ## have to load the model into memory.
-                            latest_last_completed_timestamp: float = max(
-                                [
-                                    last_completed_timestamp
-                                    for actor_usage, last_completed_timestamp, _ in actor_usages
-                                    if actor_usage == min_actor_usage
-                                ]
-                            )
-                            ## Select an actor randomly among those with min usage and latest_last_completed_timestamp.
-                            actor_id: str = random.choice(
-                                [
-                                    actor_id
-                                    for actor_usage, last_completed_timestamp, actor_id in actor_usages
-                                    if actor_usage == min_actor_usage
-                                    and last_completed_timestamp == latest_last_completed_timestamp
-                                ]
-                            )
-                            actor_comp: RayActorComposite = only_item(
-                                [actor_comp for actor_comp in self.model if actor_comp.actor_id == actor_id]
-                            )
-                            if self.verbosity >= 3:
-                                actor_ip_address: str = accumulate(actor_comp.actor.get_ip_address.remote())
-                                debug_logger(
-                                    f"Actor usages:\n{actor_usages}\n"
-                                    f"(Submitting part#{part_i} ({len(part_data)} rows, prediction batch_size={batch_size}) "
-                                    f'to actor "{actor_comp.actor_id}" on IP address {actor_ip_address})'
-                                )
-                        else:
-                            raise NotImplementedError(
-                                f"Unsupported `load_balancing_strategy`: {load_balancing_strategy}"
-                            )
-
-                        predictions.append(
-                            actor_comp.actor.evaluate_shard.remote(
-                                part_data,
-                                dataset_params={
-                                    **dataset_params,
-                                    **dict(data_idx=part_i),
-                                },
-                                input_len=input_len,
-                                batch_size=batch_size,
-                                predictions_destination=predictions_destination,
-                                return_predictions=return_predictions or metrics is not None,
-                                row_counter=row_counter,
-                                failure_action=failure_action,
-                                data_loading_strategy=data_loading_strategy,
-                                **kwargs,
-                            )
-                        )
-                        submissions_progress_bar.update(1)
-                        ## Track progress while submitting, since submitting can take upto an hour:
-                        new_rows_completed: int = get_result(row_counter.get_rows_completed.remote())
-                        rows_completed_progress_bar.update(new_rows_completed - rows_completed)
-                        rows_completed: int = new_rows_completed
                 else:
                     raise NotImplementedError(f"Unsupported `data_loading_strategy`: {data_loading_strategy}")
 
@@ -886,6 +789,251 @@ if _IS_RAY_INSTALLED:
                 if self.cache_timeout is None:
                     self.cleanup_model()
                 return evaluated_predictions, evaluated_metrics
+
+        def _run_evaluation_dask(
+            self,
+            *,
+            data: ScalableDataFrame,
+            dataset_params: Dict,
+            input_len: int,
+            input_len_str: str,
+            num_actors_created: int,
+            batch_size: int,
+            predictions_destination: Optional[FileMetadata],
+            return_predictions: bool,
+            metrics: Optional[List[Metric]],
+            row_counter: Any,
+            progress_bar: Union[Dict, bool],
+            failure_action: FailureAction,
+            data_loading_strategy: DataLoadingStrategy,
+            debug_logger: Callable,
+            read_as: DataLayout,
+            **kwargs,
+        ) -> List[Optional[Predictions]]:
+            submissions_progress_bar: ProgressBar = ProgressBar.of(
+                progress_bar,
+                total=num_actors_created,
+                desc=f"Submitting {input_len_str} rows",
+                unit="batch",
+            )
+            ## Each actor streams data from Dask dataframe on the cluster:
+            if not isinstance(data, DaskScalableDataFrame):
+                raise ValueError(
+                    f"Can only use data_loading_strategy={DataLoadingStrategy.DASK} when read_as={DataLayout.DASK}; "
+                    f"found read_as={read_as}."
+                )
+            predictions: List[Optional[Predictions]] = []
+            ## When using DataLoadingStrategy.DASK, each actor will evaluate a fixed set of set, so
+            ## LoadBalancingStrategy does not come into play.
+            for actor_i, actor_comp in enumerate(self.model):
+                predictions.append(
+                    actor_comp.actor.evaluate_shard.remote(
+                        data,
+                        dataset_params=dataset_params,
+                        input_len=input_len,
+                        batch_size=batch_size,
+                        predictions_destination=predictions_destination,
+                        return_predictions=return_predictions or metrics is not None,
+                        row_counter=row_counter,
+                        failure_action=failure_action,
+                        data_loading_strategy=data_loading_strategy,
+                        **kwargs,
+                    )
+                )
+                submissions_progress_bar.update(1)
+            ## Initialize with number of rows completed so far:
+            rows_completed: int = get_result(row_counter.get_rows_completed.remote())
+            rows_completed_progress_bar: ProgressBar = ProgressBar.of(
+                progress_bar,
+                total=input_len,
+                desc=f"Evaluating {input_len_str} rows",
+                initial=rows_completed,
+            )
+            submissions_progress_bar.success("Completed submissions")
+            return predictions, rows_completed, rows_completed_progress_bar
+
+        def _run_evaluation_local(
+            self,
+            *,
+            data: ScalableDataFrame,
+            dataset_params: Dict,
+            input_len: int,
+            input_len_str: str,
+            num_actors_created: int,
+            batch_size: int,
+            submission_batch_size: int,
+            predictions_destination: Optional[FileMetadata],
+            return_predictions: bool,
+            metrics: Optional[List[Metric]],
+            row_counter: Any,
+            progress_bar: Union[Dict, bool],
+            failure_action: FailureAction,
+            data_loading_strategy: DataLoadingStrategy,
+            load_balancing_strategy: LoadBalancingStrategy,
+            worker_queue_len: int,
+            submission_batch_wait: float,
+            submission_batch_wait_jitter: float,
+            debug_logger: Callable,
+            **kwargs,
+        ) -> Tuple[List[Optional[Predictions]], int, ProgressBar]:
+            ## Load each shard of data on the calling machine, and send to the cluster:
+            submissions_progress_bar: ProgressBar = ProgressBar.of(
+                progress_bar,
+                total=math.ceil(input_len / submission_batch_size),
+                desc=f"Submitting {input_len_str} rows",
+                unit="batch",
+            )
+            ## Initialize to zero:
+            rows_completed: int = 0
+            rows_completed_progress_bar: ProgressBar = ProgressBar.of(
+                progress_bar,
+                total=input_len,
+                desc=f"Evaluating {input_len_str} rows",
+                initial=rows_completed,
+            )
+
+            def _cleanup_pending_futures(actor_info: Dict):
+                ## Collect all futures along with their actor_id and batch_idx
+                futures_metadata: List[Tuple[Any, str, int]] = []
+                for actor_id, info in actor_info.items():
+                    for batch_idx, fut in info["futures"].items():
+                        futures_metadata.append((fut, actor_id, batch_idx))
+
+                if len(futures_metadata) == 0:
+                    return
+
+                ## Use ray.wait to efficiently check which futures are done
+                ## timeout=0 means it returns immediately with currently completed futures
+                completed_futures, _ = ray.wait(
+                    [item[0] for item in futures_metadata],
+                    num_returns=len(futures_metadata),
+                    timeout=0,
+                )
+
+                if len(completed_futures) == 0:
+                    return
+
+                ## Remove completed futures from actor_info
+                for actor_id, info in actor_info.items():
+                    batch_indices_to_remove: List[int] = [
+                        batch_idx for batch_idx, fut in info["futures"].items() if fut in completed_futures
+                    ]
+                    for batch_idx in batch_indices_to_remove:
+                        info["futures"].pop(batch_idx)
+
+            def _min_pending_futures(actor_info: Dict) -> Tuple[int, List[str]]:
+                ## Find actors with the minimum pending number of futures
+                candidate_actor_ids: List[str] = []
+                min_pending_futs: int = worker_queue_len + 1
+                for actor_id, info in actor_info.items():
+                    pending_count = len(info["futures"])
+                    if pending_count < min_pending_futs:
+                        min_pending_futs = pending_count
+                        candidate_actor_ids = [actor_id]
+                    elif pending_count == min_pending_futs:
+                        candidate_actor_ids.append(actor_id)
+                return min_pending_futs, candidate_actor_ids
+
+            ## Consolidated tracking structure:
+            ## - Map actor_id -> {composite, futures_dict}
+            ## - futures_dict maps batch_idx -> future
+            ## This allows us to track both actor load and preserve result ordering
+            actor_info: Dict[str, Dict[str, Union[RayActorComposite, Dict[int, Any]]]] = {
+                actor_comp.actor_id: {
+                    "composite": actor_comp,
+                    "futures": {},  # batch_idx -> future mapping
+                }
+                for actor_comp in self.model
+            }
+
+            ## Track results in submission order
+            predictions: List[Optional[Predictions]] = []
+
+            ## Stream data and process
+            for batch_idx, batch_data in enumerate(
+                data.stream(
+                    batch_size=submission_batch_size,
+                    shuffle=False,
+                    stream_as=DataLayout.PANDAS,
+                    fetch_partitions=1,
+                )
+            ):
+                ## Cleanup any completed futures before submitting a new batch
+                _cleanup_pending_futures(actor_info)
+
+                ## Select actor based on load balancing strategy
+                if load_balancing_strategy is LoadBalancingStrategy.ROUND_ROBIN:
+                    selected_actor_id: str = self.model[batch_idx % num_actors_created].actor_id
+                elif load_balancing_strategy is LoadBalancingStrategy.RANDOM:
+                    selected_actor_id: str = self.model[
+                        random.choice(list(range(0, num_actors_created)))
+                    ].actor_id
+                elif load_balancing_strategy is LoadBalancingStrategy.LEAST_USED:
+                    ## Find actors with minimum workload:
+                    min_pending_futs, candidate_actor_ids = _min_pending_futures(actor_info)
+                    ## If all actors are at capacity, wait for some to complete:
+                    while min_pending_futs >= worker_queue_len:
+                        debug_logger(
+                            f"All actors have {min_pending_futs}+ tasks (above worker_queue_len={worker_queue_len}), "
+                            f"waiting for {submission_batch_wait} seconds."
+                        )
+                        ## Wait and recheck future completion status:
+                        time_to_wait: float = np.random.uniform(
+                            submission_batch_wait * (1 - submission_batch_wait_jitter),
+                            submission_batch_wait * (1 + submission_batch_wait_jitter),
+                        )
+                        time.sleep(time_to_wait)
+                        _cleanup_pending_futures(actor_info)
+                        min_pending_futs, candidate_actor_ids = _min_pending_futures(actor_info)
+                    ## Choose randomly among least busy actors:
+                    selected_actor_id: str = random.choice(candidate_actor_ids)
+
+                    if self.verbosity >= 3:
+                        pending_counts: Dict = {
+                            actor_id: len(info["futures"]) for actor_id, info in actor_info.items()
+                        }
+                        debug_logger(
+                            f"Actor workloads: {pending_counts}\n"
+                            f">> Submitting batch#{batch_idx} ({len(batch_data)} rows, batch_size={batch_size}) "
+                            f"to actor '{selected_actor_id}' at IP address "
+                            f"{get_result(actor_info[selected_actor_id]['composite'].actor.get_ip_address.remote())}"
+                        )
+                else:
+                    raise NotImplementedError(
+                        f"Unsupported `load_balancing_strategy`: {load_balancing_strategy}"
+                    )
+
+                ## Get the actor composite and submit the task
+                selected_actor_comp: RayActorComposite = actor_info[selected_actor_id]["composite"]
+                fut: Any = selected_actor_comp.actor.evaluate_shard.remote(
+                    batch_data,
+                    dataset_params={
+                        **dataset_params,
+                        **dict(data_idx=batch_idx),
+                    },
+                    input_len=input_len,
+                    batch_size=batch_size,
+                    predictions_destination=predictions_destination,
+                    return_predictions=return_predictions or metrics is not None,
+                    row_counter=row_counter,
+                    failure_action=failure_action,
+                    data_loading_strategy=data_loading_strategy,
+                    **kwargs,
+                )
+
+                ## Track the future with its batch index, both for load balancing and order preservation
+                actor_info[selected_actor_id]["futures"][batch_idx] = fut
+                predictions.append(fut)  ## Keep predictions list in submission order
+
+                submissions_progress_bar.update(1)
+
+                ## Track progress while submitting, since submitting can take up to an hour
+                new_rows_completed: int = get_result(row_counter.get_rows_completed.remote())
+                rows_completed_progress_bar.update(new_rows_completed - rows_completed)
+                rows_completed: int = new_rows_completed
+
+            submissions_progress_bar.success("Completed submissions")
+            return predictions, rows_completed, rows_completed_progress_bar
 
         def _get_actor_usages(self) -> List[Tuple[int, float, str]]:
             actor_usages: List[Tuple[int, float, str]] = accumulate(

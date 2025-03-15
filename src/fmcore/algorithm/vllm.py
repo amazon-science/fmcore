@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
@@ -16,6 +17,8 @@ from fmcore.framework._task.text_generation import (
 
 with optional_dependency("vllm"):
     from vllm import LLM, SamplingParams
+
+    os.environ["VLLM_LOGGING_LEVEL"] = "WARNING"
 
     class VLLMGenerativeLM(GenerativeLM):
         aliases = ["vllm"]
@@ -92,6 +95,7 @@ with optional_dependency("vllm"):
             if self.hyperparams.api_key is not None:
                 kwargs["hf_overrides"]["api_key"] = self.hyperparams.api_key
             print(f"Initializing vllm with kwargs: {kwargs}")
+
             self.llm = LLM(**kwargs)
 
         def predict_step(self, batch: Prompts, **kwargs) -> Dict:
