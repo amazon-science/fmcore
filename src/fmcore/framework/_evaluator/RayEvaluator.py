@@ -108,7 +108,7 @@ if _IS_RAY_INSTALLED:
             yield
 
     @ray.remote
-    class AlgorithmEvaluator:
+    class RayAlgorithmEvaluator:
         def __init__(
             self,
             evaluator: Dict,
@@ -319,7 +319,7 @@ if _IS_RAY_INSTALLED:
         num_models: Optional[conint(ge=1)] = None
         model: Optional[List[RayActorComposite]] = None  ## Stores the actors.
         resources_per_model: RayResources = RayResources(num_cpus=1, num_gpus=0)
-        progress_update_frequency: int = 5
+        progress_update_frequency: confloat(ge=0.0) = 15.0
         ## By default, do not cache the model:
         cache_timeout: Optional[Union[Timeout, confloat(gt=0)]] = None
 
@@ -365,24 +365,13 @@ if _IS_RAY_INSTALLED:
 
             return params
 
-        def initialize(self, reinit_ray: bool = False, **kwargs):
+        def initialize(self, **kwargs):
             if self.model_num_gpus <= 1 or self.AlgorithmClass.class_name == "VLLMGenerativeLM":
                 self.nested_evaluator_name: str = get_default(self.nested_evaluator_name, "local")
             else:
                 self.nested_evaluator_name: str = get_default(self.nested_evaluator_name, "accelerate")
-            ## Connect to the Ray cluster
-            if not ray.is_initialized() or reinit_ray is True:
-                ray.init(
-                    ignore_reinit_error=True,
-                    address=self.run_config.ray_init.address,
-                    _temp_dir=str(self.run_config.ray_init.temp_dir),
-                    runtime_env=self.run_config.ray_init.runtime_env,
-                    **self.run_config.ray_init.dict(
-                        exclude={"address", "temp_dir", "include_dashboard", "runtime_env"}
-                    ),
-                )
             if not ray.is_initialized():
-                raise SystemError("Could not initialize ray.")
+                raise SystemError("ray cluster is not initialized.")
 
         def _load_model(
             self,
@@ -396,7 +385,7 @@ if _IS_RAY_INSTALLED:
             nested_evaluator_params: Dict = self._create_nested_evaluator_params(**kwargs)
 
             def actor_factory(*, request_counter: Any, actor_i: int, actor_id: str, **kwargs):
-                return AlgorithmEvaluator.options(
+                return RayAlgorithmEvaluator.options(
                     num_cpus=self.model_num_cpus,
                     num_gpus=self.model_num_gpus,
                 ).remote(
@@ -646,21 +635,10 @@ if _IS_RAY_INSTALLED:
                 ## Submit data to be predicted:
                 if self.model_num_gpus > 0:
                     kwargs.setdefault("device", "cuda")
-                row_counter: ray.actor.ActorHandle = RowCounter.options(
-                    num_cpus=0.1,
-                    max_concurrency=max(
-                        num_actors_created + 2,
-                        worker_queue_len * num_actors_created + 2,
-                    ),
-                ).remote()
                 dataset_params: Dict = dataset.dict(exclude={"data"})
 
-                predictions: List[Optional[Predictions]] = []
-                rows_completed: int = 0
-                rows_completed_progress_bar: Optional[ProgressBar] = None
-
                 if data_loading_strategy is DataLoadingStrategy.DASK:
-                    predictions, rows_completed, rows_completed_progress_bar = self._run_evaluation_dask(
+                    predictions: List[ray.ObjectRef] = self._run_evaluation_dask(
                         data=data,
                         dataset_params=dataset_params,
                         input_len=input_len,
@@ -670,15 +648,17 @@ if _IS_RAY_INSTALLED:
                         predictions_destination=predictions_destination,
                         return_predictions=return_predictions,
                         metrics=metrics,
-                        row_counter=row_counter,
                         progress_bar=progress_bar,
                         failure_action=failure_action,
                         data_loading_strategy=data_loading_strategy,
+                        worker_queue_len=worker_queue_len,
+                        evaluation_timeout=evaluation_timeout,
+                        main_logger=main_logger,
                         debug_logger=debug_logger,
                         **kwargs,
                     )
                 elif data_loading_strategy is DataLoadingStrategy.LOCAL:
-                    predictions, rows_completed, rows_completed_progress_bar = self._run_evaluation_local(
+                    predictions: List[ray.ObjectRef] = self._run_evaluation_local(
                         data=data,
                         dataset_params=dataset_params,
                         input_len=input_len,
@@ -689,7 +669,6 @@ if _IS_RAY_INSTALLED:
                         predictions_destination=predictions_destination,
                         return_predictions=return_predictions,
                         metrics=metrics,
-                        row_counter=row_counter,
                         progress_bar=progress_bar,
                         failure_action=failure_action,
                         data_loading_strategy=data_loading_strategy,
@@ -697,23 +676,13 @@ if _IS_RAY_INSTALLED:
                         worker_queue_len=worker_queue_len,
                         submission_batch_wait=submission_batch_wait,
                         submission_batch_wait_jitter=submission_batch_wait_jitter,
+                        evaluation_timeout=evaluation_timeout,
+                        main_logger=main_logger,
                         debug_logger=debug_logger,
                         **kwargs,
                     )
                 else:
                     raise NotImplementedError(f"Unsupported `data_loading_strategy`: {data_loading_strategy}")
-
-                ## Track till all rows are completed:
-                rows_completed_start_time: float = time.time()
-                while (
-                    rows_completed < input_len
-                    and time.time() < rows_completed_start_time + evaluation_timeout
-                ):
-                    time.sleep(self.progress_update_frequency)
-                    new_rows_completed: int = get_result(row_counter.get_rows_completed.remote())
-                    rows_completed_progress_bar.update(new_rows_completed - rows_completed)
-                    rows_completed: int = new_rows_completed
-                rows_completed_progress_bar.success(f"Evaluated {input_len_str} rows")
 
                 if return_predictions or metrics is not None:
                     debug_logger(f"Collecting {len(predictions)} predictions...")
@@ -728,7 +697,7 @@ if _IS_RAY_INSTALLED:
                     for pred_i, pred in enumerate(predictions):
                         debug_logger(f"Collecting prediction#{pred_i}: type={type(pred)}, val={pred}")
                         try:
-                            pred: Optional[Predictions] = get_result(pred, wait=10.0)
+                            pred: Optional[Predictions] = get_result(pred, wait=60.0)
                         except Exception as e:
                             main_logger(
                                 f"Error while collecting prediction#{pred_i}:\n{String.format_exception_msg(e)}"
@@ -782,9 +751,6 @@ if _IS_RAY_INSTALLED:
             except KeyboardInterrupt as e:
                 raise e
             finally:
-                if "row_counter" in locals():
-                    accumulate(ray.kill(row_counter))
-                    del row_counter
                 ## If we don't have a timeout, delete actors after every execution.
                 if self.cache_timeout is None:
                     self.cleanup_model()
@@ -795,6 +761,7 @@ if _IS_RAY_INSTALLED:
             *,
             data: ScalableDataFrame,
             dataset_params: Dict,
+            read_as: DataLayout,
             input_len: int,
             input_len_str: str,
             num_actors_created: int,
@@ -802,55 +769,81 @@ if _IS_RAY_INSTALLED:
             predictions_destination: Optional[FileMetadata],
             return_predictions: bool,
             metrics: Optional[List[Metric]],
-            row_counter: Any,
             progress_bar: Union[Dict, bool],
             failure_action: FailureAction,
             data_loading_strategy: DataLoadingStrategy,
+            worker_queue_len: int,
+            evaluation_timeout: float,
+            main_logger: Callable,
             debug_logger: Callable,
-            read_as: DataLayout,
             **kwargs,
-        ) -> List[Optional[Predictions]]:
-            submissions_progress_bar: ProgressBar = ProgressBar.of(
-                progress_bar,
-                total=num_actors_created,
-                desc=f"Submitting {input_len_str} rows",
-                unit="batch",
-            )
-            ## Each actor streams data from Dask dataframe on the cluster:
-            if not isinstance(data, DaskScalableDataFrame):
-                raise ValueError(
-                    f"Can only use data_loading_strategy={DataLoadingStrategy.DASK} when read_as={DataLayout.DASK}; "
-                    f"found read_as={read_as}."
+        ) -> List[ray.ObjectRef]:
+            try:
+                row_counter: ray.actor.ActorHandle = RowCounter.options(
+                    num_cpus=0.1,
+                    max_concurrency=max(
+                        num_actors_created + 2,
+                        worker_queue_len * num_actors_created + 2,
+                    ),
+                ).remote()
+                submissions_progress_bar: ProgressBar = ProgressBar.of(
+                    progress_bar,
+                    total=num_actors_created,
+                    desc=f"Submitting {input_len_str} rows",
+                    unit="batch",
                 )
-            predictions: List[Optional[Predictions]] = []
-            ## When using DataLoadingStrategy.DASK, each actor will evaluate a fixed set of set, so
-            ## LoadBalancingStrategy does not come into play.
-            for actor_i, actor_comp in enumerate(self.model):
-                predictions.append(
-                    actor_comp.actor.evaluate_shard.remote(
-                        data,
-                        dataset_params=dataset_params,
-                        input_len=input_len,
-                        batch_size=batch_size,
-                        predictions_destination=predictions_destination,
-                        return_predictions=return_predictions or metrics is not None,
-                        row_counter=row_counter,
-                        failure_action=failure_action,
-                        data_loading_strategy=data_loading_strategy,
-                        **kwargs,
+                ## Each actor streams data from Dask dataframe on the cluster:
+                if not isinstance(data, DaskScalableDataFrame):
+                    raise ValueError(
+                        f"Can only use data_loading_strategy={DataLoadingStrategy.DASK} when read_as={DataLayout.DASK}; "
+                        f"found read_as={read_as}."
                     )
+                rows_completed: int = 0
+                rows_completed_progress_bar: Optional[ProgressBar] = None
+                predictions: List[ray.ObjectRef] = []
+                ## When using DataLoadingStrategy.DASK, each actor will evaluate a fixed set of set, so
+                ## LoadBalancingStrategy does not come into play.
+                for actor_i, actor_comp in enumerate(self.model):
+                    predictions.append(
+                        actor_comp.actor.evaluate_shard.remote(
+                            data,
+                            dataset_params=dataset_params,
+                            input_len=input_len,
+                            batch_size=batch_size,
+                            predictions_destination=predictions_destination,
+                            return_predictions=return_predictions or metrics is not None,
+                            row_counter=row_counter,
+                            failure_action=failure_action,
+                            data_loading_strategy=data_loading_strategy,
+                            **kwargs,
+                        )
+                    )
+                    submissions_progress_bar.update(1)
+                ## Initialize with number of rows completed so far:
+                rows_completed: int = get_result(row_counter.get_rows_completed.remote())
+                rows_completed_progress_bar: ProgressBar = ProgressBar.of(
+                    progress_bar,
+                    total=input_len,
+                    desc=f"Evaluating {input_len_str} rows",
+                    initial=rows_completed,
                 )
-                submissions_progress_bar.update(1)
-            ## Initialize with number of rows completed so far:
-            rows_completed: int = get_result(row_counter.get_rows_completed.remote())
-            rows_completed_progress_bar: ProgressBar = ProgressBar.of(
-                progress_bar,
-                total=input_len,
-                desc=f"Evaluating {input_len_str} rows",
-                initial=rows_completed,
-            )
-            submissions_progress_bar.success("Completed submissions")
-            return predictions, rows_completed, rows_completed_progress_bar
+                submissions_progress_bar.success(f"Submitted {input_len_str} rows")
+                ## Track till all rows are completed:
+                rows_completed_start_time: float = time.time()
+                while (
+                    rows_completed < input_len
+                    and time.time() < rows_completed_start_time + evaluation_timeout
+                ):
+                    time.sleep(self.progress_update_frequency)
+                    new_rows_completed: int = get_result(row_counter.get_rows_completed.remote())
+                    rows_completed_progress_bar.update(new_rows_completed - rows_completed)
+                    rows_completed: int = new_rows_completed
+                rows_completed_progress_bar.success(f"Evaluated {input_len_str} rows")
+                return predictions
+            finally:
+                if "row_counter" in locals():
+                    accumulate(ray.kill(row_counter))
+                    del row_counter
 
         def _run_evaluation_local(
             self,
@@ -865,7 +858,6 @@ if _IS_RAY_INSTALLED:
             predictions_destination: Optional[FileMetadata],
             return_predictions: bool,
             metrics: Optional[List[Metric]],
-            row_counter: Any,
             progress_bar: Union[Dict, bool],
             failure_action: FailureAction,
             data_loading_strategy: DataLoadingStrategy,
@@ -873,83 +865,41 @@ if _IS_RAY_INSTALLED:
             worker_queue_len: int,
             submission_batch_wait: float,
             submission_batch_wait_jitter: float,
+            evaluation_timeout: float,
+            main_logger: Callable,
             debug_logger: Callable,
             **kwargs,
-        ) -> Tuple[List[Optional[Predictions]], int, ProgressBar]:
-            ## Load each shard of data on the calling machine, and send to the cluster:
-            submissions_progress_bar: ProgressBar = ProgressBar.of(
-                progress_bar,
-                total=math.ceil(input_len / submission_batch_size),
-                desc=f"Submitting {input_len_str} rows",
-                unit="batch",
-            )
-            ## Initialize to zero:
-            rows_completed: int = 0
-            rows_completed_progress_bar: ProgressBar = ProgressBar.of(
-                progress_bar,
-                total=input_len,
-                desc=f"Evaluating {input_len_str} rows",
-                initial=rows_completed,
-            )
-
-            def _cleanup_pending_futures(actor_info: Dict):
-                ## Collect all futures along with their actor_id and batch_idx
-                futures_metadata: List[Tuple[Any, str, int]] = []
-                for actor_id, info in actor_info.items():
-                    for batch_idx, fut in info["futures"].items():
-                        futures_metadata.append((fut, actor_id, batch_idx))
-
-                if len(futures_metadata) == 0:
-                    return
-
-                ## Use ray.wait to efficiently check which futures are done
-                ## timeout=0 means it returns immediately with currently completed futures
-                completed_futures, _ = ray.wait(
-                    [item[0] for item in futures_metadata],
-                    num_returns=len(futures_metadata),
-                    timeout=0,
-                )
-
-                if len(completed_futures) == 0:
-                    return
-
-                ## Remove completed futures from actor_info
-                for actor_id, info in actor_info.items():
-                    batch_indices_to_remove: List[int] = [
-                        batch_idx for batch_idx, fut in info["futures"].items() if fut in completed_futures
-                    ]
-                    for batch_idx in batch_indices_to_remove:
-                        info["futures"].pop(batch_idx)
-
-            def _min_pending_futures(actor_info: Dict) -> Tuple[int, List[str]]:
-                ## Find actors with the minimum pending number of futures
-                candidate_actor_ids: List[str] = []
-                min_pending_futs: int = worker_queue_len + 1
-                for actor_id, info in actor_info.items():
-                    pending_count = len(info["futures"])
-                    if pending_count < min_pending_futs:
-                        min_pending_futs = pending_count
-                        candidate_actor_ids = [actor_id]
-                    elif pending_count == min_pending_futs:
-                        candidate_actor_ids.append(actor_id)
-                return min_pending_futs, candidate_actor_ids
-
+        ) -> List[ray.ObjectRef]:
             ## Consolidated tracking structure:
             ## - Map actor_id -> {composite, futures_dict}
             ## - futures_dict maps batch_idx -> future
             ## This allows us to track both actor load and preserve result ordering
-            actor_info: Dict[str, Dict[str, Union[RayActorComposite, Dict[int, Any]]]] = {
+            futures_info: Dict[str, Dict[str, Union[RayActorComposite, Dict[int, Any]]]] = {
                 actor_comp.actor_id: {
                     "composite": actor_comp,
                     "futures": {},  # batch_idx -> future mapping
+                    "batch_sizes": {},  # batch_idx -> number of rows in batch
                 }
                 for actor_comp in self.model
             }
 
-            ## Track results in submission order
-            predictions: List[Optional[Predictions]] = []
-
-            ## Stream data and process
+            rows_submitted: int = 0
+            rows_completed: int = 0
+            submissions_progress_bar: ProgressBar = ProgressBar.of(
+                progress_bar,
+                total=input_len,
+                desc=f"Submitting {input_len_str} rows",
+                unit="batch",
+            )
+            rows_completed_progress_bar: ProgressBar = ProgressBar.of(
+                progress_bar,
+                total=input_len,
+                desc=f"Evaluating {input_len_str} rows",
+                initial=0,
+            )
+            ## Track results in submission order:
+            predictions: List[ray.ObjectRef] = []
+            ## Load each shard of data on the calling machine, and send to the cluster:
             for batch_idx, batch_data in enumerate(
                 data.stream(
                     batch_size=submission_batch_size,
@@ -958,9 +908,6 @@ if _IS_RAY_INSTALLED:
                     fetch_partitions=1,
                 )
             ):
-                ## Cleanup any completed futures before submitting a new batch
-                _cleanup_pending_futures(actor_info)
-
                 ## Select actor based on load balancing strategy
                 if load_balancing_strategy is LoadBalancingStrategy.ROUND_ROBIN:
                     selected_actor_id: str = self.model[batch_idx % num_actors_created].actor_id
@@ -969,8 +916,19 @@ if _IS_RAY_INSTALLED:
                         random.choice(list(range(0, num_actors_created)))
                     ].actor_id
                 elif load_balancing_strategy is LoadBalancingStrategy.LEAST_USED:
+                    ## Cleanup any completed futures before submitting a new batch
+                    rows_completed = self._cleanup_pending_futures(
+                        futures_info,
+                        rows_completed=rows_completed,
+                        rows_completed_progress_bar=rows_completed_progress_bar,
+                        debug_logger=debug_logger,
+                        main_logger=main_logger,
+                    )
                     ## Find actors with minimum workload:
-                    min_pending_futs, candidate_actor_ids = _min_pending_futures(actor_info)
+                    min_pending_futs, candidate_actor_ids = self._min_pending_futures(
+                        futures_info,
+                        worker_queue_len=worker_queue_len,
+                    )
                     ## If all actors are at capacity, wait for some to complete:
                     while min_pending_futs >= worker_queue_len:
                         debug_logger(
@@ -983,20 +941,29 @@ if _IS_RAY_INSTALLED:
                             submission_batch_wait * (1 + submission_batch_wait_jitter),
                         )
                         time.sleep(time_to_wait)
-                        _cleanup_pending_futures(actor_info)
-                        min_pending_futs, candidate_actor_ids = _min_pending_futures(actor_info)
+                        rows_completed = self._cleanup_pending_futures(
+                            futures_info,
+                            rows_completed=rows_completed,
+                            rows_completed_progress_bar=rows_completed_progress_bar,
+                            debug_logger=debug_logger,
+                            main_logger=main_logger,
+                        )
+                        min_pending_futs, candidate_actor_ids = self._min_pending_futures(
+                            futures_info,
+                            worker_queue_len=worker_queue_len,
+                        )
                     ## Choose randomly among least busy actors:
                     selected_actor_id: str = random.choice(candidate_actor_ids)
 
                     if self.verbosity >= 3:
                         pending_counts: Dict = {
-                            actor_id: len(info["futures"]) for actor_id, info in actor_info.items()
+                            actor_id: len(info["futures"]) for actor_id, info in futures_info.items()
                         }
                         debug_logger(
                             f"Actor workloads: {pending_counts}\n"
                             f">> Submitting batch#{batch_idx} ({len(batch_data)} rows, batch_size={batch_size}) "
                             f"to actor '{selected_actor_id}' at IP address "
-                            f"{get_result(actor_info[selected_actor_id]['composite'].actor.get_ip_address.remote())}"
+                            f"{get_result(futures_info[selected_actor_id]['composite'].actor.get_ip_address.remote())}"
                         )
                 else:
                     raise NotImplementedError(
@@ -1004,7 +971,7 @@ if _IS_RAY_INSTALLED:
                     )
 
                 ## Get the actor composite and submit the task
-                selected_actor_comp: RayActorComposite = actor_info[selected_actor_id]["composite"]
+                selected_actor_comp: RayActorComposite = futures_info[selected_actor_id]["composite"]
                 fut: Any = selected_actor_comp.actor.evaluate_shard.remote(
                     batch_data,
                     dataset_params={
@@ -1015,25 +982,114 @@ if _IS_RAY_INSTALLED:
                     batch_size=batch_size,
                     predictions_destination=predictions_destination,
                     return_predictions=return_predictions or metrics is not None,
-                    row_counter=row_counter,
+                    row_counter=None,
                     failure_action=failure_action,
                     data_loading_strategy=data_loading_strategy,
                     **kwargs,
                 )
 
-                ## Track the future with its batch index, both for load balancing and order preservation
-                actor_info[selected_actor_id]["futures"][batch_idx] = fut
-                predictions.append(fut)  ## Keep predictions list in submission order
+                ## Track the future with its batch index and size,
+                ## both for load balancing and order preservation:
+                futures_info[selected_actor_id]["futures"][batch_idx] = fut
+                futures_info[selected_actor_id]["batch_sizes"][batch_idx] = len(batch_data)
+                rows_submitted += len(batch_data)
+                submissions_progress_bar.update(len(batch_data))
+                ## Keep predictions list in submission order:
+                predictions.append(fut)
+            submissions_progress_bar.success(f"Submitted {input_len_str} rows")
 
-                submissions_progress_bar.update(1)
+            ## Check for completed futures periodically during submission:
+            ## Track till all rows are completed:
+            rows_completed_start_time: float = time.time()
+            while (
+                rows_completed < rows_submitted
+                and time.time() < rows_completed_start_time + evaluation_timeout
+            ):
+                rows_completed = self._cleanup_pending_futures(
+                    futures_info,
+                    rows_completed=rows_completed,
+                    rows_completed_progress_bar=rows_completed_progress_bar,
+                    debug_logger=debug_logger,
+                    main_logger=main_logger,
+                )
+                time.sleep(self.progress_update_frequency)
+            rows_completed_progress_bar.success(f"Evaluated {input_len_str} rows")
+            return predictions
 
-                ## Track progress while submitting, since submitting can take up to an hour
-                new_rows_completed: int = get_result(row_counter.get_rows_completed.remote())
-                rows_completed_progress_bar.update(new_rows_completed - rows_completed)
-                rows_completed: int = new_rows_completed
+        @classmethod
+        def _cleanup_pending_futures(
+            cls,
+            futures_info: Dict,
+            *,
+            rows_completed: int,
+            rows_completed_progress_bar: ProgressBar,
+            debug_logger: Callable,
+            main_logger: Callable,
+        ) -> int:  # Changed from NoReturn to int since we're returning rows_completed
+            ## Collect all futures along with their actor_id and batch_idx
+            futures_info_flat: List[Tuple[str, int, Any, int]] = []
+            for actor_id in futures_info.keys():
+                for batch_idx in futures_info[actor_id]["futures"].keys():
+                    futures_info_flat.append(
+                        (
+                            actor_id,
+                            batch_idx,
+                            futures_info[actor_id]["futures"][batch_idx],
+                            futures_info[actor_id]["batch_sizes"][batch_idx],
+                        )
+                    )
 
-            submissions_progress_bar.success("Completed submissions")
-            return predictions, rows_completed, rows_completed_progress_bar
+            if len(futures_info_flat) == 0:
+                return rows_completed  # Return the unchanged rows_completed
+
+            ## Use ray.wait to efficiently check which futures are done;
+            ## timeout=0 means it returns immediately with currently completed futures:
+            completed_futures, _ = ray.wait(
+                [item[2] for item in futures_info_flat],
+                num_returns=len(futures_info_flat),
+                timeout=0,
+            )
+            ## None of the pending futures have completed yet:
+            if len(completed_futures) == 0:
+                return rows_completed  # Return the unchanged rows_completed
+
+            ## Check which futures completed successfully and update rows_completed
+            for completed_fut in completed_futures:
+                for actor_id, batch_idx, fut, batch_size in futures_info_flat:
+                    if fut == completed_fut:
+                        try:
+                            ## Fetch the result; will throw an exception if task failed:
+                            result = ray.get(completed_fut)
+                        except Exception as e:
+                            main_logger(f"Error in batch #{batch_idx}: {String.format_exception_msg(e)}")
+                        finally:
+                            ## Remove the future from tracking since it's completed (regardless of whether
+                            ## it succeeded or failed):
+                            rows_completed += batch_size
+                            rows_completed_progress_bar.update(batch_size)
+                            futures_info[actor_id]["futures"].pop(batch_idx)
+                            futures_info[actor_id]["batch_sizes"].pop(batch_idx)
+                        break
+            return rows_completed
+
+        @classmethod
+        def _min_pending_futures(
+            cls,
+            futures_info: Dict,
+            *,
+            worker_queue_len: int,
+        ) -> Tuple[int, List[str]]:
+            ## Find actors with the minimum pending number of futures
+            candidate_actor_ids: List[str] = []
+            min_pending_futs: int = worker_queue_len + 1
+            for actor_id, info in futures_info.items():
+                pending_count = len(info["futures"])
+                if pending_count < min_pending_futs:
+                    min_pending_futs = pending_count
+                    candidate_actor_ids = [actor_id]
+                elif pending_count == min_pending_futs:
+                    candidate_actor_ids.append(actor_id)
+            return min_pending_futs, candidate_actor_ids
 
         def _get_actor_usages(self) -> List[Tuple[int, float, str]]:
             actor_usages: List[Tuple[int, float, str]] = accumulate(
