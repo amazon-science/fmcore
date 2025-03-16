@@ -105,6 +105,8 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
     description: ClassVar[Optional[str]] = None
     citation: ClassVar[Optional[str]] = None
     url: ClassVar[Optional[str]] = None
+
+    model_idx: Tuple[int, int] = (0, 1)
     stats: Optional[Metrics] = None
     num_steps_trained: int = 0
     num_rows_trained: int = 0
@@ -117,7 +119,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
     ## Default parameters for batching
     default_batching_params: ClassVar[Dict[str, Any]] = {}
 
-    ## Configuration for the model
+    ## Configuration for the pydantic BaseModel.
     model_config = ConfigDict(
         ## Mutable+Extra = allows dynamically adding new items.
         extra="allow",

@@ -54,7 +54,6 @@ from fmcore.framework._predictions import Predictions, load_predictions
 from fmcore.framework._tracker.Tracker import Tracker
 
 
-
 ALGORITHM_EVALUATOR_VERBOSITY_IGNORE: Dict[int, List[Callable]] = {
     0: [ignore_all_output],
     1: [ignore_stdout, ignore_warnings, partial(ignore_logging, disable_upto=logging.WARNING)],

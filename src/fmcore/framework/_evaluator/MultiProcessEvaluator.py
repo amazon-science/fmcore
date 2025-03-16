@@ -1,5 +1,4 @@
 import gc
-import logging
 import math
 import random
 import time
@@ -26,35 +25,32 @@ from bears.util import (
     String,
     Timeout,
     Timer,
-    accumulate,
-    as_list,
     get_default,
     get_result,
     safe_validate_arguments,
     set_param_from_alias,
     wait,
 )
-from bears.util.aws import S3Util
 from bears.util.concurrency._processes import actor
 from pydantic import ConfigDict, confloat, conint, model_validator
 
 from fmcore.constants import (
-    FILE_FORMAT_TO_FILE_ENDING_MAP,
     DataLayout,
     FailureAction,
     Storage,
 )
 from fmcore.framework._dataset import Dataset
-from fmcore.framework._evaluator.Evaluator import Evaluator, save_predictions
+from fmcore.framework._evaluator.Evaluator import Evaluator
 from fmcore.framework._metric import Metric
-from fmcore.framework._predictions import Predictions, load_predictions
+from fmcore.framework._predictions import Predictions
 from fmcore.framework._tracker.Tracker import Tracker
 
-from ._evaluator_utils import algorithm_evaluator_verbosity
+from .LocalEvaluator import LocalEvaluator
+from .ParallelEvaluator import ParallelAlgorithmEvaluator
 
 
 @actor
-class ProcessAlgorithmEvaluator:
+class ProcessAlgorithmEvaluator(ParallelAlgorithmEvaluator):
     """
     A process-based algorithm evaluator that handles evaluation of model predictions.
 
@@ -64,46 +60,21 @@ class ProcessAlgorithmEvaluator:
         >>> future = actor.evaluate_shard.remote(data, dataset_params=dataset_params, batch_size=4)
     """
 
-    def __init__(
-        self,
-        evaluator: Dict,
-        actor: Tuple[int, int],
-        verbosity: int,
-    ):
+    def _init_nested_evaluator(self, evaluator: Dict) -> None:
         """
-        Initialize the ProcessAlgorithmEvaluator.
+        Initialize the nested evaluator with the provided parameters.
 
         Args:
             evaluator: Dictionary containing evaluator parameters
-            actor: Tuple of (actor_index, total_actors)
-            verbosity: The verbosity level for logging
         """
-        from fmcore.framework._evaluator import Evaluator
-
-        self.verbosity = verbosity
-        ## Set this temporarily while loading when calling Evaluator.of(...):
-        self.evaluator: Optional[Evaluator] = None
-
         ## Ensure the nested evaluator is LocalEvaluator
-        if evaluator.get("evaluator") not in ["local", "LocalEvaluator"]:
+        if evaluator.get("evaluator") not in ["local", LocalEvaluator.class_name]:
             raise ValueError(
-                f"ProcessAlgorithmEvaluator only supports LocalEvaluator as nested evaluator, "
+                f"{self.class_name} only supports {LocalEvaluator.class_name} as nested evaluator, "
                 f"found: {evaluator.get('evaluator')}"
             )
 
-        with algorithm_evaluator_verbosity(self.verbosity):
-            self.evaluator: Evaluator = Evaluator.of(**evaluator)
-        self.actor = actor
-
-    def get_evaluator_status(self) -> str:
-        """Get the current status of the evaluator."""
-        try:
-            if self.evaluator is None:
-                return "Evaluator not initialized."
-            assert isinstance(self.evaluator, Evaluator)
-            return (self.evaluator.class_name, self.evaluator.model.class_name)
-        except Exception as e:
-            return String.format_exception_msg(e)
+        super()._init_nested_evaluator(evaluator)
 
     def evaluate_shard(
         self,
@@ -113,12 +84,12 @@ class ProcessAlgorithmEvaluator:
         input_len: int,
         batch_size: int,
         batches_per_save: int,
-        predictions_destination: Optional[FileMetadata] = None,
-        return_predictions: bool = False,
-        failure_action: FailureAction = FailureAction.ERROR,
-        data_loading_strategy: str = "LOCAL",
+        predictions_destination: Optional[FileMetadata],
+        return_predictions: bool,
+        failure_action: FailureAction,
+        data_loading_strategy: DataLoadingStrategy,
         **kwargs,
-    ):
+    ) -> Optional[Predictions]:
         """
         Evaluate a shard of data.
 
@@ -137,123 +108,19 @@ class ProcessAlgorithmEvaluator:
         Returns:
             Predictions or None depending on return_predictions
         """
-        import pandas as pd
-        from bears import FileMetadata
-
-        ## Stops Pandas SettingWithCopyWarning in output
-        pd.options.mode.chained_assignment = None
-
-        predicted_num_rows: int = 0
-        predicted_num_batches: int = 0
-        predictions: List[Predictions] = []
-        save_futures: List = []
-        error_to_raise: Optional[Exception] = None
-
         data: ScalableDataFrame = ScalableDataFrame.of(data)
-        failure_action: FailureAction = FailureAction(failure_action)
-
-        ## `data` here is one shard of the dataset, so predict it entirely
-        make_fname = (
-            lambda predicted_num_rows,
-            macro_batch,
-            input_len: f"part-{String.pad_zeros(dataset_params['data_idx'] + 1, int(1e9))}"
-            f"-rows-{String.pad_zeros(predicted_num_rows, input_len)}"
-            f"-to-{String.pad_zeros(predicted_num_rows + len(macro_batch), input_len)}"
+        return self._evaluate_batch_stream(
+            data=data,
+            dataset_params=dataset_params,
+            input_len=input_len,
+            batch_size=batch_size,
+            batches_per_save=batches_per_save,
+            predictions_destination=predictions_destination,
+            return_predictions=return_predictions,
+            failure_action=failure_action,
+            is_sharded=False,  # Process evaluator uses partitioned data
+            **kwargs,
         )
-
-        for macro_batch in data.stream(
-            batch_size=batch_size * batches_per_save,
-            shuffle=False,
-            stream_as=DataLayout.PANDAS,
-        ):
-            try:
-                if error_to_raise is None:
-                    assert (
-                        isinstance(macro_batch, ScalableDataFrame) and macro_batch.layout == DataLayout.PANDAS
-                    )
-                    macro_batch_save_file: Optional[FileMetadata] = None
-
-                    if predictions_destination is not None:
-                        file_ending: str = as_list(
-                            FILE_FORMAT_TO_FILE_ENDING_MAP[predictions_destination.format]
-                        )[0]
-                        fname: str = make_fname(
-                            predicted_num_rows=predicted_num_rows,
-                            macro_batch=macro_batch,
-                            input_len=input_len,
-                        )
-                        macro_batch_save_file: FileMetadata = predictions_destination.file_in_dir(
-                            fname,
-                            return_metadata=True,
-                            file_ending=file_ending,
-                        )
-
-                    if macro_batch_save_file is None or not S3Util.s3_object_exists(
-                        macro_batch_save_file.path
-                    ):
-                        ## We should predict:
-                        kwargs["tracker"] = Tracker.noop_tracker()  ## Do not track
-                        macro_batch: Dataset = Dataset.of(
-                            **dataset_params,
-                            data=macro_batch,
-                        )
-                        with algorithm_evaluator_verbosity(self.verbosity):
-                            macro_batch_predictions: Predictions = self.evaluator.evaluate(
-                                macro_batch,
-                                batch_size=batch_size,
-                                return_predictions=True,
-                                metrics=None,
-                                progress_bar=None,
-                                failure_action=FailureAction.ERROR,
-                                **kwargs,
-                            )
-                        if macro_batch_save_file is not None:
-                            ## Save the predictions:
-                            save_predictions(
-                                predictions=macro_batch_predictions,
-                                predictions_destination=macro_batch_save_file,
-                            )
-                        if return_predictions:
-                            predictions.append(macro_batch_predictions)
-                    else:
-                        ## Load the file:
-                        if return_predictions:
-                            predictions.append(load_predictions(macro_batch_save_file.path))
-            except Exception as e:
-                if failure_action is FailureAction.ERROR:
-                    with algorithm_evaluator_verbosity(self.verbosity):
-                        logging.error(String.format_exception_msg(e))
-                    ## Error immediately
-                    raise e
-                elif failure_action is FailureAction.ERROR_DELAYED:
-                    ## Continue iterating to the end, then raise an error.
-                    error_to_raise: Exception = e
-                elif failure_action is FailureAction.WARN:
-                    with algorithm_evaluator_verbosity(self.verbosity):
-                        logging.warning(String.format_exception_msg(e))
-                elif failure_action is FailureAction.IGNORE:
-                    pass
-                else:
-                    raise NotImplementedError(f"Unsupported `failure_action`: {failure_action}")
-            finally:
-                predicted_num_rows += len(macro_batch)
-                predicted_num_batches += batches_per_save
-
-        # Process any futures that might have been created
-        accumulate(save_futures)
-
-        if error_to_raise is not None:
-            with algorithm_evaluator_verbosity(self.verbosity):
-                logging.error(String.format_exception_msg(error_to_raise))
-            raise error_to_raise
-
-        if return_predictions:
-            predictions: Predictions = Predictions.concat(
-                predictions,
-                layout=DataLayout.PANDAS,
-            )
-            return predictions
-        return None
 
 
 class MultiProcessEvaluator(Evaluator):
@@ -261,7 +128,6 @@ class MultiProcessEvaluator(Evaluator):
     An evaluator that uses multiple processes to run predictions in parallel.
 
     Example usage:
-        >>> evaluator = MultiProcessEvaluator.of(
                 nested_evaluator="local",
                 task="generation",
                 AlgorithmClass="HFGenerativeLM",

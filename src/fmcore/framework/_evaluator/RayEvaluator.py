@@ -1,5 +1,4 @@
 import gc
-import logging
 import math
 import random
 import time
@@ -31,33 +30,29 @@ from bears.util import (
     Timeout,
     Timer,
     accumulate,
-    as_list,
     get_default,
     get_result,
     max_num_resource_actors,
-    run_concurrent,
     safe_validate_arguments,
     set_param_from_alias,
     wait,
 )
-from bears.util.aws import S3Util
 from bears.util.language._import import _IS_RAY_INSTALLED
 from pydantic import ConfigDict, confloat, conint, model_validator
 
 from fmcore.constants import (
-    FILE_FORMAT_TO_FILE_ENDING_MAP,
     REMOTE_STORAGES,
     DataLayout,
     FailureAction,
     Storage,
 )
 from fmcore.framework._dataset import Dataset
-from fmcore.framework._evaluator.Evaluator import Evaluator, save_predictions
+from fmcore.framework._evaluator.Evaluator import Evaluator
 from fmcore.framework._metric import Metric
-from fmcore.framework._predictions import Predictions, load_predictions
+from fmcore.framework._predictions import Predictions
 from fmcore.framework._tracker.Tracker import Tracker
 
-from ._evaluator_utils import algorithm_evaluator_verbosity
+from .ParallelEvaluator import ParallelAlgorithmEvaluator
 
 RayEvaluator = "RayEvaluator"
 if _IS_RAY_INSTALLED:
@@ -76,32 +71,21 @@ if _IS_RAY_INSTALLED:
             return self.rows_completed
 
     @ray.remote
-    class RayAlgorithmEvaluator:
-        def __init__(
-            self,
-            evaluator: Dict,
-            actor: Tuple[int, int],
-            request_counter: RequestCounter,
-            verbosity: int,
-        ):
-            from fmcore.framework._evaluator import Evaluator
+    class RayAlgorithmEvaluator(ParallelAlgorithmEvaluator):
+        """
+        A Ray-based algorithm evaluator that handles distributed evaluation of model predictions.
 
-            self.verbosity = verbosity
-            ## Set this temporarily while loading when calling Evaluator.of(...):
-            self.evaluator: Optional[Evaluator] = None
-            with algorithm_evaluator_verbosity(self.verbosity):
-                self.evaluator: Evaluator = Evaluator.of(**evaluator)
-            self.actor = actor
+        Example usage:
+            >>> evaluator_params = {"evaluator": "local", "task": "generation", "AlgorithmClass": "HFGenerativeLM"}
+            >>> request_counter = RequestCounter.remote()
+            >>> actor = RayAlgorithmEvaluator.remote(evaluator=evaluator_params, actor=(0, 1),
+            ...                                     request_counter=request_counter, verbosity=2)
+            >>> future = actor.evaluate_shard.remote(data, dataset_params=dataset_params, batch_size=4)
+        """
+
+        def __init__(self, *, request_counter: RequestCounter, **kwargs):
             self.request_counter: RequestCounter = request_counter
-
-        def get_evaluator_status(self) -> str:
-            try:
-                if self.evaluator is None:
-                    return "Evaluator not initialized."
-                assert isinstance(self.evaluator, Evaluator)
-                return (self.evaluator.class_name, self.evaluator.model.class_name)
-            except Exception as e:
-                return String.format_exception_msg(e)
+            super().__init__(**kwargs)
 
         def get_ip_address(self) -> Optional[str]:
             try:
@@ -109,6 +93,9 @@ if _IS_RAY_INSTALLED:
                 return ray.util.get_node_ip_address()
             except Exception:
                 return None
+
+        def _update_row_counter(self, row_counter: RowCounter, num_rows: int) -> None:
+            row_counter.increment_rows.remote(num_rows=num_rows)
 
         def evaluate_shard(
             self,
@@ -124,154 +111,50 @@ if _IS_RAY_INSTALLED:
             failure_action: FailureAction,
             data_loading_strategy: DataLoadingStrategy,
             **kwargs,
-        ):
-            from concurrent.futures._base import Future
+        ) -> Optional[Predictions]:
+            """
+            Evaluate a shard of data.
 
-            import pandas as pd
-            from bears import FileMetadata
-            from bears.util import accumulate
+            Args:
+                data: The data to evaluate
+                dataset_params: Parameters for creating the dataset
+                input_len: The total number of rows in the dataset
+                batch_size: The batch size for model inference
+                batches_per_save: Number of batches to process before saving
+                predictions_destination: Optional destination for saving predictions
+                return_predictions: Whether to return predictions
+                row_counter: Ray actor for counting processed rows
+                failure_action: Action to take on failure
+                data_loading_strategy: Strategy for loading data
+                **kwargs: Additional arguments passed to the evaluator
 
-            from fmcore.framework._dataset import Dataset
-            from fmcore.framework._predictions import Predictions
-
-            ## Stops Pandas SettingWithCopyWarning in output. Ref: https://stackoverflow.com/a/20627316
-            pd.options.mode.chained_assignment = None
-
+            Returns:
+                Predictions or None depending on return_predictions
+            """
             self.request_counter.started_request.remote()
-            predicted_num_rows: int = 0
-            predicted_num_batches: int = 0
-            predictions: List[Union[Predictions, Future]] = []
-            save_futures: List[Future] = []
-            error_to_raise: Optional[Exception] = None
+
+            data_loading_strategy = DataLoadingStrategy(data_loading_strategy)
+            is_sharded = data_loading_strategy is DataLoadingStrategy.DASK
+            shard = self.actor if is_sharded else (0, 1)
+
             data: ScalableDataFrame = ScalableDataFrame.of(data)
-            failure_action: FailureAction = FailureAction(failure_action)
-            data_loading_strategy: DataLoadingStrategy = DataLoadingStrategy(data_loading_strategy)
-            if data_loading_strategy is DataLoadingStrategy.DASK:
-                ## `data` is the entire dataset, so predict only the relevant shard.
-                shard: Tuple[int, int] = self.actor
-                make_fname = (
-                    lambda predicted_num_rows,
-                    macro_batch,
-                    input_len: f"shard-{String.pad_zeros(*self.actor)}"
-                    f"-rows-{String.pad_zeros(predicted_num_rows, input_len)}"
-                    f"-to-{String.pad_zeros(predicted_num_rows + len(macro_batch), input_len)}"
+            try:
+                return self._evaluate_batch_stream(
+                    data=data,
+                    dataset_params=dataset_params,
+                    input_len=input_len,
+                    batch_size=batch_size,
+                    batches_per_save=batches_per_save,
+                    predictions_destination=predictions_destination,
+                    return_predictions=return_predictions,
+                    failure_action=failure_action,
+                    is_sharded=is_sharded,
+                    shard=shard,
+                    row_counter=row_counter,
+                    **kwargs,
                 )
-            elif data_loading_strategy is DataLoadingStrategy.LOCAL:
-                ## `data` here is one shard of the dataset, so predict it entirely.
-                shard: Tuple[int, int] = (0, 1)
-                make_fname = (
-                    lambda predicted_num_rows,
-                    macro_batch,
-                    input_len: f"part-{String.pad_zeros(dataset_params['data_idx'] + 1, int(1e9))}"
-                    f"-rows-{String.pad_zeros(predicted_num_rows, input_len)}"
-                    f"-to-{String.pad_zeros(predicted_num_rows + len(macro_batch), input_len)}"
-                )
-            else:
-                raise NotImplementedError(f"Unsupported `data_loading_strategy`: {data_loading_strategy}")
-            for macro_batch in data.stream(
-                shard=shard,
-                batch_size=batch_size * batches_per_save,
-                shuffle=False,
-                stream_as=DataLayout.PANDAS,
-            ):
-                try:
-                    if error_to_raise is None:
-                        assert (
-                            isinstance(macro_batch, ScalableDataFrame)
-                            and macro_batch.layout == DataLayout.PANDAS
-                        )
-                        macro_batch_save_file: Optional[FileMetadata] = None  ## Saves a macro batch
-                        if predictions_destination is not None:
-                            file_ending: str = as_list(
-                                FILE_FORMAT_TO_FILE_ENDING_MAP[predictions_destination.format]
-                            )[0]
-                            fname: str = make_fname(
-                                predicted_num_rows=predicted_num_rows,
-                                macro_batch=macro_batch,
-                                input_len=input_len,
-                            )
-                            macro_batch_save_file: FileMetadata = predictions_destination.file_in_dir(
-                                fname,
-                                return_metadata=True,
-                                file_ending=file_ending,
-                            )
-                        if macro_batch_save_file is None or not S3Util.s3_object_exists(
-                            macro_batch_save_file.path
-                        ):
-                            ## We should predict:
-                            kwargs["tracker"] = Tracker.noop_tracker()  ## Do not track.
-                            macro_batch: Dataset = Dataset.of(
-                                **dataset_params,
-                                data=macro_batch,
-                            )
-                            with algorithm_evaluator_verbosity(self.verbosity):
-                                macro_batch_predictions: Predictions = self.evaluator.evaluate(
-                                    macro_batch,
-                                    batch_size=batch_size,
-                                    return_predictions=True,
-                                    metrics=None,
-                                    progress_bar=None,
-                                    failure_action=FailureAction.ERROR,
-                                    **kwargs,
-                                )
-                            if macro_batch_save_file is not None:
-                                ## Save the predictions to disk/S3:
-                                save_futures.append(
-                                    run_concurrent(
-                                        save_predictions,
-                                        predictions=macro_batch_predictions,
-                                        predictions_destination=macro_batch_save_file,
-                                    )
-                                )
-                            if return_predictions:
-                                predictions.append(macro_batch_predictions)
-                        else:
-                            ## Load the file from disk/S3:
-                            if return_predictions:
-                                predictions.append(
-                                    run_concurrent(
-                                        load_predictions,
-                                        macro_batch_save_file.path,
-                                    )
-                                )
-                except Exception as e:
-                    if failure_action is FailureAction.ERROR:
-                        with algorithm_evaluator_verbosity(self.verbosity):
-                            logging.error(String.format_exception_msg(e))
-                        ## Error immediately
-                        raise e
-                    elif failure_action is FailureAction.ERROR_DELAYED:
-                        ## Continue iterating to the end to update `row_counter`, then raise an error.
-                        error_to_raise: Exception = e
-                    elif failure_action is FailureAction.WARN:
-                        with algorithm_evaluator_verbosity(self.verbosity):
-                            logging.warning(String.format_exception_msg(e))
-                    elif failure_action is FailureAction.IGNORE:
-                        pass
-                    else:
-                        raise NotImplementedError(f"Unsupported `failure_action`: {failure_action}")
-                finally:
-                    predicted_num_rows += len(macro_batch)
-                    predicted_num_batches += batches_per_save
-                    if row_counter is not None:
-                        row_counter.increment_rows.remote(
-                            num_rows=len(macro_batch),
-                        )
-            accumulate(save_futures)
-            self.request_counter.completed_request.remote()
-            if error_to_raise is not None:
-                with algorithm_evaluator_verbosity(self.verbosity):
-                    logging.error(String.format_exception_msg(error_to_raise))
-                raise error_to_raise
-            if return_predictions:
-                # print(f'Size of predictions dataframe: {preds_df.memory_usage(deep=True)}')
-                # print(f'Actor#{self.actor} predicted {len(preds_df)} rows.')
-                predictions: Predictions = Predictions.concat(
-                    accumulate(predictions),
-                    layout=DataLayout.PANDAS,
-                )
-                return predictions
-            return None
+            finally:
+                self.request_counter.completed_request.remote()
 
     class RayEvaluator(Evaluator):
         aliases = ["ray"]
