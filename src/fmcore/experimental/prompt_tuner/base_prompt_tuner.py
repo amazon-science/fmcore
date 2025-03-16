@@ -1,7 +1,7 @@
 import pandas as pd
 from abc import ABC, abstractmethod
 from typing import Dict
-from fmcore.experimental.types.prompt_tuner_types import PromptConfig, PromptTunerConfig
+from fmcore.experimental.types.prompt_tuner_types import PromptConfig, PromptTunerConfig, PromptTunerResult
 from fmcore.experimental.types.typed import MutableTyped
 from bears.util import Registry
 
@@ -21,5 +21,5 @@ class BasePromptTuner(MutableTyped, Registry, ABC):
         return BasePromptTunerClass(**constructor_parameters)
 
     @abstractmethod
-    def tune(self, data: pd.DataFrame) -> str:
+    def tune(self, data: pd.DataFrame) -> PromptTunerResult:
         pass

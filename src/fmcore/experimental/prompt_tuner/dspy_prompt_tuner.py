@@ -14,7 +14,7 @@ from fmcore.experimental.prompt_tuner.dspy.datasets.base_dataset import DspyData
 from fmcore.experimental.prompt_tuner.dspy.optimizers.base_dspy_optimizer import BaseDspyOptimizer
 from fmcore.experimental.prompt_tuner.dspy.utils.commons import DSPyUtils
 from fmcore.experimental.types.enums.prompt_tuner_enums import PromptTunerFramework
-from fmcore.experimental.types.prompt_tuner_types import PromptTunerConfig
+from fmcore.experimental.types.prompt_tuner_types import PromptTunerConfig, PromptTunerResult
 
 from fmcore.experimental.adapters.dspy_adapter import DSPyLLMAdapter
 from fmcore.experimental.utils.introspection_utils import IntrospectionUtils
@@ -77,7 +77,7 @@ class DSPyPromptTuner(BasePromptTuner):
             "config": config,
         }
 
-    def tune(self, data: DataFrame) -> str:
+    def tune(self, data: DataFrame) -> PromptTunerResult:
         """
         Tunes a prompt using the configured DSPy optimizer and training data.
 
@@ -117,7 +117,7 @@ class DSPyPromptTuner(BasePromptTuner):
             evaluate=evaluate,
         )
 
-        tuner_result = optimizer.optimize(
+        tuner_result: PromptTunerResult = optimizer.optimize(
             dataset=dataset, optimizer_params=self.config.optimzer_config.params
         )
 
