@@ -281,7 +281,7 @@ class Evaluator(MutableParameters, Registry, ABC):
         evaluator: Optional[str] = None,
         *,
         init: bool = True,
-        init_model: bool = False,
+        init_model: bool = True,
         model_dir: Optional[Union[FileMetadata, Dict, str]] = None,
         **kwargs,
     ) -> Evaluator:

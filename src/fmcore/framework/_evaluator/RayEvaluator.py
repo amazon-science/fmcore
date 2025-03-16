@@ -397,7 +397,12 @@ if _IS_RAY_INSTALLED:
             **kwargs,
         ) -> Tuple[Optional[Predictions], Optional[List[Metric]]]:
             ## TODO: add rows per save, SaveStrategy and UpdateStrategy:
-            set_param_from_alias(kwargs, param="batches_per_save", alias=["batches_per_update"], default=1)
+            set_param_from_alias(
+                kwargs,
+                param="batches_per_save",
+                alias=["batches_per_update"],
+                default=1,
+            )
             set_param_from_alias(
                 kwargs,
                 param="batch_size",

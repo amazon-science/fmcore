@@ -121,6 +121,109 @@ class ParallelAlgorithmEvaluator(ABC):
         """
         pass
 
+    def _evaluate_batch_stream(
+        self,
+        data: ScalableDataFrame,
+        dataset_params: Dict,
+        input_len: int,
+        batch_size: int,
+        batches_per_save: int,
+        predictions_destination: Optional[FileMetadata],
+        return_predictions: bool,
+        failure_action: FailureAction,
+        is_sharded: bool,
+        shard: Tuple[int, int] = (0, 1),
+        row_counter: Optional[Any] = None,
+        **kwargs,
+    ) -> Optional[Predictions]:
+        """
+        Evaluate a stream of batches from the data.
+
+        Args:
+            data: The data to evaluate
+            dataset_params: Parameters for dataset creation
+            input_len: Total number of rows
+            batch_size: Batch size for model inference
+            batches_per_save: Number of batches to process before saving
+            predictions_destination: Where to save predictions
+            return_predictions: Whether to return predictions
+            failure_action: How to handle failures
+            is_sharded: Whether data is sharded across actors
+            shard: Tuple of (actor_index, total_actors)
+            row_counter: Optional counter to track rows processed
+            **kwargs: Additional arguments to pass to evaluator
+
+        Returns:
+            Predictions if return_predictions is True, otherwise None
+        """
+        import pandas as pd
+
+        ## Stops Pandas SettingWithCopyWarning in output
+        pd.options.mode.chained_assignment = None
+
+        make_fname: Callable = self._make_filename_generator(dataset_params, is_sharded)
+        predicted_num_rows: int = 0
+        predicted_num_batches: int = 0
+        predictions: List[Predictions] = []
+        save_futures: List = []
+        error_to_raise: Optional[Exception] = None
+        failure_action = FailureAction(failure_action)
+
+        for macro_batch in data.stream(
+            shard=shard,
+            batch_size=batch_size * batches_per_save,
+            shuffle=False,
+            stream_as=DataLayout.PANDAS,
+        ):
+            try:
+                if error_to_raise is None:
+                    assert (
+                        isinstance(macro_batch, ScalableDataFrame) and macro_batch.layout == DataLayout.PANDAS
+                    )
+
+                    macro_batch_save_file: Optional[FileMetadata] = self._get_batch_save_file(
+                        predictions_destination=predictions_destination,
+                        make_fname=make_fname,
+                        predicted_num_rows=predicted_num_rows,
+                        macro_batch=macro_batch,
+                        input_len=input_len,
+                    )
+
+                    batch_predictions: Optional[Predictions] = self._predict_batch(
+                        macro_batch=macro_batch,
+                        dataset_params=dataset_params,
+                        batch_size=batch_size,
+                        macro_batch_save_file=macro_batch_save_file,
+                        return_predictions=return_predictions,
+                        failure_action=failure_action,
+                        **kwargs,
+                    )
+
+                    if return_predictions and batch_predictions is not None:
+                        predictions.append(batch_predictions)
+
+            except Exception as e:
+                error_to_raise = self._handle_error(e, failure_action)
+            finally:
+                predicted_num_rows += len(macro_batch)
+                predicted_num_batches += batches_per_save
+
+                ## Update row counter if provided
+                if row_counter is not None:
+                    self._update_row_counter(row_counter, len(macro_batch))
+
+        ## Accumulate any futures that might have been created
+        accumulate(save_futures)
+
+        if error_to_raise is not None:
+            with algorithm_evaluator_verbosity(self.verbosity):
+                logging.error(String.format_exception_msg(error_to_raise))
+            raise error_to_raise
+
+        if return_predictions and len(predictions) > 0:
+            return Predictions.concat(predictions, layout=DataLayout.PANDAS)
+        return None
+
     def _predict_batch(
         self,
         macro_batch: ScalableDataFrame,
@@ -164,6 +267,7 @@ class ParallelAlgorithmEvaluator(ABC):
         )
 
         with algorithm_evaluator_verbosity(self.verbosity):
+            # print(f"Predicting macro batch: {macro_batch_dataset}")
             macro_batch_predictions: Predictions = self.evaluator.evaluate(
                 macro_batch_dataset,
                 batch_size=batch_size,
@@ -274,109 +378,6 @@ class ParallelAlgorithmEvaluator(ABC):
             return None
         else:
             raise NotImplementedError(f"Unsupported `failure_action`: {failure_action}")
-
-    def _evaluate_batch_stream(
-        self,
-        data: ScalableDataFrame,
-        dataset_params: Dict,
-        input_len: int,
-        batch_size: int,
-        batches_per_save: int,
-        predictions_destination: Optional[FileMetadata],
-        return_predictions: bool,
-        failure_action: FailureAction,
-        is_sharded: bool,
-        shard: Tuple[int, int] = (0, 1),
-        row_counter: Optional[Any] = None,
-        **kwargs,
-    ) -> Optional[Predictions]:
-        """
-        Evaluate a stream of batches from the data.
-
-        Args:
-            data: The data to evaluate
-            dataset_params: Parameters for dataset creation
-            input_len: Total number of rows
-            batch_size: Batch size for model inference
-            batches_per_save: Number of batches to process before saving
-            predictions_destination: Where to save predictions
-            return_predictions: Whether to return predictions
-            failure_action: How to handle failures
-            is_sharded: Whether data is sharded across actors
-            shard: Tuple of (actor_index, total_actors)
-            row_counter: Optional counter to track rows processed
-            **kwargs: Additional arguments to pass to evaluator
-
-        Returns:
-            Predictions if return_predictions is True, otherwise None
-        """
-        import pandas as pd
-
-        ## Stops Pandas SettingWithCopyWarning in output
-        pd.options.mode.chained_assignment = None
-
-        make_fname: Callable = self._make_filename_generator(dataset_params, is_sharded)
-        predicted_num_rows: int = 0
-        predicted_num_batches: int = 0
-        predictions: List[Predictions] = []
-        save_futures: List = []
-        error_to_raise: Optional[Exception] = None
-        failure_action = FailureAction(failure_action)
-
-        for macro_batch in data.stream(
-            shard=shard,
-            batch_size=batch_size * batches_per_save,
-            shuffle=False,
-            stream_as=DataLayout.PANDAS,
-        ):
-            try:
-                if error_to_raise is None:
-                    assert (
-                        isinstance(macro_batch, ScalableDataFrame) and macro_batch.layout == DataLayout.PANDAS
-                    )
-
-                    macro_batch_save_file: Optional[FileMetadata] = self._get_batch_save_file(
-                        predictions_destination=predictions_destination,
-                        make_fname=make_fname,
-                        predicted_num_rows=predicted_num_rows,
-                        macro_batch=macro_batch,
-                        input_len=input_len,
-                    )
-
-                    batch_predictions: Optional[Predictions] = self._predict_batch(
-                        macro_batch=macro_batch,
-                        dataset_params=dataset_params,
-                        batch_size=batch_size,
-                        macro_batch_save_file=macro_batch_save_file,
-                        return_predictions=return_predictions,
-                        failure_action=failure_action,
-                        **kwargs,
-                    )
-
-                    if return_predictions and batch_predictions is not None:
-                        predictions.append(batch_predictions)
-
-            except Exception as e:
-                error_to_raise = self._handle_error(e, failure_action)
-            finally:
-                predicted_num_rows += len(macro_batch)
-                predicted_num_batches += batches_per_save
-
-                ## Update row counter if provided
-                if row_counter is not None:
-                    self._update_row_counter(row_counter, len(macro_batch))
-
-        ## Accumulate any futures that might have been created
-        accumulate(save_futures)
-
-        if error_to_raise is not None:
-            with algorithm_evaluator_verbosity(self.verbosity):
-                logging.error(String.format_exception_msg(error_to_raise))
-            raise error_to_raise
-
-        if return_predictions and len(predictions) > 0:
-            return Predictions.concat(predictions, layout=DataLayout.PANDAS)
-        return None
 
     def _update_row_counter(self, row_counter: Any, num_rows: int) -> None:
         """

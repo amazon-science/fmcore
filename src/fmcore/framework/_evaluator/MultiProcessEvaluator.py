@@ -1,7 +1,9 @@
 import gc
 import math
+import multiprocessing as mp
 import random
 import time
+import warnings
 from functools import partial
 from typing import (
     Any,
@@ -30,6 +32,7 @@ from bears.util import (
     safe_validate_arguments,
     set_param_from_alias,
     wait,
+    ActorProxy,
 )
 from bears.util.concurrency._processes import actor
 from pydantic import ConfigDict, confloat, conint, model_validator
@@ -131,7 +134,7 @@ class MultiProcessEvaluator(Evaluator):
                 nested_evaluator="local",
                 task="generation",
                 AlgorithmClass="HFGenerativeLM",
-                max_workers=4
+                num_models=4
             )
         >>> predictions = evaluator.evaluate(dataset, return_predictions=True)
     """
@@ -143,7 +146,7 @@ class MultiProcessEvaluator(Evaluator):
     )
 
     nested_evaluator_name: Optional[str] = None
-    max_workers: Optional[conint(ge=1)] = None
+    num_models: Optional[conint(ge=1)] = None
     model: Optional[List[Any]] = None  ## Stores the actor proxies
     progress_update_frequency: confloat(ge=0.0) = 15.0
     ## By default, do not cache the model:
@@ -155,17 +158,7 @@ class MultiProcessEvaluator(Evaluator):
         """Validate and process parameters for the MultiProcessEvaluator."""
         params: Dict = cls._set_common_evaluator_params(params)
         set_param_from_alias(params, param="nested_evaluator_name", alias=["nested_evaluator"])
-        Alias.set_max_workers(params)
-        set_param_from_alias(
-            params,
-            param="max_workers",
-            alias=[
-                "max_processes",
-                "max_num_processes",
-                "num_actors",
-                "processes",
-            ],
-        )
+        Alias.set_max_workers(params, param="num_models")
         set_param_from_alias(
             params,
             param="progress_update_frequency",
@@ -191,23 +184,38 @@ class MultiProcessEvaluator(Evaluator):
         self,
         *,
         num_actors: Optional[int] = None,
-        progress_bar: Optional[Union[Dict, bool]] = True,
         **kwargs,
     ) -> List[Any]:
         """Create the process actors for evaluation."""
         num_actors: int = get_default(num_actors, self.num_actors)
+        progress_bar: Optional[Dict] = Alias.get_progress_bar(kwargs)
         progress_bar: Union[Dict, bool] = self._run_evaluation_progress_bar(progress_bar)
+        actors_progress_bar: ProgressBar = ProgressBar.of(
+            progress_bar,
+            total=num_actors,
+            desc="Creating Process actors",
+            unit="actors",
+        )
         nested_evaluator_params: Dict = self._create_nested_evaluator_params(**kwargs)
-        actors = []
+        actors: List[Any] = []
 
         for actor_i in range(num_actors):
-            actor = ProcessAlgorithmEvaluator.remote(
-                evaluator=nested_evaluator_params,
-                actor=(actor_i, num_actors),
-                verbosity=self.verbosity,
+            actors.append(
+                ProcessAlgorithmEvaluator.remote(
+                    evaluator=nested_evaluator_params,
+                    actor=(actor_i, num_actors),
+                    verbosity=self.verbosity,
+                )
             )
-            actors.append(actor)
-
+            actors_progress_bar.update(1)
+            time.sleep(0.100)
+        if len(actors) != num_actors:
+            msg: str = f"Creation of {num_actors - len(actors)} actors failed"
+            actors_progress_bar.failed(msg)
+            raise ValueError(msg)
+        else:
+            msg: str = f"Created {num_actors} actors"
+            actors_progress_bar.success(msg)
         return actors
 
     def cleanup_model(self):
@@ -218,10 +226,10 @@ class MultiProcessEvaluator(Evaluator):
         """Kill all process actors and clean up resources."""
         try:
             if self.model is not None:
-                actors = self.model
+                actors: ActorProxy = self.model
                 self.model = None
                 for actor in actors:
-                    actor.stop.remote(cancel_futures=True)
+                    actor.stop(cancel_futures=True)
                     del actor
                 del actors
         finally:
@@ -230,11 +238,15 @@ class MultiProcessEvaluator(Evaluator):
     @property
     def num_actors(self) -> int:
         """Determine the number of actors to use based on settings or defaults."""
-        import multiprocessing as mp
-
-        max_processes = mp.cpu_count()
-        num_actors = self.max_workers if self.max_workers is not None else max(1, max_processes - 1)
-        return min(num_actors, max_processes)
+        if self.num_models is None:
+            warnings.warn(
+                f"`num_models` is not specified. Since each model-copy requires "
+                f"1 cpu, we create {mp.cpu_count() - 1} model-copies so as "
+                f"to utilize the entire machine hardware. "
+                f"To reduce the machine-utilization, explicitly pass `num_models`."
+            )
+            return mp.cpu_count() - 1
+        return self.num_models
 
     def _create_nested_evaluator_params(self, **kwargs) -> Dict:
         """Create parameters for the nested evaluator."""
@@ -283,13 +295,217 @@ class MultiProcessEvaluator(Evaluator):
         return nested_evaluator_params
 
     @staticmethod
-    def process_logger(text: str, should_log: bool, tracker: Tracker):
+    def mp_logger(text: str, should_log: bool, tracker: Tracker):
         """Log messages with appropriate verbosity control."""
         text: str = f"{text}"
         if should_log is False:  ## Don't log anything.
             return
         else:
             tracker.info(text)
+
+    @safe_validate_arguments
+    def _run_evaluation(
+        self,
+        dataset: Dataset,
+        *,
+        tracker: Tracker,
+        metrics: Optional[List[Metric]],
+        return_predictions: bool,
+        predictions_destination: Optional[FileMetadata],
+        progress_bar: Optional[Dict],
+        failure_action: FailureAction = FailureAction.ERROR_DELAYED,
+        load_balancing_strategy: LoadBalancingStrategy = LoadBalancingStrategy.LEAST_USED,
+        read_as: Optional[DataLayout] = DataLayout.PANDAS,
+        submission_batch_size: Optional[conint(ge=1)] = None,
+        worker_queue_len: conint(ge=0) = 2,
+        submission_batch_wait: confloat(ge=0) = 15,
+        submission_batch_wait_jitter: confloat(ge=0.0, le=1.0) = 0.05,
+        evaluation_timeout: confloat(ge=0, allow_inf_nan=True) = math.inf,
+        allow_partial_predictions: bool = False,
+        **kwargs,
+    ) -> Tuple[Optional[Predictions], Optional[List[Metric]]]:
+        """
+        Run evaluation across multiple process actors.
+
+        Only supports local data loading strategy.
+        """
+        ## Process kwargs and set defaults
+        set_param_from_alias(
+            kwargs,
+            param="batches_per_save",
+            alias=["batches_per_update"],
+            default=1,
+        )
+        set_param_from_alias(
+            kwargs,
+            param="batch_size",
+            alias=["predict_batch_size", "eval_batch_size", "nrows", "num_rows"],
+            default=self._create_hyperparams().batch_size,
+        )
+        batch_size: Optional[int] = kwargs.pop("batch_size", None)
+        if batch_size is None:
+            raise ValueError(
+                f"Could not find batch_size in model hyperparams; "
+                f"please pass it explicitly like so: {self.class_name}.evaluate(batch_size=...)"
+            )
+        ## Set submission_batch_size if not already specified
+        if submission_batch_size is None:
+            submission_batch_size: int = batch_size * kwargs["batches_per_save"]  ## Heuristic
+
+        if predictions_destination is not None:
+            if predictions_destination.storage is not Storage.S3:
+                raise ValueError(
+                    f"Results can only be saved to {Storage.S3}; "
+                    f"found storage {predictions_destination.storage} having path: {predictions_destination.path}"
+                )
+            if not predictions_destination.is_path_valid_dir():
+                raise ValueError(
+                    f"Expected predictions destination to be a valid directory; "
+                    f'found: "{predictions_destination.path}"...did you forget a "/" at the end?'
+                )
+            assert predictions_destination.format is not None  ## Checked in .evaluate().
+
+        timer: Timer = Timer(silent=True)
+        timer.start()
+        ## Verbosity >= 1: progress bars
+        progress_bar: Union[Dict, bool] = self._run_evaluation_progress_bar(progress_bar)
+        ## Verbosity >= 2: basic logging
+        main_logger: Callable = partial(
+            self.mp_logger,
+            ## Unless we request silence (verbosity=0), print important information.
+            should_log=self.verbosity >= 2,
+            tracker=tracker,
+        )
+        ## Verbosity >= 3: detailed logging
+        debug_logger: Callable = partial(
+            self.mp_logger,
+            ## Unless we request silence (verbosity=0), print important information.
+            should_log=self.verbosity >= 3,
+            tracker=tracker,
+        )
+        main_logger(self._evaluate_start_msg(tracker=tracker, **kwargs))
+
+        ## Outputs:
+        evaluated_predictions: Optional[Predictions] = None
+        evaluated_metrics: Optional[List[Metric]] = None
+
+        try:
+            actors_were_created_in_this_call: bool = self.init_model(progress_bar=progress_bar, **kwargs)
+            num_actors_created: int = len(self.model)
+
+            if actors_were_created_in_this_call:
+                main_logger(f"Created {num_actors_created} process actors.")
+
+            dataset: Dataset = dataset.read(read_as=read_as, npartitions=num_actors_created)
+            data: ScalableDataFrame = dataset.data
+            input_len: int = len(data)
+            input_len_str: str = String.readable_number(input_len, decimals=1, short=True)
+
+            ## Submit data to be predicted:
+            dataset_params: Dict = dataset.dict(exclude={"data"})
+
+            predictions: List[Any] = self._run_evaluation_local(
+                data=data,
+                dataset_params=dataset_params,
+                input_len=input_len,
+                input_len_str=input_len_str,
+                num_actors_created=num_actors_created,
+                batch_size=batch_size,
+                submission_batch_size=submission_batch_size,
+                predictions_destination=predictions_destination,
+                return_predictions=return_predictions,
+                metrics=metrics,
+                progress_bar=progress_bar,
+                failure_action=failure_action,
+                data_loading_strategy=DataLoadingStrategy.LOCAL,
+                load_balancing_strategy=load_balancing_strategy,
+                worker_queue_len=worker_queue_len,
+                submission_batch_wait=submission_batch_wait,
+                submission_batch_wait_jitter=submission_batch_wait_jitter,
+                evaluation_timeout=evaluation_timeout,
+                main_logger=main_logger,
+                debug_logger=debug_logger,
+                **kwargs,
+            )
+
+            if return_predictions or metrics is not None:
+                debug_logger(f"Collecting {len(predictions)} predictions...")
+                accumulate_progress_bar: ProgressBar = ProgressBar.of(
+                    progress_bar,
+                    total=input_len,
+                    desc=f"Collecting {input_len_str} rows",
+                    initial=0,
+                )
+                evaluated_predictions: List[Predictions] = []
+                evaluated_metrics: List[Metric] = []
+
+                for pred_i, pred in enumerate(predictions):
+                    debug_logger(f"Collecting prediction#{pred_i}: type={type(pred)}")
+                    try:
+                        pred_result: Optional[Predictions] = get_result(pred, wait=60.0)
+                    except Exception as e:
+                        main_logger(
+                            f"Error while collecting prediction#{pred_i}:\n{String.format_exception_msg(e)}"
+                        )
+                        raise e
+
+                    if pred_result is None:
+                        debug_logger(f"Collected prediction#{pred_i}: found None.")
+                    else:
+                        debug_logger(f"Collected prediction#{pred_i}: {type(pred_result)}.")
+                        evaluated_predictions.append(pred_result)
+                        accumulate_progress_bar.update(len(pred_result))
+
+                if len(evaluated_predictions) == 0:
+                    debug_logger(f"No results. evaluated_predictions={evaluated_predictions}")
+                    accumulate_progress_bar.failed("No results")
+                    raise ValueError("All predictions returned from actors were None.")
+
+                evaluated_predictions: Predictions = Predictions.concat(
+                    evaluated_predictions, error_on_empty=True
+                )
+                debug_logger(f"Concatenated into {len(evaluated_predictions)} rows of predictions.")
+
+                if len(evaluated_predictions) != input_len:
+                    num_failed_rows: int = input_len - len(evaluated_predictions)
+                    num_failed_rows_str: str = String.readable_number(num_failed_rows, decimals=1, short=True)
+                    accumulate_progress_bar.failed(f"Failed for {num_failed_rows_str} rows")
+                    if allow_partial_predictions is False:
+                        raise ValueError(
+                            f"Partial predictions returned: expected {input_len} rows, "
+                            f"but only got {len(evaluated_predictions)} rows from actors."
+                        )
+                else:
+                    accumulate_progress_bar.success(f"Collected {input_len_str} rows")
+
+                if metrics is not None:
+                    for metric in metrics:
+                        evaluated_metrics.append(evaluated_predictions.evaluate(metric=metric))
+            else:
+                ## Wait for predictions to complete:
+                wait(predictions)
+
+            timer.stop()
+            main_logger(
+                self._evaluate_end_msg(
+                    input_len=input_len,
+                    timer=timer,
+                    num_actors_created=num_actors_created,
+                    tracker=tracker,
+                )
+            )
+            return evaluated_predictions, evaluated_metrics
+        except Exception as e:
+            error_msg: str = f"Error during evaluation:\n{String.format_exception_msg(e)}"
+            main_logger(error_msg)
+            raise e
+        except KeyboardInterrupt as e:
+            raise e
+        finally:
+            ## If we don't have a timeout, delete actors after every execution.
+            if self.cache_timeout is None:
+                self.cleanup_model()
+            return evaluated_predictions, evaluated_metrics
 
     def _run_evaluation_local(
         self,
@@ -345,6 +561,8 @@ class MultiProcessEvaluator(Evaluator):
         Returns:
             List of futures containing prediction results
         """
+        # print(f"Evaluating {len(data)} rows ({type(data)}) using {num_actors_created} processes")
+
         ## Consolidated tracking structure:
         ## - Map actor_idx -> {actor, futures_dict}
         ## - futures_dict maps batch_idx -> future
@@ -376,14 +594,17 @@ class MultiProcessEvaluator(Evaluator):
         predictions: List[Any] = []
 
         ## Load each shard of data and send to processes:
-        for batch_idx, batch_data in enumerate(
-            data.stream(
-                batch_size=submission_batch_size,
-                shuffle=False,
-                stream_as=DataLayout.PANDAS,
-                fetch_partitions=1,
-            )
+        batch_idx: int = 0
+        for batch_data in data.stream(
+            batch_size=submission_batch_size,
+            shuffle=False,
+            stream_as=DataLayout.PANDAS,
+            fetch_partitions=1,
         ):
+            # print(
+            #     f">> Evaluating batch #{batch_idx} with {len(batch_data)} rows "
+            #     f"with {load_balancing_strategy=}"
+            # )
             ## Select actor based on load balancing strategy
             if load_balancing_strategy is LoadBalancingStrategy.ROUND_ROBIN:
                 selected_actor_idx: int = batch_idx % num_actors_created
@@ -440,7 +661,7 @@ class MultiProcessEvaluator(Evaluator):
                 raise NotImplementedError(f"Unsupported `load_balancing_strategy`: {load_balancing_strategy}")
 
             ## Get the actor and submit the task
-            selected_actor = futures_info[selected_actor_idx]["actor"]
+            selected_actor: Any = futures_info[selected_actor_idx]["actor"]
             fut: Any = selected_actor.evaluate_shard.remote(
                 batch_data,
                 dataset_params={
@@ -453,7 +674,6 @@ class MultiProcessEvaluator(Evaluator):
                 return_predictions=return_predictions or metrics is not None,
                 failure_action=failure_action,
                 data_loading_strategy=data_loading_strategy,
-                batches_per_save=kwargs.get("batches_per_save", 1),
                 **kwargs,
             )
 
@@ -465,6 +685,7 @@ class MultiProcessEvaluator(Evaluator):
             submissions_progress_bar.update(len(batch_data))
             ## Keep predictions list in submission order:
             predictions.append(fut)
+            batch_idx += 1
         submissions_progress_bar.success(f"Submitted {input_len_str} rows")
 
         ## Check for completed futures periodically during submission:
@@ -574,202 +795,3 @@ class MultiProcessEvaluator(Evaluator):
             f"({input_len / timer.time_taken_sec:.3f} rows/sec or "
             f"{input_len / (num_actors_created * timer.time_taken_sec):.3f} rows/sec/process)\n{tracker_msg}"
         )
-
-    @safe_validate_arguments
-    def _run_evaluation(
-        self,
-        dataset: Dataset,
-        *,
-        tracker: Tracker,
-        metrics: Optional[List[Metric]],
-        return_predictions: bool,
-        predictions_destination: Optional[FileMetadata],
-        progress_bar: Optional[Dict],
-        failure_action: FailureAction = FailureAction.ERROR_DELAYED,
-        load_balancing_strategy: LoadBalancingStrategy = LoadBalancingStrategy.LEAST_USED,
-        read_as: Optional[DataLayout] = DataLayout.PANDAS,
-        submission_batch_size: Optional[conint(ge=1)] = None,
-        worker_queue_len: conint(ge=0) = 2,
-        submission_batch_wait: confloat(ge=0) = 15,
-        submission_batch_wait_jitter: confloat(ge=0.0, le=1.0) = 0.05,
-        evaluation_timeout: confloat(ge=0, allow_inf_nan=True) = math.inf,
-        allow_partial_predictions: bool = False,
-        **kwargs,
-    ) -> Tuple[Optional[Predictions], Optional[List[Metric]]]:
-        """
-        Run evaluation across multiple process actors.
-
-        Only supports local data loading strategy.
-        """
-        ## Process kwargs and set defaults
-        set_param_from_alias(kwargs, param="batches_per_save", alias=["batches_per_update"], default=1)
-        set_param_from_alias(
-            kwargs,
-            param="batch_size",
-            alias=["predict_batch_size", "eval_batch_size", "nrows", "num_rows"],
-            default=self._create_hyperparams().batch_size,
-        )
-        batch_size: Optional[int] = kwargs.pop("batch_size", None)
-        if batch_size is None:
-            raise ValueError(
-                f"Could not find batch_size in model hyperparams; "
-                f"please pass it explicitly like so: {self.class_name}.evaluate(batch_size=...)"
-            )
-        ## Set submission_batch_size if not already specified
-        if submission_batch_size is None:
-            submission_batch_size: int = batch_size * kwargs["batches_per_save"]  ## Heuristic
-
-        if predictions_destination is not None:
-            if predictions_destination.storage is not Storage.S3:
-                raise ValueError(
-                    f"Results can only be saved to {Storage.S3}; "
-                    f"found storage {predictions_destination.storage} having path: {predictions_destination.path}"
-                )
-            if not predictions_destination.is_path_valid_dir():
-                raise ValueError(
-                    f"Expected predictions destination to be a valid directory; "
-                    f'found: "{predictions_destination.path}"...did you forget a "/" at the end?'
-                )
-            assert predictions_destination.format is not None  ## Checked in .evaluate().
-
-        timer: Timer = Timer(silent=True)
-        timer.start()
-        ## Verbosity >= 1: progress bars
-        progress_bar: Union[Dict, bool] = self._run_evaluation_progress_bar(progress_bar)
-        ## Verbosity >= 2: basic logging
-        main_logger: Callable = partial(
-            self.process_logger,
-            ## Unless we request silence (verbosity=0), print important information.
-            should_log=self.verbosity >= 2,
-            tracker=tracker,
-        )
-        ## Verbosity >= 3: detailed logging
-        debug_logger: Callable = partial(
-            self.process_logger,
-            ## Unless we request silence (verbosity=0), print important information.
-            should_log=self.verbosity >= 3,
-            tracker=tracker,
-        )
-        main_logger(self._evaluate_start_msg(tracker=tracker, **kwargs))
-
-        ## Outputs:
-        evaluated_predictions: Optional[Predictions] = None
-        evaluated_metrics: Optional[List[Metric]] = None
-
-        try:
-            actors_were_created_in_this_call: bool = self.init_model(progress_bar=progress_bar, **kwargs)
-            num_actors_created: int = len(self.model)
-
-            if actors_were_created_in_this_call:
-                main_logger(f"Created {num_actors_created} process actors.")
-
-            dataset: Dataset = dataset.read(read_as=read_as, npartitions=num_actors_created)
-            data: ScalableDataFrame = dataset.data
-            input_len: int = len(data)
-            input_len_str: str = String.readable_number(input_len, decimals=1, short=True)
-
-            ## Submit data to be predicted:
-            dataset_params: Dict = dataset.dict(exclude={"data"})
-
-            predictions = self._run_evaluation_local(
-                data=data,
-                dataset_params=dataset_params,
-                input_len=input_len,
-                input_len_str=input_len_str,
-                num_actors_created=num_actors_created,
-                batch_size=batch_size,
-                submission_batch_size=submission_batch_size,
-                predictions_destination=predictions_destination,
-                return_predictions=return_predictions,
-                metrics=metrics,
-                progress_bar=progress_bar,
-                failure_action=failure_action,
-                data_loading_strategy=DataLoadingStrategy.LOCAL,
-                load_balancing_strategy=load_balancing_strategy,
-                worker_queue_len=worker_queue_len,
-                submission_batch_wait=submission_batch_wait,
-                submission_batch_wait_jitter=submission_batch_wait_jitter,
-                evaluation_timeout=evaluation_timeout,
-                main_logger=main_logger,
-                debug_logger=debug_logger,
-                **kwargs,
-            )
-
-            if return_predictions or metrics is not None:
-                debug_logger(f"Collecting {len(predictions)} predictions...")
-                accumulate_progress_bar: ProgressBar = ProgressBar.of(
-                    progress_bar,
-                    total=input_len,
-                    desc=f"Collecting {input_len_str} rows",
-                    initial=0,
-                )
-                evaluated_predictions: List[Predictions] = []
-                evaluated_metrics: List[Metric] = []
-
-                for pred_i, pred in enumerate(predictions):
-                    debug_logger(f"Collecting prediction#{pred_i}: type={type(pred)}")
-                    try:
-                        pred_result: Optional[Predictions] = get_result(pred, wait=60.0)
-                    except Exception as e:
-                        main_logger(
-                            f"Error while collecting prediction#{pred_i}:\n{String.format_exception_msg(e)}"
-                        )
-                        raise e
-
-                    if pred_result is None:
-                        debug_logger(f"Collected prediction#{pred_i}: found None.")
-                    else:
-                        debug_logger(f"Collected prediction#{pred_i}: {type(pred_result)}.")
-                        evaluated_predictions.append(pred_result)
-                        accumulate_progress_bar.update(len(pred_result))
-
-                if len(evaluated_predictions) == 0:
-                    debug_logger(f"No results. evaluated_predictions={evaluated_predictions}")
-                    accumulate_progress_bar.failed("No results")
-                    raise ValueError("All predictions returned from actors were None.")
-
-                evaluated_predictions: Predictions = Predictions.concat(
-                    evaluated_predictions, error_on_empty=True
-                )
-                debug_logger(f"Concatenated into {len(evaluated_predictions)} rows of predictions.")
-
-                if len(evaluated_predictions) != input_len:
-                    num_failed_rows: int = input_len - len(evaluated_predictions)
-                    num_failed_rows_str: str = String.readable_number(num_failed_rows, decimals=1, short=True)
-                    accumulate_progress_bar.failed(f"Failed for {num_failed_rows_str} rows")
-                    if allow_partial_predictions is False:
-                        raise ValueError(
-                            f"Partial predictions returned: expected {input_len} rows, "
-                            f"but only got {len(evaluated_predictions)} rows from actors."
-                        )
-                else:
-                    accumulate_progress_bar.success(f"Collected {input_len_str} rows")
-
-                if metrics is not None:
-                    for metric in metrics:
-                        evaluated_metrics.append(evaluated_predictions.evaluate(metric=metric))
-            else:
-                ## Wait for predictions to complete:
-                wait(predictions)
-
-            timer.stop()
-            main_logger(
-                self._evaluate_end_msg(
-                    input_len=input_len,
-                    timer=timer,
-                    num_actors_created=num_actors_created,
-                    tracker=tracker,
-                )
-            )
-
-            return evaluated_predictions, evaluated_metrics
-
-        except Exception as e:
-            raise e
-        except KeyboardInterrupt as e:
-            raise e
-        finally:
-            ## If we don't have a timeout, delete actors after every execution.
-            if self.cache_timeout is None:
-                self.cleanup_model()
-            return evaluated_predictions, evaluated_metrics
