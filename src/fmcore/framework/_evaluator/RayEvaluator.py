@@ -16,16 +16,17 @@ from typing import (
 )
 
 import numpy as np
-from autoenum import AutoEnum, auto
 from bears import FileMetadata
 from bears.core.frame import DaskScalableDataFrame, ScalableDataFrame
 from bears.util import (
+    DataLoadingStrategy,
     LoadBalancingStrategy,
     ProgressBar,
     RayActorComposite,
     RayInitConfig,
     RayResources,
     RequestCounter,
+    ShardingStrategy,
     String,
     Timeout,
     Timer,
@@ -56,7 +57,7 @@ from fmcore.framework._metric import Metric
 from fmcore.framework._predictions import Predictions, load_predictions
 from fmcore.framework._tracker.Tracker import Tracker
 
-from ._evaluator_utils import algorithm_evaluator_verbosity, DataLoadingStrategy, ShardingStrategy
+from ._evaluator_utils import algorithm_evaluator_verbosity
 
 RayEvaluator = "RayEvaluator"
 if _IS_RAY_INSTALLED:
@@ -73,7 +74,6 @@ if _IS_RAY_INSTALLED:
 
         def get_rows_completed(self) -> int:
             return self.rows_completed
-
 
     @ray.remote
     class RayAlgorithmEvaluator:

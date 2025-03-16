@@ -143,7 +143,7 @@ with optional_dependency("boto3"):
         """
         Alternative implementation for calling Claude 3 models using the messages API.
         This version has simplified parameter handling with direct error propagation.
-        
+
         Example usage:
             >>> bedrock_client = boto3.client(service_name="bedrock-runtime", region_name="us-east-1")
             >>> response = call_claude_v3_messages_api(
@@ -153,39 +153,37 @@ with optional_dependency("boto3"):
                     max_tokens_to_sample=100
                 )
         """
-        messages = [
-            {"role": "user", "content": prompt}
-        ]
-        
+        messages = [{"role": "user", "content": prompt}]
+
         bedrock_params: Dict[str, Any] = {
             "anthropic_version": "bedrock-2023-05-31",
             "max_tokens": max_tokens_to_sample,
-            "messages": messages
+            "messages": messages,
         }
-        
+
         ## Add optional parameters if provided:
         if system is not None:
             bedrock_params["system"] = system
-            
+
         if temperature is not None:
             bedrock_params["temperature"] = temperature
-            
+
         if top_p is not None:
             bedrock_params["top_p"] = top_p
-            
+
         if top_k is not None:
             bedrock_params["top_k"] = top_k
-            
+
         if stop_sequences is not None:
             bedrock_params["stop_sequences"] = stop_sequences
-            
+
         response = bedrock.invoke_model(
             body=json.dumps(bedrock_params),
             modelId=model_name,
             accept="application/json",
             contentType="application/json",
         )
-        
+
         response_body: Dict = json.loads(response.get("body").read())
         return "\n".join([d["text"] for d in response_body.get("content")])
 

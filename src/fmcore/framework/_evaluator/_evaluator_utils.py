@@ -53,13 +53,7 @@ from fmcore.framework._metric import Metric
 from fmcore.framework._predictions import Predictions, load_predictions
 from fmcore.framework._tracker.Tracker import Tracker
 
-class ShardingStrategy(AutoEnum):
-    COARSE = auto()
-    GRANULAR = auto()
 
-class DataLoadingStrategy(AutoEnum):
-    LOCAL = auto()
-    DASK = auto()
 
 ALGORITHM_EVALUATOR_VERBOSITY_IGNORE: Dict[int, List[Callable]] = {
     0: [ignore_all_output],
