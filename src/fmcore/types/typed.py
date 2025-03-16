@@ -37,7 +37,6 @@ class Typed(BaseModel, ABC):
         arbitrary_types_allowed = True
 
 
-
 class MutableTyped(Typed, ABC):
     ## Ref on Pydantic + ABC: https://pydantic-docs.helpmanual.io/usage/models/#abstract-base-classes
 
