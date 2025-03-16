@@ -369,7 +369,7 @@ class Evaluator(MutableParameters, Registry, ABC):
         )
 
         Alias.set_return_predictions(kwargs)
-        return_predictions: bool = kwargs.pop("return_predictions", False)
+        return_predictions: bool = kwargs.pop("return_predictions", True)
 
         Alias.set_predictions_destination(kwargs)
         predictions_destination: Optional[Union[io.IOBase, FileMetadata, Dict, str]] = kwargs.pop(
@@ -419,9 +419,8 @@ class Evaluator(MutableParameters, Registry, ABC):
         kwargs["tracker"]: Tracker = Tracker.of(kwargs["tracker"])
 
         try:
-            self._evaluator_is_running: bool = (
-                True  ## Ensures we do not accidentally delete the models while running.
-            )
+            ## Ensures we do not accidentally delete the models while running.
+            self._evaluator_is_running: bool = True
             evaluated_predictions, evaluated_metrics = self._run_evaluation(
                 dataset,
                 metrics=metrics,
@@ -430,6 +429,8 @@ class Evaluator(MutableParameters, Registry, ABC):
                 progress_bar=progress_bar,
                 **kwargs,
             )
+        except Exception as e:
+            raise e
         finally:
             if self.cache_timeout is not None:  ## Rests the timeout
                 self.cache_timeout.reset_timeout()
