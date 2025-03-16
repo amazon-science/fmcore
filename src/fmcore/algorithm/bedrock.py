@@ -127,6 +127,68 @@ with optional_dependency("boto3"):
         response_body: Dict = json.loads(response.get("body").read())
         return "\n".join([d["text"] for d in response_body.get("content")])
 
+    def call_claude_v3_messages_api(
+        bedrock,
+        *,
+        model_name: str,
+        prompt: str,
+        max_tokens_to_sample: int,
+        temperature: Optional[float] = None,
+        system: Optional[str] = None,
+        top_k: Optional[int] = None,
+        top_p: Optional[float] = None,
+        stop_sequences: Optional[List[str]] = None,
+        **kwargs,
+    ) -> str:
+        """
+        Alternative implementation for calling Claude 3 models using the messages API.
+        This version has simplified parameter handling with direct error propagation.
+        
+        Example usage:
+            >>> bedrock_client = boto3.client(service_name="bedrock-runtime", region_name="us-east-1")
+            >>> response = call_claude_v3_messages_api(
+                    bedrock=bedrock_client,
+                    model_name="anthropic.claude-3-sonnet-20240229-v1:0",
+                    prompt="Tell me a joke",
+                    max_tokens_to_sample=100
+                )
+        """
+        messages = [
+            {"role": "user", "content": prompt}
+        ]
+        
+        bedrock_params: Dict[str, Any] = {
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": max_tokens_to_sample,
+            "messages": messages
+        }
+        
+        ## Add optional parameters if provided:
+        if system is not None:
+            bedrock_params["system"] = system
+            
+        if temperature is not None:
+            bedrock_params["temperature"] = temperature
+            
+        if top_p is not None:
+            bedrock_params["top_p"] = top_p
+            
+        if top_k is not None:
+            bedrock_params["top_k"] = top_k
+            
+        if stop_sequences is not None:
+            bedrock_params["stop_sequences"] = stop_sequences
+            
+        response = bedrock.invoke_model(
+            body=json.dumps(bedrock_params),
+            modelId=model_name,
+            accept="application/json",
+            contentType="application/json",
+        )
+        
+        response_body: Dict = json.loads(response.get("body").read())
+        return "\n".join([d["text"] for d in response_body.get("content")])
+
     def call_bedrock(
         prompt: str,
         *,
@@ -141,12 +203,22 @@ with optional_dependency("boto3"):
             # endpoint_url='https://bedrock.us-east-1.amazonaws.com',
         )
         if "anthropic.claude-3" in model_name:
-            generated_text: str = call_claude_v3(
-                bedrock=bedrock,
-                prompt=prompt,
-                model_name=model_name,
-                **generation_params,
-            )
+            if "anthropic.claude-3-5" in model_name:
+                ## Use the messages API implementation:
+                generated_text: str = call_claude_v3_messages_api(
+                    bedrock=bedrock,
+                    prompt=prompt,
+                    model_name=model_name,
+                    **generation_params,
+                )
+            else:
+                ## Use the original v3 implementation:
+                generated_text: str = call_claude_v3(
+                    bedrock=bedrock,
+                    prompt=prompt,
+                    model_name=model_name,
+                    **generation_params,
+                )
         elif "claude" in model_name:
             generated_text: str = call_claude_v1_v2(
                 bedrock=bedrock,
