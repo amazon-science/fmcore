@@ -1,6 +1,7 @@
 import io
 import json
 import math
+import threading
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from typing import (
@@ -81,6 +82,7 @@ class Evaluator(MutableParameters, Registry, ABC):
     _cache_timeout_daemon_id: Optional[str] = None
     _cache_timeout_daemons: Dict[str, List[bool]] = {}
     _evaluator_is_running: bool = False
+    _thread_lock: Optional[Any] = None
 
     custom_definitions: Tuple[
         Any, ...
@@ -217,6 +219,7 @@ class Evaluator(MutableParameters, Registry, ABC):
 
     def __init__(self, **kwargs):
         super(Evaluator, self).__init__(**kwargs)
+        self._thread_lock = threading.Lock()
 
     def initialize(self, **kwargs):
         """
@@ -229,10 +232,11 @@ class Evaluator(MutableParameters, Registry, ABC):
         """
         Load the model(s) into memory, and save them in the `model` variable.
         """
-        if self.model is not None:
-            ## If the model is already loaded, do not load it again.
-            return False
-        self.model: Any = self._load_model(**kwargs)
+        with self._thread_lock:
+            if self.model is not None:
+                ## If the model is already loaded, do not load it again.
+                return False
+            self.model: Any = self._load_model(**kwargs)
         if self.cache_timeout is not None:
 
             def cleanup_model_on_expiry():
