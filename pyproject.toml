@@ -19,7 +19,7 @@ license-files = ["LICENSE"]
 dependencies = [
     "autoenum",
     ## Pick up latest Git commit for bears package to ensure tests run:
-    "bears @ git+https://github.com/amazon-science/bears.git@main",
+    "bears",
     "requests",
     "pyyaml",
     "urllib3",
