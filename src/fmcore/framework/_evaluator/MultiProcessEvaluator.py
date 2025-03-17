@@ -10,6 +10,7 @@ from typing import (
     Callable,
     Dict,
     List,
+    Literal,
     Optional,
     Tuple,
     Union,
@@ -20,6 +21,7 @@ from bears import FileMetadata
 from bears.constants import REMOTE_STORAGES
 from bears.core.frame import ScalableDataFrame
 from bears.util import (
+    ActorProxy,
     Alias,
     DataLoadingStrategy,
     LoadBalancingStrategy,
@@ -29,10 +31,10 @@ from bears.util import (
     Timer,
     get_default,
     get_result,
+    is_done,
     safe_validate_arguments,
     set_param_from_alias,
     wait,
-    ActorProxy,
 )
 from bears.util.concurrency._processes import actor
 from pydantic import ConfigDict, confloat, conint, model_validator
@@ -147,6 +149,7 @@ class MultiProcessEvaluator(Evaluator):
 
     nested_evaluator_name: Optional[str] = None
     num_models: Optional[conint(ge=1)] = None
+    mp_context: Literal["spawn", "fork", "forkserver"] = "fork"
     model: Optional[List[Any]] = None  ## Stores the actor proxies
     progress_update_frequency: confloat(ge=0.0) = 15.0
     ## By default, do not cache the model:
@@ -205,6 +208,7 @@ class MultiProcessEvaluator(Evaluator):
                     evaluator=nested_evaluator_params,
                     actor=(actor_i, num_actors),
                     verbosity=self.verbosity,
+                    mp_context=self.mp_context,
                 )
             )
             actors_progress_bar.update(1)
@@ -226,7 +230,7 @@ class MultiProcessEvaluator(Evaluator):
         """Kill all process actors and clean up resources."""
         try:
             if self.model is not None:
-                actors: ActorProxy = self.model
+                actors: List[ActorProxy] = self.model
                 self.model = None
                 for actor in actors:
                     actor.stop(cancel_futures=True)
@@ -318,7 +322,7 @@ class MultiProcessEvaluator(Evaluator):
         read_as: Optional[DataLayout] = DataLayout.PANDAS,
         submission_batch_size: Optional[conint(ge=1)] = None,
         worker_queue_len: conint(ge=0) = 2,
-        submission_batch_wait: confloat(ge=0) = 15,
+        submission_batch_wait: confloat(ge=0) = 3.0,
         submission_batch_wait_jitter: confloat(ge=0.0, le=1.0) = 0.05,
         evaluation_timeout: confloat(ge=0, allow_inf_nan=True) = math.inf,
         allow_partial_predictions: bool = False,
@@ -725,8 +729,8 @@ class MultiProcessEvaluator(Evaluator):
             return rows_completed
 
         ## Check all futures for completion
-        for (actor_idx, batch_idx), fut in list(futures_to_check.items()):
-            if hasattr(fut, "done") and fut.done():
+        for (actor_idx, batch_idx), fut in futures_to_check.items():
+            if is_done(fut):
                 try:
                     ## Fetch the result; will throw an exception if task failed:
                     result = get_result(fut)
