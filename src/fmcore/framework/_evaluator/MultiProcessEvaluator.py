@@ -18,7 +18,7 @@ from typing import (
 
 import numpy as np
 from bears import FileMetadata
-from bears.constants import REMOTE_STORAGES
+from bears.constants import REMOTE_STORAGES, Parallelize
 from bears.core.frame import ScalableDataFrame
 from bears.util import (
     ActorProxy,
@@ -29,11 +29,14 @@ from bears.util import (
     String,
     Timeout,
     Timer,
+    accumulate,
+    dispatch_executor,
     get_default,
     get_result,
     is_done,
     safe_validate_arguments,
     set_param_from_alias,
+    stop_executor,
     wait,
 )
 from bears.util.concurrency._processes import actor
@@ -149,7 +152,7 @@ class MultiProcessEvaluator(Evaluator):
 
     nested_evaluator_name: Optional[str] = None
     num_models: Optional[conint(ge=1)] = None
-    mp_context: Literal["spawn", "fork", "forkserver"] = "fork"
+    mp_context: Literal["spawn", "fork", "forkserver"] = "spawn"
     model: Optional[List[Any]] = None  ## Stores the actor proxies
     progress_update_frequency: confloat(ge=0.0) = 15.0
     ## By default, do not cache the model:
@@ -200,19 +203,29 @@ class MultiProcessEvaluator(Evaluator):
             unit="actors",
         )
         nested_evaluator_params: Dict = self._create_nested_evaluator_params(**kwargs)
-        actors: List[Any] = []
 
+        ## TODO: fix the spawn creation logic to be faster. Currently, it is super slow
+        ## so we have to use a threadpool to create them.
+        actor_creation_executor = dispatch_executor(
+            parallelize=Parallelize.threads,
+            max_workers=min(num_actors, 20),
+        )
+        actors: List[Any] = []
         for actor_i in range(num_actors):
             actors.append(
-                ProcessAlgorithmEvaluator.remote(
+                actor_creation_executor.submit(
+                    ProcessAlgorithmEvaluator.remote,
                     evaluator=nested_evaluator_params,
                     actor=(actor_i, num_actors),
                     verbosity=self.verbosity,
                     mp_context=self.mp_context,
                 )
             )
-            actors_progress_bar.update(1)
             time.sleep(0.100)
+        for actor_i, actor_future in enumerate(actors):
+            actors[actor_i] = actor_future.result()
+            actors_progress_bar.update(1)
+        stop_executor(actor_creation_executor)
         if len(actors) != num_actors:
             msg: str = f"Creation of {num_actors - len(actors)} actors failed"
             actors_progress_bar.failed(msg)
@@ -228,13 +241,24 @@ class MultiProcessEvaluator(Evaluator):
 
     def _kill_actors(self):
         """Kill all process actors and clean up resources."""
+
+        def _stop_actor(actor: ActorProxy):
+            actor.stop(cancel_futures=True)
+            del actor
+            gc.collect()
+
         try:
             if self.model is not None:
                 actors: List[ActorProxy] = self.model
                 self.model = None
-                for actor in actors:
-                    actor.stop(cancel_futures=True)
-                    del actor
+                ## TODO: fix the spawn stop logic to be faster. Currently, it is super slow
+                ## so we have to use a threadpool to stop them.
+                actor_stop_executor = dispatch_executor(
+                    parallelize=Parallelize.threads,
+                    max_workers=min(len(actors), 20),
+                )
+                accumulate([actor_stop_executor.submit(_stop_actor, actor) for actor in actors])
+                stop_executor(actor_stop_executor)
                 del actors
         finally:
             gc.collect()
