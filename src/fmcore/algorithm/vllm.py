@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 from bears import FileMetadata
-from bears.util import EnvUtil, get_default, optional_dependency, set_param_from_alias
+from bears.util import EnvUtil, get_default, ignore_warnings, optional_dependency, set_param_from_alias
 from pydantic import confloat, conint, model_validator
 
 from fmcore.framework._task.text_generation import (
@@ -96,7 +96,8 @@ with optional_dependency("vllm"):
                 kwargs["hf_overrides"]["api_key"] = self.hyperparams.api_key
             print(f"Initializing vllm with kwargs: {kwargs}")
 
-            self.llm = LLM(**kwargs)
+            with ignore_warnings():
+                self.llm = LLM(**kwargs)
 
         def predict_step(self, batch: Prompts, **kwargs) -> Dict:
             """Run prediction on a batch of prompts"""
