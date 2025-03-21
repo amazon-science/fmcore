@@ -2,8 +2,9 @@ import os
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
+import requests
 from bears import FileMetadata
-from bears.util import EnvUtil, get_default, ignore_warnings, optional_dependency, set_param_from_alias
+from bears.util import EnvUtil, get_default, ignore_warnings, optional_dependency, retry, set_param_from_alias
 from pydantic import confloat, conint, model_validator
 
 from fmcore.framework._task.text_generation import (
@@ -16,6 +17,7 @@ from fmcore.framework._task.text_generation import (
 )
 
 with optional_dependency("vllm"):
+    from huggingface_hub.errors import HfHubHTTPError
     from vllm import LLM, SamplingParams
 
     os.environ["VLLM_LOGGING_LEVEL"] = "WARNING"
@@ -97,7 +99,14 @@ with optional_dependency("vllm"):
             print(f"Initializing vllm with kwargs: {kwargs}")
 
             with ignore_warnings():
-                self.llm = LLM(**kwargs)
+                self.llm = retry(
+                    LLM,
+                    retries=10,
+                    wait=30,
+                    jitter=0.5,
+                    retryable_exceptions=(requests.exceptions.ReadTimeout, HfHubHTTPError),
+                    **kwargs,
+                )
 
         def predict_step(self, batch: Prompts, **kwargs) -> Dict:
             """Run prediction on a batch of prompts"""
