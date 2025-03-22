@@ -1,8 +1,7 @@
-from typing import Dict, List, Any
+from typing import Dict, Any
 import logging
-from deepeval.models import DeepEvalBaseLLM
 from deepeval.metrics import GEval
-from deepeval.test_case import LLMTestCase, LLMTestCaseParams
+from deepeval.test_case import LLMTestCase
 
 from fmcore.adapters.deepeval_adapter import DeepEvalLLMAdapter
 from fmcore.llm.base_llm import BaseLLM
@@ -10,9 +9,7 @@ from fmcore.metrics.base_metric import BaseMetric
 from fmcore.types.enums.metric_enums import (
     MetricFramework,
     SupportedMetrics,
-    EvaluationFieldType,
 )
-from fmcore.types.llm_types import LLMConfig
 from fmcore.types.metric_types import (
     MetricConfig,
     MetricResult,

@@ -4,16 +4,13 @@ from pandas import DataFrame
 import dspy
 from dspy.teleprompt import Teleprompter
 from dspy.teleprompt.mipro_optimizer_v2 import MIPROv2
-from dspy.teleprompt.bootstrap import BootstrapFewShot
 from fmcore.metrics.base_metric import BaseMetric
 from fmcore.prompt_tuner.dspy.datasets.base_dataset import DspyDataset
 from fmcore.types.enums.metric_enums import (
     EvaluationFieldType,
-    MetricFramework,
 )
 from fmcore.types.metric_types import MetricResult
 from fmcore.types.prompt_tuner_types import OptimizerConfig, PromptConfig
-from fmcore.types.enums.prompt_tuner_enums import DspyOptimizerType
 
 
 class DSPyUtils:

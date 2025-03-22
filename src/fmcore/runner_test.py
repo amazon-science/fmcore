@@ -1,6 +1,4 @@
 from fmcore.runners.prompt_tuner_runner import PromptTunerRunner
-from fmcore.types.prompt_tuner_types import PromptTunerConfig
-from fmcore.types.run_config_types import PromptTunerRunConfig
 
 
 run_config = {
@@ -82,28 +80,3 @@ run_config = {
 }
 
 PromptTunerRunner().run(run_config=run_config)
-
-
-abc =  {
-    "metric_name": "UCB_EVAL",
-    "llm_config": {
-        "model_id": "anthropic.claude-3-haiku-20240307-v1:0",
-        "provider_params": {
-            "provider_type": "BEDROCK",
-            "accounts": [
-                {
-                    "rate_limit": 500,
-                }
-            ],
-        },
-    },
-    "metric_params": {
-        "name": "Custom Metric",
-        "prompt": 'You will be given a tweet and a label. Your task is to determine whether the LLM has correctly classified the sarcasm in the given input. Provide your judgment as `True` or `False`, along with a brief reason. \n\n\nTweet: {{INPUT.content}}  \nLabel: {{OUTPUT.label}} \n\n\nReturn the result in the following JSON format:  \n```json\n{\n  "judge_prediction": "True/False",\n  "reason": "reason"\n}\n```',
-        "criteria": "judge_prediction == 'True'",
-    },
-    "field_mapping": {
-        "INPUT": "INPUT",
-        "RESPONSE": "RESPONSE",
-    }
-}

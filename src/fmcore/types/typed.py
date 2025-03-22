@@ -5,7 +5,7 @@ from typing import (
     TypeVar,
 )
 from abc import ABC
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel
 from pydantic.alias_generators import to_camel
 
 TypedSubclass = TypeVar("TypedSubclass", bound="Typed")

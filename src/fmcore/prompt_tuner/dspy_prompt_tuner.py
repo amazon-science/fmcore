@@ -2,11 +2,7 @@ import dspy
 import pandas as pd
 from typing import Any, Callable, Dict, Optional
 
-from dspy.teleprompt import Teleprompter
-from dspy.teleprompt.mipro_optimizer_v2 import MIPROv2
-from dspy.teleprompt.bootstrap import BootstrapFewShot
 from dspy import Signature, Module
-from asteval import Interpreter
 
 from fmcore.metrics.base_metric import BaseMetric
 from fmcore.prompt_tuner.base_prompt_tuner import BasePromptTuner
@@ -18,7 +14,6 @@ from fmcore.types.enums.prompt_tuner_enums import PromptTunerFramework
 from fmcore.types.prompt_tuner_types import PromptTunerConfig, PromptTunerResult
 
 from fmcore.adapters.dspy_adapter import DSPyLLMAdapter
-from fmcore.utils.introspection_utils import IntrospectionUtils
 
 import dspy.adapters.chat_adapter as chat_adapter_module
 from fmcore.prompt_tuner.dspy.adapters.chat_adapter import custom_prepare_instructions

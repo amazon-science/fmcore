@@ -1,8 +1,6 @@
 import dspy
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Optional
-from dspy.teleprompt import Teleprompter
-from dspy import Example
+from typing import Any, Callable, Dict, Optional
 
 from fmcore.prompt_tuner.dspy.datasets.base_dataset import DspyDataset
 from fmcore.types.enums.prompt_tuner_enums import DspyOptimizerType

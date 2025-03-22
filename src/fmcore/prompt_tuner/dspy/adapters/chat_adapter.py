@@ -2,19 +2,16 @@ import inspect
 import enum
 import json
 import textwrap
-from typing import Any, Dict, Optional, Type
+from typing import Dict, Literal
 
-from dspy import ChatAdapter
 from dspy.adapters.chat_adapter import (
     enumerate_fields,
     format_fields,
     get_dspy_field_type,
     prepare_schema,
-    prepare_instructions,
 )
 from dspy.adapters.chat_adapter import FieldInfoWithName, BuiltInCompletedOutputFieldInfo, FieldInfo
-from dspy.signatures.signature import Signature, SignatureMeta
-from dspy.utils.callback import BaseCallback
+from dspy.signatures.signature import SignatureMeta
 
 
 def custom_prepare_instructions(signature: SignatureMeta):

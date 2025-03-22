@@ -2,7 +2,7 @@ import pandas as pd
 from abc import ABC, abstractmethod
 from typing import Dict
 from fmcore.types.enums.dataset_enums import DatasetType
-from fmcore.types.prompt_tuner_types import PromptConfig, PromptTunerConfig, PromptTunerResult
+from fmcore.types.prompt_tuner_types import PromptTunerConfig, PromptTunerResult
 from fmcore.types.typed import MutableTyped
 from bears.util import Registry
 

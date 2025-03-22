@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Iterator, List
+from typing import Iterator, List
 
 from bears.util import Registry
 from langchain_core.messages import BaseMessage, BaseMessageChunk

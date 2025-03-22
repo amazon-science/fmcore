@@ -6,7 +6,8 @@ build-backend = "hatchling.build"
 name = "fmcore"
 dynamic = ["version"]
 authors = [
-    { name = "Abhishek Divekar", email = "adivekar@utexas.edu" }
+    { name = "Abhishek Divekar", email = "adivekar@utexas.edu" },
+    { name = "Siba Rajendran", email = "rsiba234@gmail.com" }
 ]
 description = "A specialized toolkit for scaling experimental research with Foundation Models."
 readme = "README.md"
@@ -87,7 +88,7 @@ allow-direct-references = true
 pythonpath = ["src"]
 
 [tool.ruff]
-line-length = 110
+line-length = 110the
 fix = true
 force-exclude = true
 extend-exclude = [

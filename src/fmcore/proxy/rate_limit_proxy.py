@@ -1,6 +1,5 @@
 from fmcore.proxy.base_proxy import BaseProxy
 from aiolimiter import AsyncLimiter
-from typing import Optional
 
 
 class RateLimitedProxy(BaseProxy):

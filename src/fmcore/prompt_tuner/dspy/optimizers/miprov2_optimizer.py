@@ -1,8 +1,5 @@
-from typing import Any, Dict, List, Optional, ClassVar
-import inspect
-from copy import deepcopy
+from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, Field, model_validator
 from dspy.teleprompt import MIPROv2
 from dspy.evaluate import Evaluate
 from fmcore.prompt_tuner.dspy.datasets.base_dataset import DspyDataset
@@ -12,7 +9,6 @@ from fmcore.prompt_tuner.dspy.optimizers.base_dspy_optimizer import (
 from fmcore.prompt_tuner.dspy.utils.commons import DSPyUtils
 from fmcore.types.enums.prompt_tuner_enums import DspyOptimizerType
 from fmcore.types.prompt_tuner_types import OptimizedPrompt, PromptTunerResult
-from fmcore.types.typed import MutableTyped
 from fmcore.utils.introspection_utils import IntrospectionUtils
 
 

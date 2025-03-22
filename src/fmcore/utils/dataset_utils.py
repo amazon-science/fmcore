@@ -3,7 +3,6 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from bears import FileMetadata, ScalableDataFrame
 from bears.reader import Reader
-from fmcore.types.dataset_types import DatasetConfig
 from fmcore.types.enums.dataset_enums import DatasetType
 
 

@@ -2,7 +2,6 @@ from typing import ClassVar, Dict
 import pandas as pd
 from dspy.datasets.dataset import Dataset
 from dspy.datasets import DataLoader
-from sklearn.model_selection import train_test_split
 
 from fmcore.types.prompt_tuner_types import PromptConfig
 

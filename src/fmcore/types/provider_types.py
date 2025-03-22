@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import List, Optional, Literal
+from typing import List, Optional
 
 from fmcore.types.typed import MutableTyped
 from fmcore.types.enums.provider_enums import ProviderType
