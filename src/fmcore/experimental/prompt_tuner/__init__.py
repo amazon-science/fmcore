@@ -1,2 +1,0 @@
-from fmcore.experimental.prompt_tuner.base_prompt_tuner import BasePromptTuner
-from fmcore.experimental.prompt_tuner.dspy_prompt_tuner import DSPyPromptTuner
