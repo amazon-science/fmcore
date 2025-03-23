@@ -9,5 +9,6 @@ from fmcore.types.prompt_tuner_types import (
 class BaseRunConfig(MutableTyped):
     dataset_config: DatasetConfig
 
+
 class PromptTunerRunConfig(BaseRunConfig):
     prompt_tuner_config: PromptTunerConfig

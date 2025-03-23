@@ -53,9 +53,7 @@ class MIPROV2Optimizer(BaseDspyOptimizer):
         )
 
         # Run optimization with filtered compile params
-        compile_params = IntrospectionUtils.filter_params(
-            func=MIPROv2.compile, params=optimizer_params or {}
-        )
+        compile_params = IntrospectionUtils.filter_params(func=MIPROv2.compile, params=optimizer_params or {})
         optimized_program = optimizer.compile(
             student=self.module,
             trainset=dataset.train,

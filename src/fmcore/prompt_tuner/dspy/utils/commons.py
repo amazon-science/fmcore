@@ -4,13 +4,16 @@ from pandas import DataFrame
 import dspy
 from dspy.teleprompt import Teleprompter
 from dspy.teleprompt.mipro_optimizer_v2 import MIPROv2
+
+from fmcore.adapters.dspy_adapter import DSPyLLMAdapter
 from fmcore.metrics.base_metric import BaseMetric
 from fmcore.prompt_tuner.dspy.datasets.base_dataset import DspyDataset
 from fmcore.types.enums.metric_enums import (
     EvaluationFieldType,
 )
+from fmcore.types.llm_types import LLMConfig
 from fmcore.types.metric_types import MetricResult
-from fmcore.types.prompt_tuner_types import OptimizerConfig, PromptConfig
+from fmcore.types.prompt_tuner_types import PromptConfig
 
 
 class DSPyUtils:
@@ -24,42 +27,17 @@ class DSPyUtils:
     """
 
     @staticmethod
-    def get_optimizer(
-        student: dspy.LM,
-        teacher: dspy.LM,
-        optimzer_config: OptimizerConfig,
-        evaluate_func: Callable,
-    ) -> Teleprompter:
+    def create_dspy_lm(llm_config: LLMConfig):
         """
-        Creates and configures a DSPy optimizer based on configuration parameters.
-
-        Acts as a factory method that instantiates the appropriate optimizer type
-        based on the configuration. Currently supports MIPROv2 with plans to expand
-        to other optimizer types.
+        Creates and returns a DSPyLLMAdapter instance using the provided LLM configuration.
 
         Args:
-            student: The language model that will be used for the actual task (student model)
-            teacher: The language model used for prompt optimization (teacher model)
-            optimzer_config: Configuration for the optimizer including type and parameters
-            evaluate_func: Evaluation function used to assess prediction quality
+            llm_config (LLMConfig): The configuration for the LLM.
 
         Returns:
-            A configured DSPy Teleprompter instance that can be used for prompt optimization
-
-        Note:
-            Currently only MIPROv2 is implemented. Future implementations will support
-            additional optimizer types based on DspyOptimizerType.
+            DSPyLLMAdapter: An instance of DSPyLLMAdapter initialized with the given config.
         """
-        # Factory method that returns the appropriate optimizer based on the optimizer type
-        # TODO: Extend to support multiple optimizer types from DspyOptimizerType enum
-        optimizer: Teleprompter = MIPROv2(
-            prompt_model=teacher,
-            task_model=student,
-            metric=evaluate_func,
-            **optimzer_config.params,
-        )
-
-        return optimizer
+        return DSPyLLMAdapter(llm_config=llm_config)
 
     @staticmethod
     def create_dspy_dataset(data: DataFrame, prompt_config: PromptConfig) -> DspyDataset:

@@ -10,17 +10,15 @@ from bears.util import Registry
 
 
 class BaseDspyOptimizer(MutableTyped, Registry, ABC):
-    student: dspy.LM
-    teacher: Optional[dspy.LM]
     module: dspy.Module
     evaluate: Callable
 
     @classmethod
-    def of(
-        cls,
+    def of(cls,
+
+
         optimizerType: DspyOptimizerType,
-        student: dspy.LM,
-        teacher: Optional[dspy.LM],
+        optimizer_config: OptimizerConfig
         module: dspy.Module,
         evaluate: Callable,
         **kwargs,

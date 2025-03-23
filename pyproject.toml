@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fmcore"
-dynamic = ["version"]
+version = "0.1.5.dev0"
 authors = [
     { name = "Abhishek Divekar", email = "adivekar@utexas.edu" },
     { name = "Siba Rajendran", email = "rsiba234@gmail.com" }
@@ -20,7 +20,7 @@ license-files = ["LICENSE"]
 dependencies = [
     "autoenum",
     ## Pick up latest Git commit for bears package to ensure tests run:
-    "bears @ git+https://github.com/amazon-science/bears.git@main",
+    "bears==0.1.*",
     "requests",
     "pyyaml==6.*",
     "urllib3",
@@ -78,8 +78,6 @@ all = [
     "faiss-cpu",
 ]
 
-[tool.hatch.version]
-source = "vcs"
 
 [tool.hatch.metadata]
 allow-direct-references = true
