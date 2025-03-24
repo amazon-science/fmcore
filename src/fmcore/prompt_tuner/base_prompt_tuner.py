@@ -24,4 +24,3 @@ class BasePromptTuner(MutableTyped, Registry, ABC):
     @abstractmethod
     def tune(self, *, data: Dict[DatasetType, pd.DataFrame]) -> PromptTunerResult:
         pass
-    

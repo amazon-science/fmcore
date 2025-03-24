@@ -1,5 +1,6 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
+import dspy
 from dspy.teleprompt import MIPROv2
 from dspy.evaluate import Evaluate
 from fmcore.prompt_tuner.dspy.datasets.base_dataset import DspyDataset
@@ -8,7 +9,7 @@ from fmcore.prompt_tuner.dspy.optimizers.base_dspy_optimizer import (
 )
 from fmcore.prompt_tuner.dspy.utils.commons import DSPyUtils
 from fmcore.types.enums.prompt_tuner_enums import DspyOptimizerType
-from fmcore.types.prompt_tuner_types import OptimizedPrompt, PromptTunerResult
+from fmcore.types.prompt_tuner_types import TunedPrompt, PromptTunerResult
 from fmcore.utils.introspection_utils import IntrospectionUtils
 
 
@@ -24,7 +25,7 @@ class MIPROV2Optimizer(BaseDspyOptimizer):
 
     def optimize(
         self, dataset: DspyDataset, optimizer_params: Optional[Dict[str, Any]] = None
-    ) -> PromptTunerResult:
+    ) -> List[dspy.Module]:
         """
         Optimize prompts using MIPROv2 with default parameters and runtime overrides.
 
@@ -53,7 +54,9 @@ class MIPROV2Optimizer(BaseDspyOptimizer):
         )
 
         # Run optimization with filtered compile params
-        compile_params = IntrospectionUtils.filter_params(func=MIPROv2.compile, params=optimizer_params or {})
+        compile_params = IntrospectionUtils.filter_params(
+            func=MIPROv2.compile, params=optimizer_params or {}
+        )
         optimized_program = optimizer.compile(
             student=self.module,
             trainset=dataset.train,
@@ -62,28 +65,6 @@ class MIPROV2Optimizer(BaseDspyOptimizer):
             **compile_params,
         )
 
-        optimized_prompts = []
-
-        # MIPROv2 returns a list of candidate programs, each containing:
-        # - A "program" object with the optimized DSPy module in predictor.predict
-        # - A "score" indicating how well that program performed
-        for candidate in optimized_program.candidate_programs:
-            # Extract the optimized DSPy module from the candidate program
-            optimized_module = candidate["program"].predictor.predict
-            prompt_template = DSPyUtils.convert_module_to_prompt(module=optimized_module)
-            optimized_prompt = OptimizedPrompt(template=prompt_template, score=candidate["score"])
-            optimized_prompts.append(optimized_prompt)
-
-        # Sort prompts by score in descending order
-        optimized_prompts.sort(key=lambda x: x.score, reverse=True)
-
-        evaluate = Evaluate(
-            devset=dataset.train,
-            metric=self.evaluate,
-            num_threads=20,
-            max_errors=20,
-            display_table=False,
-            display_progress=True,
-        )
-
-        return PromptTunerResult(prompts=optimized_prompts)
+        optimized_candidates = [candidate["program"].predictor.predict
+                             for candidate in optimized_program.candidate_programs]
+        return optimized_candidates

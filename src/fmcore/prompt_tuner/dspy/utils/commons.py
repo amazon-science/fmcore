@@ -1,9 +1,11 @@
+import dspy
+
 from typing import Callable, Dict, List, Type, Union
+
+import pandas as pd
 from asteval import Interpreter
 from pandas import DataFrame
-import dspy
-from dspy.teleprompt import Teleprompter
-from dspy.teleprompt.mipro_optimizer_v2 import MIPROv2
+from langchain_core.prompts.chat import ChatPromptTemplate
 
 from fmcore.adapters.dspy_adapter import DSPyLLMAdapter
 from fmcore.metrics.base_metric import BaseMetric
@@ -13,7 +15,7 @@ from fmcore.types.enums.metric_enums import (
 )
 from fmcore.types.llm_types import LLMConfig
 from fmcore.types.metric_types import MetricResult
-from fmcore.types.prompt_tuner_types import PromptConfig
+from fmcore.types.prompt_tuner_types import PromptConfig, PromptEvaluationResult
 
 
 class DSPyUtils:
@@ -102,7 +104,7 @@ class DSPyUtils:
         return TaskSignature
 
     @staticmethod
-    def create_dspy_module(signature: Type[dspy.Signature]) -> Type[dspy.Module]:
+    def create_dspy_module(signature: Type[dspy.Signature]) -> dspy.Module:
         """
         Creates a DSPy Module that uses the provided signature.
 
@@ -233,9 +235,7 @@ class DSPyUtils:
 
         # Get input field names from signature and create template variables
         signature: dspy.Signature = module.signature
-        inputs = {
-            field_name: f"{{{field_name}}}" for field_name in signature.input_fields.keys()
-        }
+        inputs = {field_name: f"{{{field_name}}}" for field_name in signature.input_fields.keys()}
 
         # Format the module into chat messages using the adapter
         messages = adapter.format(signature=signature, demos=module.demos, inputs=inputs)
@@ -260,8 +260,41 @@ class DSPyUtils:
         """
         # First get the messages using the existing method
         messages = DSPyUtils.convert_module_to_messages(module)
-
-        # Extract content from each message and join with newlines
-        prompt = "".join(message["content"] for message in messages)
-
+        prompt_template: ChatPromptTemplate = ChatPromptTemplate.from_messages(messages=messages)
+        keys: List[str] = list(module.signature.input_fields.keys()) + list(module.signature.output_fields.keys())
+        prompt = prompt_template.format(**{key: "{{{}}}".format(key) for key in keys})
         return prompt
+
+    @staticmethod
+    def evaluate_module(
+            module: dspy.Module, dataset: List[dspy.Example], evaluator: dspy.Evaluate
+    ) -> PromptEvaluationResult:
+        """
+        Evaluates a DSPy module using a dataset and an evaluation metric.
+
+        Args:
+            module: The DSPy module to evaluate.
+            dataset: The dataset used for evaluation.
+            evaluator: The evaluation metric.
+
+        Returns:
+            A PromptEvaluationResult containing the evaluation score and processed results.
+        """
+        score, evaluation_results = evaluator(module, devset=dataset)
+
+        prompt_template = ChatPromptTemplate.from_messages(
+            messages=DSPyUtils.convert_module_to_messages(module)
+        )
+
+        processed_results = []
+        for example, prediction, is_correct in evaluation_results:
+            record = {**example.inputs().toDict(), **prediction.toDict()}
+            prompt = prompt_template.format(**record)
+            row = {
+                **record,
+                "prompt": prompt,
+                "is_correct": is_correct
+            }
+            processed_results.append(row)
+
+        return PromptEvaluationResult(score=score, data=pd.DataFrame(processed_results))

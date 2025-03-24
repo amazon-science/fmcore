@@ -1,6 +1,6 @@
 import dspy
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, List
 
 from fmcore.prompt_tuner.dspy.datasets.base_dataset import DspyDataset
 from fmcore.types.enums.prompt_tuner_enums import DspyOptimizerType
@@ -10,15 +10,17 @@ from bears.util import Registry
 
 
 class BaseDspyOptimizer(MutableTyped, Registry, ABC):
+    student: dspy.LM
+    teacher: Optional[dspy.LM]
     module: dspy.Module
     evaluate: Callable
 
     @classmethod
-    def of(cls,
-
-
+    def of(
+        cls,
         optimizerType: DspyOptimizerType,
-        optimizer_config: OptimizerConfig
+        student: dspy.LM,
+        teacher: Optional[dspy.LM],
         module: dspy.Module,
         evaluate: Callable,
         **kwargs,
@@ -29,5 +31,5 @@ class BaseDspyOptimizer(MutableTyped, Registry, ABC):
         )
 
     @abstractmethod
-    def optimize(self, dataset: DspyDataset, optimzer_params: Dict[str, Any]) -> PromptTunerResult:
+    def optimize(self, dataset: DspyDataset, optimzer_params: Dict[str, Any]) -> List[dspy.Module]:
         pass

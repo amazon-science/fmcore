@@ -1,5 +1,5 @@
 ## Import in dependency order:
-_LIBRARY_NAME: str = 'fmcore'
+_LIBRARY_NAME: str = "fmcore"
 import bears.util
 import fmcore.constants
 import fmcore.data

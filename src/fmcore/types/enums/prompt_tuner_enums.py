@@ -19,3 +19,9 @@ class DspyOptimizerType(OptimizerType):
     MIPRO_V2 = auto()
     COPRO = auto()
     BOOTSTRAP = auto()
+
+
+class PromptTunerTaskType(AutoEnum):
+    BINARY_CLASSIFICATION = auto()
+    MULTI_CLASS_CLASSIFICATION = auto()
+    TEXT_GENERATION = auto()

@@ -24,10 +24,14 @@ class PromptConfig(MutableTyped):
     output_fields: List[PromptField]
 
 
-class MIPROV2OptimizerType(MutableTyped):
-    type: DspyOptimizerType = DspyOptimizerType.MIPRO_V2
+class BaseOptimizerTypeConfig(MutableTyped):
     student_config: LLMConfig
-    teacher_config: LLMConfig
+    teacher_config: Optional[LLMConfig]
+    metric_config: MetricConfig
+
+
+class MIPROV2OptimizerType(BaseOptimizerTypeConfig):
+    type: DspyOptimizerType = DspyOptimizerType.MIPRO_V2
     metric_config: MetricConfig
     optimizer_params: Dict[str, Any] = {}  # TODO: Think Again
 
@@ -35,19 +39,20 @@ class MIPROV2OptimizerType(MutableTyped):
 class PromptTunerConfig(MutableTyped):
     framework: PromptTunerFramework
     prompt_config: PromptConfig
-    optimzer_config: Union[MIPROV2OptimizerType]
+    optimizer_config: Union[MIPROV2OptimizerType]
 
 
-class EvaluationResult(MutableTyped):
+class PromptEvaluationResult(MutableTyped):
     score: float
-    result: Optional[pd.DataFrame]
+    data: Optional[pd.DataFrame]
 
 
-class OptimizedPrompt(MutableTyped):
-    template: str
-    validation_result: Optional[EvaluationResult]
-    test_result: Optional[EvaluationResult]
+class TunedPrompt(MutableTyped):
+    prompt_id: str
+    prompt: str
+    validation_result: Optional[PromptEvaluationResult]
+    test_result: Optional[PromptEvaluationResult]
 
 
 class PromptTunerResult(MutableTyped):
-    prompts: List[OptimizedPrompt]
+    prompts: List[TunedPrompt]
