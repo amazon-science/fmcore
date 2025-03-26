@@ -10,4 +10,5 @@ class RateLimitedProxy(BaseProxy):
         rate_limiter (AsyncLimiter): An instance of AsyncLimiter to control the rate of requests.
     """
 
+    # TODO: Generify this ratelimiter using custom rate limiter interfaces
     rate_limiter: AsyncLimiter
