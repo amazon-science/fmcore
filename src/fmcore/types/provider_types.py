@@ -27,7 +27,7 @@ class BedrockAccountConfig(NetworkConfig):
         role_arn (str): The IAM role ARN associated with the account (default: None).
     """
 
-    region: Optional[str] = AWSRegion.US_EAST_1
+    region: Optional[str] = AWSRegion.US_EAST_1.value
     role_arn: Optional[str] = None
 
 

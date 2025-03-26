@@ -39,9 +39,7 @@ class BedrockFactory:
             clients = BedrockFactory.create_bedrock_clients(llm_config)
         """
         return [
-            BedrockFactory._create_bedrock_client_with_converse(
-                account_config=account, llm_config=llm_config
-            )
+            BedrockFactory._create_bedrock_client_with_converse(account_config=account, llm_config=llm_config)
             for account in llm_config.provider_params.accounts
         ]
 
