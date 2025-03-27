@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Iterator, List
+from typing import Iterator, List, AsyncIterator
 
 from bears.util import Registry
 from langchain_core.messages import BaseMessage, BaseMessageChunk
@@ -122,7 +122,7 @@ class BaseLLM(MutableTyped, Registry, ABC):
         pass
 
     @abstractmethod
-    def astream(self, messages: List[BaseMessage]) -> Iterator[BaseMessageChunk]:
+    def astream(self, messages: List[BaseMessage]) -> AsyncIterator[BaseMessageChunk]:
         """
         Asynchronously streams responses from the LLM for the given messages.
 

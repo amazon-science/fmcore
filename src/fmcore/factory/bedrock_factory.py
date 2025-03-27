@@ -5,10 +5,10 @@ from langchain_aws import ChatBedrockConverse
 
 from fmcore.factory.boto_factory import BotoFactory
 from fmcore.types.llm_types import LLMConfig
-from fmcore.proxy.rate_limit_proxy import RateLimitedProxy
+from fmcore.context.runtime_context import RuntimeContext
 from fmcore.types.provider_types import BedrockAccountConfig
 
-BedrockClientProxy: TypeAlias = RateLimitedProxy[ChatBedrockConverse]
+BedrockRuntimeContext: TypeAlias = RuntimeContext[ChatBedrockConverse]
 
 
 class BedrockFactory:
@@ -23,7 +23,7 @@ class BedrockFactory:
     """
 
     @staticmethod
-    def create_bedrock_clients(llm_config: LLMConfig) -> List[BedrockClientProxy]:
+    def create_bedrock_clients(llm_config: LLMConfig) -> List[BedrockRuntimeContext]:
         """Creates multiple Bedrock clients based on the provided configuration.
 
         Args:
@@ -31,7 +31,7 @@ class BedrockFactory:
                                   including account configurations and model parameters.
 
         Returns:
-            List[BedrockClientProxy]: A list of rate-limited Bedrock client proxies, one for each
+            List[BedrockClientWrapper]: A list of rate-limited Bedrock client wrappers, one for each
                                     account specified in the configuration.
 
         Example:
@@ -46,7 +46,7 @@ class BedrockFactory:
     @staticmethod
     def _create_bedrock_client_with_converse(
         account_config: BedrockAccountConfig, llm_config: LLMConfig
-    ) -> BedrockClientProxy:
+    ) -> BedrockRuntimeContext:
         """Creates a single Bedrock client with rate limiting capabilities.
 
         Args:
@@ -55,7 +55,7 @@ class BedrockFactory:
             llm_config (LLMConfig): Configuration containing model settings and parameters.
 
         Returns:
-            BedrockClientProxy: A rate-limited proxy wrapper around the Bedrock client.
+            BedrockClientWrapper: A rate-limited wrapper around the Bedrock client.
 
         Note:
             The method configures rate limiting based on the account's specified rate limit
@@ -74,7 +74,8 @@ class BedrockFactory:
         )
 
         # Create rate limiter based on account config
-        rate_limiter = AsyncLimiter(max_rate=account_config.rate_limit)
+        rate_limiter = AsyncLimiter(
+            max_rate=account_config.rate_limit.max_rate, time_period=account_config.rate_limit.time_period
+        )
 
-        # Create proxy without weight
-        return BedrockClientProxy(client=converse_client, rate_limiter=rate_limiter)
+        return BedrockRuntimeContext(client=converse_client, rate_limiter=rate_limiter)

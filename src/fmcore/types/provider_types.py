@@ -1,94 +1,97 @@
-from abc import ABC
-from typing import List, Optional
-
-from fmcore.types.enums.aws_enums import AWSRegion
-from fmcore.types.typed import MutableTyped
+from typing import List
 from fmcore.types.enums.provider_enums import ProviderType
+from fmcore.types.mixins_types import AWSAccountMixin, RequestConfigMixin, APIKeyServiceMixin
+from fmcore.types.typed import MutableTyped
 
 
-class NetworkConfig(MutableTyped, ABC):
-    """Abstract base class for network-related configurations.
+class BedrockAccountConfig(AWSAccountMixin, RequestConfigMixin):
+    """
+    Configuration for a Bedrock account based on AWS.
 
-    Attributes:
-        rate_limit (int): The maximum number of requests allowed per time unit.
-        timeout (int): The timeout duration for network requests (default: 30).
+    This class combines AWS account settings with request configuration settings (such as rate limits,
+    timeouts, and retries) needed to interact with Bedrock services.
+
+    Inherits:
+        AWSAccountMixin: Provides AWS-specific configuration (e.g., role ARN, region).
+        RequestConfigMixin: Provides API request-related settings.
     """
 
-    rate_limit: Optional[int] = 50
-    timeout: Optional[int] = 30
+    pass
 
 
-class BedrockAccountConfig(NetworkConfig):
-    """Configuration for a Bedrock account.
+class LambdaAccountConfig(AWSAccountMixin, RequestConfigMixin):
+    """
+    Configuration for a Lambda account based on AWS.
+
+    This class combines AWS account settings with request configuration settings necessary for invoking
+    AWS Lambda functions.
 
     Attributes:
-        account_id (str): The unique identifier for the account (default: "default").
-        region (str): The AWS region where the account is located (default: "us-east-1").
-        role_arn (str): The IAM role ARN associated with the account (default: None).
+        function_name (str): The name of the Lambda function to be invoked.
+
+    Inherits:
+        AWSAccountMixin: Provides AWS-specific configuration.
+        RequestConfigMixin: Provides API request-related settings.
     """
 
-    region: Optional[str] = AWSRegion.US_EAST_1.value
-    role_arn: Optional[str] = None
+    function_name: str
+
+
+class OpenAIAccountConfig(APIKeyServiceMixin, RequestConfigMixin):
+    """
+    Configuration for an OpenAI account based on API-key authentication.
+
+    This class merges API-key based service settings with request configuration settings required
+    to make REST API calls to OpenAI services.
+
+    Inherits:
+        APIKeyServiceMixin: Provides API key and optional base URL for the service.
+        RequestConfigMixin: Provides API request-related settings.
+    """
+
+    pass
 
 
 class BedrockProviderParams(MutableTyped):
-    """Parameters specific to the Bedrock provider.
+    """
+    Provider configuration parameters for Bedrock.
+
+    This class specifies the provider type and the associated Bedrock account configurations.
 
     Attributes:
-        provider_type (Literal[ProviderType.BEDROCK]): The provider type.
-        accounts (List[BedrockAccountConfig]): A list of account configurations.
+        provider_type (ProviderType): The type of the provider, fixed to ProviderType.BEDROCK.
+        accounts (List[BedrockAccountConfig]): A list of Bedrock account configurations.
     """
 
     provider_type: ProviderType = ProviderType.BEDROCK
     accounts: List[BedrockAccountConfig]
 
 
-class OpenAIAccountConfig(NetworkConfig):
-    """Configuration for an OpenAI account.
+class LambdaProviderParams(MutableTyped):
+    """
+    Provider configuration parameters for AWS Lambda.
+
+    This class specifies the provider type and the associated Lambda account configurations.
 
     Attributes:
-        api_key (str): The API key used for authentication with OpenAI.
-        base_url (Optional[str]): The base URL for the OpenAI API (optional).
+        provider_type (ProviderType): The type of the provider, fixed to ProviderType.LAMBDA.
+        accounts (List[LambdaAccountConfig]): A list of Lambda account configurations.
     """
 
-    api_key: str
-    base_url: Optional[str] = None
+    provider_type: ProviderType = ProviderType.LAMBDA
+    accounts: List[LambdaAccountConfig]
 
 
 class OpenAIProviderParams(MutableTyped):
-    """Parameters specific to the OpenAI provider.
+    """
+    Provider configuration parameters for OpenAI.
+
+    This class specifies the provider type and the associated OpenAI account configurations.
 
     Attributes:
-        provider_type (Literal[ProviderType.OPENAI]): The provider type.
+        provider_type (ProviderType): The type of the provider, fixed to ProviderType.OPENAI.
         accounts (List[OpenAIAccountConfig]): A list of OpenAI account configurations.
     """
 
     provider_type: ProviderType = ProviderType.OPENAI
     accounts: List[OpenAIAccountConfig]
-
-
-class LambdaAccountConfig(NetworkConfig):
-    """Configuration for a Lambda account.
-
-    Attributes:
-        account_id (str): The unique identifier for the account (default: "default-account").
-        region (str): The AWS region where the Lambda function is deployed (default: "us-east-1").
-        role_arn (str): The IAM role ARN associated with the account (default: None).
-        function_name (str): The name of the Lambda function (default: "default-function").
-    """
-
-    function_name: str
-    region: str = AWSRegion.US_EAST_1
-    role_arn: Optional[str] = None
-
-
-class LambdaProviderParams(MutableTyped):
-    """Parameters specific to the Lambda provider.
-
-    Attributes:
-        provider_type (Literal[ProviderType.LAMBDA]): The provider type.
-        accounts (List[LambdaAccountConfig]): A list of Lambda execution configurations.
-    """
-
-    provider_type: ProviderType = ProviderType.LAMBDA
-    accounts: List[LambdaAccountConfig]

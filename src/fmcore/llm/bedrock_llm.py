@@ -1,12 +1,12 @@
 import random
-from typing import List, Iterator
+from typing import List, Iterator, AsyncIterator
 
 from pydantic import BaseModel, Field
 from langchain_core.messages import BaseMessage, BaseMessageChunk
 
 from fmcore.factory.bedrock_factory import (
     BedrockFactory,
-    BedrockClientProxy,
+    BedrockRuntimeContext,
 )
 from fmcore.llm.base_llm import BaseLLM
 from fmcore.types.enums.provider_enums import ProviderType
@@ -21,12 +21,12 @@ class BedrockLLM(BaseLLM, BaseModel):
     rate limits when choosing a client for requests.
 
     Attributes:
-        bedrock_clients (List[BedrockClientProxy]): List of rate-limited Bedrock client proxies.
+        bedrock_clients (List[BedrockClientWrapper]): List of rate-limited Bedrock client wrappers.
         aliases (List[str]): Provider type aliases, set to [ProviderType.BEDROCK].
     """
 
     aliases = [ProviderType.BEDROCK]
-    bedrock_clients: List[BedrockClientProxy] = Field(default_factory=list)
+    bedrock_clients: List[BedrockRuntimeContext] = Field(default_factory=list)
 
     @classmethod
     def _get_constructor_parameters(cls, *, llm_config: LLMConfig) -> dict:
@@ -41,7 +41,7 @@ class BedrockLLM(BaseLLM, BaseModel):
         bedrock_clients = BedrockFactory.create_bedrock_clients(llm_config=llm_config)
         return {"config": llm_config, "bedrock_clients": bedrock_clients}
 
-    def get_random_client(self) -> BedrockClientProxy:
+    def get_random_client(self) -> BedrockRuntimeContext:
         """Selects a random Bedrock client using weighted random selection.
 
         The selection is weighted by each client's rate limit, giving higher probability
@@ -49,7 +49,7 @@ class BedrockLLM(BaseLLM, BaseModel):
         clients with different capacities.
 
         Returns:
-            BedrockClientProxy: A randomly selected client proxy.
+            BedrockClientWrapper: A randomly selected client wrapper.
 
         Raises:
             ValueError: If no Bedrock clients are available.
@@ -66,8 +66,8 @@ class BedrockLLM(BaseLLM, BaseModel):
         Returns:
             BaseMessage: The model's response.
         """
-        bedrock_proxy: BedrockClientProxy = self.get_random_client()
-        return bedrock_proxy.client.invoke(input=messages)
+        bedrock_runtime_context: BedrockRuntimeContext = self.get_random_client()
+        return bedrock_runtime_context.client.invoke(input=messages)
 
     async def ainvoke(self, messages: List[BaseMessage]) -> BaseMessage:
         """Asynchronously invokes the Bedrock model with rate limiting.
@@ -81,9 +81,9 @@ class BedrockLLM(BaseLLM, BaseModel):
         Note:
             This method respects the rate limits of the selected client using an async context manager.
         """
-        bedrock_proxy: BedrockClientProxy = self.get_random_client()
-        async with bedrock_proxy.rate_limiter:
-            return await bedrock_proxy.client.ainvoke(input=messages)
+        bedrock_runtime_context: BedrockRuntimeContext = self.get_random_client()
+        async with bedrock_runtime_context.rate_limiter:
+            return await bedrock_runtime_context.client.ainvoke(input=messages)
 
     def stream(self, messages: List[BaseMessage]) -> Iterator[BaseMessageChunk]:
         """Synchronously streams responses from the model.
@@ -94,10 +94,10 @@ class BedrockLLM(BaseLLM, BaseModel):
         Returns:
             Iterator[BaseMessageChunk]: An iterator of response chunks from the model.
         """
-        bedrock_proxy: BedrockClientProxy = self.get_random_client()
-        return bedrock_proxy.client.stream(input=messages)
+        bedrock_runtime_context: BedrockRuntimeContext = self.get_random_client()
+        return bedrock_runtime_context.client.stream(input=messages)
 
-    async def astream(self, messages: List[BaseMessage]) -> Iterator[BaseMessageChunk]:
+    async def astream(self, messages: List[BaseMessage]) -> AsyncIterator[BaseMessageChunk]:
         """Asynchronously streams responses from the model with rate limiting.
 
         Args:
@@ -109,6 +109,6 @@ class BedrockLLM(BaseLLM, BaseModel):
         Note:
             This method respects the rate limits of the selected client using an async context manager.
         """
-        bedrock_proxy: BedrockClientProxy = self.get_random_client()
-        async with bedrock_proxy.rate_limiter:
-            return await bedrock_proxy.client.astream(input=messages)
+        bedrock_runtime_context: BedrockRuntimeContext = self.get_random_client()
+        async with bedrock_runtime_context.rate_limiter:
+            return bedrock_runtime_context.client.astream(input=messages)
