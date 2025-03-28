@@ -60,14 +60,14 @@ async def llm_test():
             "provider_type": "BEDROCK",
             "accounts": [
                 {
-                    "role_arn": "arn:aws:iam::863518436859:role/ModelFactoryBedrockAccessRole",
+                    "role_arn": "arn:aws:iam::<accountId1>:role/<role1>",
                     "region": "us-east-1",
                     "rate_limit": {
                         "max_rate": 50
                     },
                 },
                 {
-                    "role_arn": "arn:aws:iam::615299746603:role/ModelFactoryBedrockAccessRole",
+                    "role_arn": "arn:aws:iam::<accountId2>:role/<role2>",
                     "region": "us-west-2",
                     "rate_limit": {
                         "max_rate": 50
@@ -76,6 +76,7 @@ async def llm_test():
             ],
         },
     }
+
 
     llm_config = LLMConfig(**config_dict)
     llm = BaseLLM.of(llm_config=llm_config)
