@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Iterator, List, AsyncIterator
+from typing import Iterator, List, AsyncIterator, Union
 
 from bears.util import Registry
 from langchain_core.messages import BaseMessage, BaseMessageChunk
 
-from fmcore.types.llm_types import LLMConfig
+from fmcore.types.llm_types import LLMConfig, DistributedLLMConfig
 from fmcore.types.typed import MutableTyped
 
 
@@ -16,10 +16,10 @@ class BaseLLM(MutableTyped, Registry, ABC):
     Concrete implementations must provide the actual logic for the abstract methods.
 
     Attributes:
-        config (LLMConfig): Configuration for the LLM.
+        config (LLMConfig, DistributedLLMConfig): Configuration for the LLM.
     """
 
-    config: LLMConfig
+    config: Union[LLMConfig, DistributedLLMConfig]
 
     @classmethod
     @abstractmethod
@@ -64,7 +64,7 @@ class BaseLLM(MutableTyped, Registry, ABC):
         pass
 
     @classmethod
-    def of(cls, llm_config: LLMConfig):
+    def of(cls, llm_config: Union[LLMConfig, DistributedLLMConfig]):
         """
         Creates an instance of the appropriate LLM subclass based on the provided configuration.
 
@@ -78,7 +78,17 @@ class BaseLLM(MutableTyped, Registry, ABC):
         Returns:
             BaseLLM: An instance of the corresponding LLM subclass.
         """
-        BaseLLMClass = BaseLLM.get_subclass(key=llm_config.provider_params.provider_type.name)
+
+        # Hardcoding the "DistributedLLM" key to avoid a circular dependency.
+        # If we introduce the DistributedLLM class here, it would require importing BaseLLM,
+        # but BaseLLM also depends on DistributedLLM, causing a circular import error.
+        key = (
+            "DistributedLLM"
+            if isinstance(llm_config, DistributedLLMConfig)
+            else llm_config.provider_params.provider_type.name
+        )
+
+        BaseLLMClass = BaseLLM.get_subclass(key=key)
         constructor_params = BaseLLMClass._get_constructor_parameters(llm_config=llm_config)
         return BaseLLMClass(**constructor_params)
 

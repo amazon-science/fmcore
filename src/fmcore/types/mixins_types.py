@@ -1,13 +1,22 @@
 from typing import Optional
 from pydantic import Field
 
-from fmcore.types.config_types import RateLimitConfig
+from fmcore.types.config_types import RateLimitConfig, RetryConfig
 from fmcore.types.enums.aws_enums import AWSRegion
 from fmcore.types.typed import MutableTyped
 
 
 class Mixin:
-    """Marker interface for mixin classes."""
+    """
+    Marker class to indicate that this is a mixin.
+
+    This class has no functional significance but helps static type analyzers,
+    such as pylint and mypy, detect potential conflicts in method resolution
+    when multiple mixins are used.
+
+    Static analysis tools can use this marker to differentiate mixins from
+    concrete classes, aiding in detecting conflicting methods or variables.
+    """
 
     pass
 
@@ -38,21 +47,24 @@ class APIKeyServiceMixin(MutableTyped, Mixin):
     base_url: Optional[str] = None
 
 
-class RequestConfigMixin(MutableTyped, Mixin):
+class RateLimiterMixin(MutableTyped, Mixin):
     """
-    Mixin for request-level configurations, including rate limits, timeouts, and retries.
-
-    This mixin is designed for REST API configurations used by network providers
-    (e.g., Bedrock, OpenAI). It centralizes settings that govern API request behaviors,
-    such as rate limiting, timeout duration, and retry attempts.
+    Mixin for rate limiting configurations.
 
     Attributes:
         rate_limit (Optional[RateLimitConfig]): The rate limit configuration to
             apply to API requests.
-        timeout (int): The maximum allowed request time in seconds. Defaults to 300.
-        retries (int): The number of retry attempts for failed API requests. Defaults to 3.
     """
 
     rate_limit: Optional[RateLimitConfig] = Field(default=RateLimitConfig)
-    timeout: int = Field(default=300)
-    retries: int = Field(default=3)
+
+
+class RetryConfigMixin(MutableTyped, Mixin):
+    """
+    Mixin for retry configurations.
+
+    Attributes:
+        retries (int): The number of retry attempts for failed API requests. Defaults to 3.
+    """
+
+    retries: Optional[RetryConfig] = Field(default=RetryConfig)

@@ -1,97 +1,84 @@
-from typing import List
+from abc import ABC
+from typing import List, Union
 from fmcore.types.enums.provider_enums import ProviderType
-from fmcore.types.mixins_types import AWSAccountMixin, RequestConfigMixin, APIKeyServiceMixin
+from fmcore.types.mixins_types import AWSAccountMixin, APIKeyServiceMixin, RetryConfigMixin, RateLimiterMixin
 from fmcore.types.typed import MutableTyped
 
 
-class BedrockAccountConfig(AWSAccountMixin, RequestConfigMixin):
+class BaseProviderParams(MutableTyped, ABC):
     """
-    Configuration for a Bedrock account based on AWS.
+    Abstract base class for provider configurations.
 
-    This class combines AWS account settings with request configuration settings (such as rate limits,
-    timeouts, and retries) needed to interact with Bedrock services.
+    This class defines the common interface and required attributes for all provider configuration
+    classes. Its primary purpose is to support Pydantic's discriminator mechanism by ensuring that every
+    concrete provider configuration includes a unique 'provider_type' field. This consistent contract
+    allows Pydantic to automatically select the correct configuration model based on the value of
+    'provider_type', enabling type-safe discrimination across different provider implementations.
 
-    Inherits:
-        AWSAccountMixin: Provides AWS-specific configuration (e.g., role ARN, region).
-        RequestConfigMixin: Provides API request-related settings.
+    Attributes:
+        provider_type (ProviderType): A unique identifier for the provider. Subclasses must override
+            this field with a specific literal value corresponding to their provider (e.g., ProviderType.BEDROCK,
+            ProviderType.OPENAI, etc.).
     """
 
-    pass
+    provider_type: ProviderType
 
 
-class LambdaAccountConfig(AWSAccountMixin, RequestConfigMixin):
+class BedrockProviderParams(BaseProviderParams, AWSAccountMixin, RateLimiterMixin, RetryConfigMixin):
     """
-    Configuration for a Lambda account based on AWS.
+    Configuration for a Bedrock provider using AWS.
 
-    This class combines AWS account settings with request configuration settings necessary for invoking
-    AWS Lambda functions.
+    This class combines AWS account settings with request configuration parameters
+    (such as rate limits and retry policies) needed to interact with Bedrock services.
+    It mixes in AWS-specific account details, rate limiting, and retry configurations
+    to form a complete provider setup.
+
+    Mixes in:
+        AWSAccountMixin: Supplies AWS-specific account details (e.g., role ARN, region).
+        RateLimiterMixin: Supplies API rate limiting settings.
+        RetryConfigMixin: Supplies retry policy settings.
+    """
+
+    provider_type: ProviderType = ProviderType.BEDROCK
+
+
+class LambdaProviderParams(BaseProviderParams, AWSAccountMixin, RateLimiterMixin, RetryConfigMixin):
+    """
+    Configuration for an AWS Lambda based Provider.
+
+    This class encapsulates AWS account settings along with request configuration parameters
+    (such as rate limits and retry policies) needed for invoking AWS Lambda functions.
 
     Attributes:
         function_name (str): The name of the Lambda function to be invoked.
 
-    Inherits:
-        AWSAccountMixin: Provides AWS-specific configuration.
-        RequestConfigMixin: Provides API request-related settings.
-    """
-
-    function_name: str
-
-
-class OpenAIAccountConfig(APIKeyServiceMixin, RequestConfigMixin):
-    """
-    Configuration for an OpenAI account based on API-key authentication.
-
-    This class merges API-key based service settings with request configuration settings required
-    to make REST API calls to OpenAI services.
-
-    Inherits:
-        APIKeyServiceMixin: Provides API key and optional base URL for the service.
-        RequestConfigMixin: Provides API request-related settings.
-    """
-
-    pass
-
-
-class BedrockProviderParams(MutableTyped):
-    """
-    Provider configuration parameters for Bedrock.
-
-    This class specifies the provider type and the associated Bedrock account configurations.
-
-    Attributes:
-        provider_type (ProviderType): The type of the provider, fixed to ProviderType.BEDROCK.
-        accounts (List[BedrockAccountConfig]): A list of Bedrock account configurations.
-    """
-
-    provider_type: ProviderType = ProviderType.BEDROCK
-    accounts: List[BedrockAccountConfig]
-
-
-class LambdaProviderParams(MutableTyped):
-    """
-    Provider configuration parameters for AWS Lambda.
-
-    This class specifies the provider type and the associated Lambda account configurations.
-
-    Attributes:
-        provider_type (ProviderType): The type of the provider, fixed to ProviderType.LAMBDA.
-        accounts (List[LambdaAccountConfig]): A list of Lambda account configurations.
+    Mixes in:
+        AWSAccountMixin: Provides AWS-specific account settings (e.g., role ARN, region).
+        RateLimiterMixin: Provides API rate limiting settings.
+        RetryConfigMixin: Provides retry policy settings.
     """
 
     provider_type: ProviderType = ProviderType.LAMBDA
-    accounts: List[LambdaAccountConfig]
+    function_name: str
 
 
-class OpenAIProviderParams(MutableTyped):
+class OpenAIProviderParams(BaseProviderParams, APIKeyServiceMixin, RateLimiterMixin, RetryConfigMixin):
     """
-    Provider configuration parameters for OpenAI.
+    Configuration for an OpenAI provider using API-key authentication.
 
-    This class specifies the provider type and the associated OpenAI account configurations.
+    This class combines API-key based service settings with request configuration parameters
+    (such as rate limits and retry policies) needed to interact with OpenAI services via REST API.
+    It mixes in API key settings, rate limiting, and retry configurations to form a complete provider setup.
 
-    Attributes:
-        provider_type (ProviderType): The type of the provider, fixed to ProviderType.OPENAI.
-        accounts (List[OpenAIAccountConfig]): A list of OpenAI account configurations.
+    Mixes in:
+        APIKeyServiceMixin: Provides the API key and an optional base URL for the service.
+        RateLimiterMixin: Provides API rate limiting settings.
+        RetryConfigMixin: Provides retry policy settings.
     """
 
     provider_type: ProviderType = ProviderType.OPENAI
-    accounts: List[OpenAIAccountConfig]
+
+
+# This union is used wherever provider parameters are required and helps in Pydantic discrimination.
+# It should only contain provider parameter classes; adding anything else will break type consistency.
+ProviderParamsUnion = Union[BedrockProviderParams, LambdaProviderParams, OpenAIProviderParams]

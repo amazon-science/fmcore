@@ -1,114 +1,101 @@
 import random
 from typing import List, Iterator, AsyncIterator
 
+from aiolimiter import AsyncLimiter
+from langchain_aws import ChatBedrockConverse
 from pydantic import BaseModel, Field
 from langchain_core.messages import BaseMessage, BaseMessageChunk
 
-from fmcore.factory.bedrock_factory import (
-    BedrockFactory,
-    BedrockRuntimeContext,
-)
+from fmcore.factory.bedrock_factory import BedrockFactory
 from fmcore.llm.base_llm import BaseLLM
 from fmcore.types.enums.provider_enums import ProviderType
 from fmcore.types.llm_types import LLMConfig
+from fmcore.utils.rate_limit_utils import RateLimiterUtils
 
 
 class BedrockLLM(BaseLLM, BaseModel):
-    """A language model implementation for AWS Bedrock service with built-in rate limiting and client management.
+    """
+    AWS Bedrock language model with built-in asynchronous rate limiting.
 
-    This class manages multiple Bedrock clients with their individual rate limits and provides methods
-    for both synchronous and asynchronous interactions. It uses weighted random selection based on
-    rate limits when choosing a client for requests.
+    This class encapsulates a ChatBedrockConverse client to enable both synchronous and
+    asynchronous interactions with the Bedrock service. It is configured via an LLM configuration
+    that includes model parameters and provider-specific settings.
 
     Attributes:
-        bedrock_clients (List[BedrockClientWrapper]): List of rate-limited Bedrock client wrappers.
-        aliases (List[str]): Provider type aliases, set to [ProviderType.BEDROCK].
+        client (ChatBedrockConverse): The underlying client for Bedrock conversations.
+        rate_limiter (AsyncLimiter): Async rate limiter enforcing API rate limits.
     """
 
     aliases = [ProviderType.BEDROCK]
-    bedrock_clients: List[BedrockRuntimeContext] = Field(default_factory=list)
+
+    client: ChatBedrockConverse
+    rate_limiter: AsyncLimiter
 
     @classmethod
     def _get_constructor_parameters(cls, *, llm_config: LLMConfig) -> dict:
-        """Creates constructor parameters from the provided LLM configuration.
+        """
+        Constructs the initialization parameters for a BedrockLLM instance.
+
+        Returns a dictionary containing:
+            - config: The original LLM configuration.
+            - client: A ChatBedrockConverse client built from the configuration.
+            - rate_limiter: An AsyncLimiter based on the provider's rate limit settings.
 
         Args:
-            llm_config (LLMConfig): Configuration containing Bedrock account settings and model parameters.
-
-        Returns:
-            dict: Dictionary containing the config and initialized Bedrock clients.
+            llm_config (SingleLLMConfig): Contains model_id, model_params, and provider_params.
         """
-        bedrock_clients = BedrockFactory.create_bedrock_clients(llm_config=llm_config)
-        return {"config": llm_config, "bedrock_clients": bedrock_clients}
-
-    def get_random_client(self) -> BedrockRuntimeContext:
-        """Selects a random Bedrock client using weighted random selection.
-
-        The selection is weighted by each client's rate limit, giving higher probability
-        to clients with higher rate limits. This helps distribute load optimally across
-        clients with different capacities.
-
-        Returns:
-            BedrockClientWrapper: A randomly selected client wrapper.
-
-        Raises:
-            ValueError: If no Bedrock clients are available.
-        """
-        weights = [client.rate_limiter.max_rate for client in self.bedrock_clients]
-        return random.choices(self.bedrock_clients, weights=weights, k=1)[0]
+        converse_client = BedrockFactory.create_converse_client(llm_config=llm_config)
+        rate_limiter = RateLimiterUtils.create_rate_limiter(
+            rate_limit_config=llm_config.provider_params.rate_limit
+        )
+        return {"config": llm_config, "client": converse_client, "rate_limiter": rate_limiter}
 
     def invoke(self, messages: List[BaseMessage]) -> BaseMessage:
-        """Synchronously invokes the Bedrock model with the given messages.
+        """
+        Synchronously invokes the model with the given messages.
 
         Args:
-            messages (List[BaseMessage]): The messages to send to the model.
+            messages (List[BaseMessage]): The messages to send.
 
         Returns:
             BaseMessage: The model's response.
         """
-        bedrock_runtime_context: BedrockRuntimeContext = self.get_random_client()
-        return bedrock_runtime_context.client.invoke(input=messages)
+        return self.client.invoke(input=messages)
 
     async def ainvoke(self, messages: List[BaseMessage]) -> BaseMessage:
-        """Asynchronously invokes the Bedrock model with rate limiting.
+        """
+        Asynchronously invokes the model with rate limiting.
 
         Args:
-            messages (List[BaseMessage]): The messages to send to the model.
+            messages (List[BaseMessage]): The messages to send.
 
         Returns:
             BaseMessage: The model's response.
-
-        Note:
-            This method respects the rate limits of the selected client using an async context manager.
         """
-        bedrock_runtime_context: BedrockRuntimeContext = self.get_random_client()
-        async with bedrock_runtime_context.rate_limiter:
-            return await bedrock_runtime_context.client.ainvoke(input=messages)
+        async with self.rate_limiter:
+            return await self.client.ainvoke(input=messages)
 
     def stream(self, messages: List[BaseMessage]) -> Iterator[BaseMessageChunk]:
-        """Synchronously streams responses from the model.
+        """
+        Synchronously streams response chunks from the model.
 
         Args:
-            messages (List[BaseMessage]): The messages to send to the model.
+            messages (List[BaseMessage]): The messages to send.
 
         Returns:
-            Iterator[BaseMessageChunk]: An iterator of response chunks from the model.
+            Iterator[BaseMessageChunk]: An iterator over response chunks.
         """
-        bedrock_runtime_context: BedrockRuntimeContext = self.get_random_client()
-        return bedrock_runtime_context.client.stream(input=messages)
+        return self.client.stream(input=messages)
 
     async def astream(self, messages: List[BaseMessage]) -> AsyncIterator[BaseMessageChunk]:
-        """Asynchronously streams responses from the model with rate limiting.
+        """
+        Asynchronously streams response chunks from the model with rate limiting.
 
         Args:
-            messages (List[BaseMessage]): The messages to send to the model.
+            messages (List[BaseMessage]): The messages to send.
 
         Returns:
-            Iterator[BaseMessageChunk]: An iterator of response chunks from the model.
-
-        Note:
-            This method respects the rate limits of the selected client using an async context manager.
+            AsyncIterator[BaseMessageChunk]: An async iterator over response chunks.
         """
-        bedrock_runtime_context: BedrockRuntimeContext = self.get_random_client()
-        async with bedrock_runtime_context.rate_limiter:
-            return bedrock_runtime_context.client.astream(input=messages)
+        async with self.rate_limiter:
+            return self.client.astream(input=messages)
