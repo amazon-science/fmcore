@@ -50,6 +50,22 @@ class DistributedLLM(BaseLLM):
         return {"config": llm_config, "llm_clients": llm_clients}
 
     def get_random_client(self) -> BaseLLM:
+        """
+        Selects a random LLM client for invocation, weighted by their rate limits.
+
+        In a distributed setup, each LLM client may have different rate limits. To ensure
+        efficient utilization, clients with higher rate limits should be invoked more often.
+        This method achieves that by using weighted random selection, where the weight is
+        determined by each client's maximum allowed rate.
+
+        Assumptions:
+        - All LLM clients are expected to have an associated rate limiter.
+        - Any distributed LLM system requires rate limiting for proper functionality, as
+          clients may have different constraints.
+
+        Returns:
+            BaseLLM: A randomly selected LLM client, weighted by its rate limit.
+        """
         weights = [llm.rate_limiter.max_rate for llm in self.llm_clients]
         return random.choices(self.llm_clients, weights=weights, k=1)[0]
 
@@ -96,3 +112,25 @@ class DistributedLLM(BaseLLM):
         """
         llm: BaseLLM = self.get_random_client()
         return await llm.astream(messages=messages)
+
+    def batch(self, messages: List[List[BaseMessage]]) -> List[BaseMessage]:
+        """Synchronously processes multiple message sets in a batch.
+        Args:
+            messages (List[List[BaseMessage]]): A list of message sets to process.
+        Returns:
+            List[BaseMessage]: A list of responses corresponding to each message set.
+        """
+        llm: BaseLLM = self.get_random_client()
+        return llm.batch(messages=messages)
+
+    async def abatch(self, messages: List[List[BaseMessage]]) -> List[BaseMessage]:
+        """Asynchronously processes multiple message sets in a batch with rate limiting.
+        Args:
+            messages (List[List[BaseMessage]]): A list of message sets to process.
+        Returns:
+            List[BaseMessage]: A list of responses corresponding to each message set.
+        Note:
+            This method respects the rate limits of the selected client using an async context manager.
+        """
+        llm: BaseLLM = self.get_random_client()
+        return await llm.abatch(messages=messages)

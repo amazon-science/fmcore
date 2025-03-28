@@ -1,6 +1,6 @@
 from langchain_aws import ChatBedrockConverse
 
-from fmcore.factory.boto_factory import BotoFactory
+from fmcore.aws.factory.boto_factory import BotoFactory
 from fmcore.types.llm_types import LLMConfig
 from fmcore.types.provider_types import BedrockProviderParams
 

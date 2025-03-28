@@ -143,3 +143,29 @@ class BaseLLM(MutableTyped, Registry, ABC):
             Iterator[BaseMessageChunk]: A stream of LLM response chunks.
         """
         pass
+
+    @abstractmethod
+    def batch(self, messages: List[List[BaseMessage]]) -> List[BaseMessage]:
+        """
+        Processes a batch of messages in a single call.
+
+        Args:
+            messages (List[List[BaseMessage]]): A list of message lists.
+
+        Returns:
+            List[BaseMessage]: A list of responses corresponding to each input message list.
+        """
+        pass
+
+    @abstractmethod
+    async def abatch(self, messages: List[List[BaseMessage]]) -> List[BaseMessage]:
+        """
+        Asynchronously processes a batch of messages in a single call.
+
+        Args:
+            messages (List[List[BaseMessage]]): A list of message lists.
+
+        Returns:
+            List[BaseMessage]: A list of responses corresponding to each input message list.
+        """
+        pass

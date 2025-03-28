@@ -12,7 +12,7 @@ class RateLimiterUtils:
     """
 
     @staticmethod
-    def create_rate_limiter(rate_limit_config: RateLimitConfig) -> AsyncLimiter:
+    def create_async_rate_limiter(rate_limit_config: RateLimitConfig) -> AsyncLimiter:
         """
         Creates an asynchronous rate limiter based on the provided rate limit configuration.
 

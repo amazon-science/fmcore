@@ -1,12 +1,11 @@
-import random
 from typing import List, Iterator, AsyncIterator
 
 from aiolimiter import AsyncLimiter
 from langchain_aws import ChatBedrockConverse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from langchain_core.messages import BaseMessage, BaseMessageChunk
 
-from fmcore.factory.bedrock_factory import BedrockFactory
+from fmcore.aws.factory.bedrock_factory import BedrockFactory
 from fmcore.llm.base_llm import BaseLLM
 from fmcore.types.enums.provider_enums import ProviderType
 from fmcore.types.llm_types import LLMConfig
@@ -45,7 +44,7 @@ class BedrockLLM(BaseLLM, BaseModel):
             llm_config (SingleLLMConfig): Contains model_id, model_params, and provider_params.
         """
         converse_client = BedrockFactory.create_converse_client(llm_config=llm_config)
-        rate_limiter = RateLimiterUtils.create_rate_limiter(
+        rate_limiter = RateLimiterUtils.create_async_rate_limiter(
             rate_limit_config=llm_config.provider_params.rate_limit
         )
         return {"config": llm_config, "client": converse_client, "rate_limiter": rate_limiter}
@@ -99,3 +98,9 @@ class BedrockLLM(BaseLLM, BaseModel):
         """
         async with self.rate_limiter:
             return self.client.astream(input=messages)
+
+    def batch(self, messages: List[List[BaseMessage]]) -> List[BaseMessage]:
+        raise NotImplementedError("Batch processing is not implemented for BedrockLLM.")
+
+    async def abatch(self, messages: List[List[BaseMessage]]) -> List[BaseMessage]:
+        raise NotImplementedError("Batch processing is not implemented for BedrockLLM.")

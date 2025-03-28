@@ -3,8 +3,7 @@ import boto3
 from botocore.credentials import RefreshableCredentials
 from botocore.session import get_session
 
-from fmcore.constants import aws_constants as AWSConstants
-from fmcore.types.enums.aws_enums import AWSRegion
+from fmcore.aws.constants import aws_constants as AWSConstants
 
 
 class BotoFactory:
