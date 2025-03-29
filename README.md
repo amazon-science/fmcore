@@ -1,35 +1,61 @@
-![F M Core logo](img/logos/aws-like-wide-gradient.png)
+# Synthergent: Scaling the Quality of Synthetic Datasets with Task-Oriented Cleaners
 
-`fmcore` is a specialized toolkit that empowers AI scientists to break new ground by simplifying large-scale experimentation with massive Foundation Models and datasets.
+This repository contains the implementation of the paper "Synthergent: Scaling the Quality of Synthetic Datasets with Task-Oriented Cleaners"
 
-A primary bottleneck in Foundation Model research is implementation overhead. With `fmcore`, scientists can rapidly prototype new innovations in hours instead of weeks, accelerating the path to new research breakthroughs or user experiences.
+![Synthergent High Level Diagram](img/high-level-diagram.jpg)
 
-Key features:
-- Easy scaling of model training and inference (see examples).
-- Standardized interfaces for parameter tuning and evaluation.
-- Built-in support for distributed computing and Foundation Model parallelism.
+## Installing dependencies
 
-## Installation
+We recommend installing required dependencies in a new Conda environment using the commands below.
 
-The minimal `fmcore` package can be installed from PyPI:
+These commands were tested to work on `Deep Learning AMI GPU PyTorch 1.13.1 (Amazon Linux 2) 20230221` from AWS.
 
-```
-pip install fmcore 
-```
-
-To get all features, we recommend installing in a new Conda environment:
+Install dependencies:
 
 ```commandline
-conda create -n fmcore python=3.11 --yes
-conda activate fmcore
+conda create -n synthergent python=3.11.11 --yes  
+conda create -n synthergent python=3.11 --yes
+conda activate synthergent
 pip install uv
-uv pip install "fmcore[all]"
+uv pip install "synthergent[all]"
+
+python -m spacy download en_core_web_lg
+python -c "import nltk; nltk.download('punkt');"
 ```
+
+## Code structure
+
+`synthergent/` contains utility functions and classes.
+
+`synthergent/notebooks/` contains code to reproduce the experiments.
+
+## Start a Ray cluster:
+
+- On the Ray head node, run: `ray start --head`
+- On the Ray worker nodes, run `ray start --address='<head node IP address>:6379'`
+- At the top of the files `data.py`, `corpus.py`, `main.py`, add the following to connect to the Ray cluster:
+
+```commandline
+import synthergent
+import ray
+from ray.util.dask import ray_dask_get, enable_dask_on_ray, disable_dask_on_ray
+from pprint import pprint
+pprint(ray.init(
+    address='ray://<head node IP address>:10001',  ## MODIFY THIS
+    ignore_reinit_error=True,
+    _temp_dir=str('/tmp/ray/'),
+    runtime_env={"py_modules": [
+        synthergent,
+    ]},
+))
+enable_dask_on_ray()
+pprint(ray.cluster_resources())  ## Shows you number of cpus and gpus to make sure it is setup properly.
+```
+
+## Security
+
+See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
 
 ## License
 
 This project is licensed under the Apache-2.0 License.
-
-## Contributing to `fmcore`
-
-See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
