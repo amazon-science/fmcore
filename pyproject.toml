@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fmcore"
-dynamic = ["version"]
 authors = [
-    { name = "Abhishek Divekar", email = "adivekar@utexas.edu" }
+    { name = "Abhishek Divekar", email = "adivekar@utexas.edu" },
+    { name = "Siba Rajendran", email = "rsiba234@gmail.com" }
 ]
 description = "A specialized toolkit for scaling experimental research with Foundation Models."
 readme = "README.md"
-requires-python = ">=3.11.11"
+requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
@@ -19,10 +19,12 @@ license-files = ["LICENSE"]
 dependencies = [
     "autoenum",
     ## Pick up latest Git commit for bears package to ensure tests run:
-    "bears @ git+https://github.com/amazon-science/bears.git@main",
+    "bears==0.1.*",
     "requests",
-    "pyyaml",
+    "pyyaml==6.*",
     "urllib3",
+    "langchain==0.3.*",
+    "langchain-aws==0.2.*"
 ]
 
 [project.optional-dependencies]
