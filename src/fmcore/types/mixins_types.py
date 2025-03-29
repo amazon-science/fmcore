@@ -2,7 +2,6 @@ from typing import Optional
 from pydantic import Field
 
 from fmcore.types.config_types import RateLimitConfig, RetryConfig
-from fmcore.types.enums.aws_enums import AWSRegion
 from fmcore.types.typed import MutableTyped
 
 

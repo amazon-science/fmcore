@@ -1,8 +1,8 @@
 from abc import ABC
 from typing import Union
 
+from fmcore.llm.enums.provider_enums import ProviderType
 from fmcore.llm.mixins.provider_mixins import AWSAccountMixin, APIKeyServiceMixin
-from fmcore.types.enums.provider_enums import ProviderType
 from fmcore.types.mixins_types import RateLimiterMixin, RetryConfigMixin
 from fmcore.types.typed import MutableTyped
 
