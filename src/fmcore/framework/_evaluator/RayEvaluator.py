@@ -391,7 +391,7 @@ if _IS_RAY_INSTALLED:
             submission_batch_size: Optional[conint(ge=1)] = None,
             worker_queue_len: conint(ge=0) = 2,
             submission_batch_wait: confloat(ge=0) = 15,
-            submission_batch_wait_jitter: confloat(ge=0.0, le=1.0) = 0.05,
+            submission_batch_wait_jitter: confloat(ge=0.0, le=1.0) = 0.30,
             evaluation_timeout: confloat(ge=0, allow_inf_nan=True) = math.inf,
             allow_partial_predictions: bool = False,
             **kwargs,
@@ -755,6 +755,7 @@ if _IS_RAY_INSTALLED:
             )
             ## Track results in submission order:
             predictions: List[ray.ObjectRef] = []
+            
             ## Load each shard of data on the calling machine, and send to the cluster:
             for batch_idx, batch_data in enumerate(
                 data.stream(
@@ -764,22 +765,50 @@ if _IS_RAY_INSTALLED:
                     fetch_partitions=1,
                 )
             ):
+                ## Cleanup any completed futures before submitting a new batch
+                rows_completed = self._cleanup_pending_futures(
+                    futures_info,
+                    rows_completed=rows_completed,
+                    rows_completed_progress_bar=rows_completed_progress_bar,
+                    debug_logger=debug_logger,
+                    main_logger=main_logger,
+                )
+                
                 ## Select actor based on load balancing strategy
                 if load_balancing_strategy is LoadBalancingStrategy.ROUND_ROBIN:
                     selected_actor_id: str = self.model[batch_idx % num_actors_created].actor_id
-                elif load_balancing_strategy is LoadBalancingStrategy.RANDOM:
-                    selected_actor_id: str = self.model[
-                        random.choice(list(range(0, num_actors_created)))
-                    ].actor_id
-                elif load_balancing_strategy is LoadBalancingStrategy.LEAST_USED:
-                    ## Cleanup any completed futures before submitting a new batch
-                    rows_completed = self._cleanup_pending_futures(
-                        futures_info,
+                    ## Ensure the selected actor is not at capacity
+                    self._wait_for_actor_capacity(
+                        selected_actor_id,
+                        futures_info=futures_info,
+                        worker_queue_len=worker_queue_len,
+                        submission_batch_wait=submission_batch_wait,
+                        submission_batch_wait_jitter=submission_batch_wait_jitter,
                         rows_completed=rows_completed,
                         rows_completed_progress_bar=rows_completed_progress_bar,
                         debug_logger=debug_logger,
                         main_logger=main_logger,
                     )
+                    
+                elif load_balancing_strategy is LoadBalancingStrategy.RANDOM:
+                    ## First select a random actor
+                    selected_actor_id: str = self.model[
+                        random.choice(list(range(0, num_actors_created)))
+                    ].actor_id
+                    ## Ensure the selected actor is not at capacity
+                    self._wait_for_actor_capacity(
+                        selected_actor_id,
+                        futures_info=futures_info,
+                        worker_queue_len=worker_queue_len,
+                        submission_batch_wait=submission_batch_wait,
+                        submission_batch_wait_jitter=submission_batch_wait_jitter,
+                        rows_completed=rows_completed,
+                        rows_completed_progress_bar=rows_completed_progress_bar,
+                        debug_logger=debug_logger,
+                        main_logger=main_logger,
+                    )
+                    
+                elif load_balancing_strategy is LoadBalancingStrategy.LEAST_USED:
                     ## Find actors with minimum workload:
                     min_pending_futs, candidate_actor_ids = self._min_pending_futures(
                         futures_info,
@@ -810,20 +839,20 @@ if _IS_RAY_INSTALLED:
                         )
                     ## Choose randomly among least busy actors:
                     selected_actor_id: str = random.choice(candidate_actor_ids)
-
-                    if self.verbosity >= 3:
-                        pending_counts: Dict = {
-                            actor_id: len(info["futures"]) for actor_id, info in futures_info.items()
-                        }
-                        debug_logger(
-                            f"Actor workloads: {pending_counts}\n"
-                            f">> Submitting batch#{batch_idx} ({len(batch_data)} rows, batch_size={batch_size}) "
-                            f"to actor '{selected_actor_id}' at IP address "
-                            f"{get_result(futures_info[selected_actor_id]['composite'].actor.get_ip_address.remote())}"
-                        )
                 else:
                     raise NotImplementedError(
                         f"Unsupported `load_balancing_strategy`: {load_balancing_strategy}"
+                    )
+
+                if self.verbosity >= 3:
+                    pending_counts: Dict = {
+                        actor_id: len(info["futures"]) for actor_id, info in futures_info.items()
+                    }
+                    debug_logger(
+                        f"Actor workloads: {pending_counts}\n"
+                        f">> Submitting batch#{batch_idx} ({len(batch_data)} rows, batch_size={batch_size}) "
+                        f"to actor '{selected_actor_id}' at IP address "
+                        f"{get_result(futures_info[selected_actor_id]['composite'].actor.get_ip_address.remote())}"
                     )
 
                 ## Get the actor composite and submit the task
@@ -871,6 +900,40 @@ if _IS_RAY_INSTALLED:
                 time.sleep(self.progress_update_frequency)
             rows_completed_progress_bar.success(f"Evaluated {input_len_str} rows")
             return predictions
+
+        @classmethod
+        def _wait_for_actor_capacity(
+            cls,
+            selected_actor_id: str,
+            *,
+            futures_info: Dict,
+            worker_queue_len: int,
+            submission_batch_wait: float,
+            submission_batch_wait_jitter: float,
+            rows_completed: int,
+            rows_completed_progress_bar: ProgressBar,
+            debug_logger: Callable,
+            main_logger: Callable,
+        ) -> None:
+            ## Wait for the selected actor to have capacity:
+            while len(futures_info[selected_actor_id]["futures"]) >= worker_queue_len:
+                debug_logger(
+                    f"Actor {selected_actor_id} has {len(futures_info[selected_actor_id]['futures'])} tasks (at or above worker_queue_len={worker_queue_len}), "
+                    f"waiting for {submission_batch_wait} seconds."
+                )
+                ## Wait and recheck future completion status:
+                time_to_wait: float = np.random.uniform(
+                    submission_batch_wait * (1 - submission_batch_wait_jitter),
+                    submission_batch_wait * (1 + submission_batch_wait_jitter),
+                )
+                time.sleep(time_to_wait)
+                rows_completed = cls._cleanup_pending_futures(
+                    futures_info,
+                    rows_completed=rows_completed,
+                    rows_completed_progress_bar=rows_completed_progress_bar,
+                    debug_logger=debug_logger,
+                    main_logger=main_logger,
+                )
 
         @classmethod
         def _cleanup_pending_futures(
