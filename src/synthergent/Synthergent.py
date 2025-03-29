@@ -116,6 +116,8 @@ class Synthergent(Chain):
             kwargs["executor"] = executor
             exn: ChainExecution = super(Synthergent, self).run(*args, **kwargs)
             if save is not None:
+                if "data" not in exn.outputs:
+                    raise ValueError("No 'data' output available to save")
                 writer: Writer = Writer.of(
                     save.format,
                     num_rows={Parallelize.ray: None}.get(scaling.parallelize, batch_size),
@@ -133,15 +135,21 @@ class Synthergent(Chain):
                         return None
             if return_exn:
                 return exn
-            outputs = {}
-            if "final_step_results" in exn.outputs:
-                outputs = {
-                    **remove_keys(exn.outputs, ["final_step_results"]),
-                    **exn.outputs["final_step_results"],
-                }
-            outputs["data"]: pd.DataFrame = ScalableDataFrame.of(outputs["data"]).pandas()
-            if len(outputs) == 1 and only_key(outputs) == "data":
-                return outputs["data"]
+                
+            ## Start with the full outputs from the execution:
+            outputs: Dict[str, Any] = dict(exn.outputs)
+            
+            ## If final_step_results exists, merge its contents into outputs:
+            if "final_step_results" in outputs:
+                final_step_results: Dict[str, Any] = outputs.pop("final_step_results")
+                outputs.update(final_step_results)
+            
+            ## Convert data to pandas DataFrame if it exists:
+            if "data" in outputs:
+                outputs["data"] = ScalableDataFrame.of(outputs["data"]).pandas()
+                if len(outputs) == 1:  ## If data is the only key, return it directly
+                    return outputs["data"]
+                    
             return outputs
         finally:
             stop_executor(executor)
