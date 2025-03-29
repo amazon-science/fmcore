@@ -2,13 +2,13 @@ from abc import ABC, abstractmethod
 from typing import *
 
 import pandas as pd
-from pydantic import Extra, root_validator
+from pydantic import ConfigDict, model_validator
 
-from synthergent.config import ScalingConfig
 from synthergent.constants import DataLayout, FileFormat, Parallelize
 from synthergent.util import (
     DataFrameReader,
     Executor,
+    ExecutorConfig,
     FileMetadata,
     Parameters,
     Reader,
@@ -16,12 +16,12 @@ from synthergent.util import (
     Step,
     String,
     Timer,
+    accumulate,
     as_set,
     dispatch,
     get_default,
     safe_validate_arguments,
 )
-from synthergent.util.concurrency import accumulate
 
 
 class Distillation(Step, ABC):
@@ -30,14 +30,15 @@ class Distillation(Step, ABC):
         BaseModel for parameters. Expected to be overridden by subclasses.
         """
 
-        class Config(Parameters.Config):
-            ## Allow extra keyword parameters to be used when initializing the class.
-            extra = Extra.forbid
+        model_config = ConfigDict(
+            extra="ignore",
+        )
 
     params: Params = {}
 
-    @root_validator(pre=True)
-    def convert_params(cls, params: Dict) -> Dict:
+    @model_validator(mode="before")
+    @classmethod
+    def _Distillation_convert_params(cls, params: Dict) -> Dict:
         params["params"] = cls._convert_params(cls.Params, params.get("params"))
         return params
 
@@ -45,7 +46,7 @@ class Distillation(Step, ABC):
     def distill(
         self,
         data: pd.DataFrame,
-        scaling: ScalingConfig,
+        scaling: ExecutorConfig,
         executor: Optional[Executor],
         **kwargs,
     ) -> pd.DataFrame:
@@ -56,7 +57,7 @@ class Distillation(Step, ABC):
         self,
         *,
         data: Any,
-        scaling: ScalingConfig,
+        scaling: ExecutorConfig,
         executor: Optional[Executor],
         step_i: int,
         num_steps: int,
@@ -115,7 +116,7 @@ class Distillation(Step, ABC):
         self,
         data: Union[pd.DataFrame, FileMetadata],
         *,
-        scaling: ScalingConfig,
+        scaling: ExecutorConfig,
         verbosity: int,
     ) -> ScalableDataFrame:
         silent: bool = {0: True, 1: True}.get(verbosity, False)
@@ -130,7 +131,7 @@ class Distillation(Step, ABC):
         self,
         data: ScalableDataFrame,
         *,
-        scaling: ScalingConfig,
+        scaling: ExecutorConfig,
         executor: Optional[Any],
         verbosity: int,
     ) -> ScalableDataFrame:

@@ -1,7 +1,7 @@
 from typing import *
 
 import pandas as pd
-from pydantic import constr, root_validator
+from pydantic import constr, model_validator
 
 from synthergent.cleaner.Cleaner import Cleaner
 from synthergent.util import (
@@ -14,8 +14,9 @@ class StringCleaner(Cleaner):
         cleaner: Callable
         col: Union[List[constr(min_length=1)], constr(min_length=1)]
 
-        @root_validator(pre=True)
-        def _set_string_cleaner_params(cls, params: Dict) -> Dict:
+        @model_validator(mode="before")
+        @classmethod
+        def _StringCleaner_check_params(cls, params: Dict) -> Dict:
             params["col"] = as_list(params["col"])
             return params
 

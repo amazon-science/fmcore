@@ -2,8 +2,7 @@ from typing import *
 
 import pandas as pd
 from bs4 import BeautifulSoup
-from pydantic import constr, root_validator
-from pydantic.typing import Literal
+from pydantic import constr, model_validator
 
 from synthergent.cleaner.Cleaner import Cleaner
 from synthergent.util import (
@@ -19,8 +18,9 @@ class XMLParser(Cleaner):
         tags: Union[List[constr(min_length=1)], constr(min_length=1)]
         path_sep: constr(min_length=1) = "."
 
-        @root_validator(pre=True)
-        def _set_xml_parser_params(cls, params: Dict) -> Dict:
+        @model_validator(mode="before")
+        @classmethod
+        def _XMLParser_convert_params(cls, params: Dict) -> Dict:
             params["tags"] = as_list(params["tags"])
             return params
 

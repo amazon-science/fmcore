@@ -1,22 +1,23 @@
+import math
 from typing import *
 
 import pandas as pd
 import ray
 
 from synthergent.constants import Parallelize
+from synthergent.quality_check.QualityCheck import QualityCheck
 from synthergent.util import (
     Executor,
+    ExecutorConfig,
+    String,
     Timer,
     accumulate,
     accumulate_iter,
     dispatch,
-    format_exception_msg,
     ignore_warnings_and_stdout,
     iter_batches,
     optional_dependency,
 )
-from synthergent.config import ScalingConfig
-from synthergent.quality_check.QualityCheck import QualityCheck
 
 with optional_dependency("nltk", "spacy"):
     import spacy
@@ -31,7 +32,7 @@ with optional_dependency("nltk", "spacy"):
             """
 
             col: str
-            spacy_tokenization_model: str = "en_core_web_lg"
+            spacy_tokenization_model: str = "en_core_web_sm"
             ngrams: Tuple[int, ...] = (1, 2, 3, 4, 5)
             num_cpus: int = 1
             batch_size: int = 40
@@ -40,7 +41,7 @@ with optional_dependency("nltk", "spacy"):
         def evaluate(
             self,
             data: pd.DataFrame,
-            scaling: ScalingConfig,
+            scaling: ExecutorConfig,
             executor: Optional[Executor],
             **kwargs,
         ) -> pd.DataFrame:
@@ -57,7 +58,7 @@ with optional_dependency("nltk", "spacy"):
         def calc_self_bleu(
             docs: List[str],
             *,
-            scaling: ScalingConfig,
+            scaling: ExecutorConfig,
             executor: Optional[Executor],
             spacy_tokenization_model: str,
             ngrams: Tuple[int, ...],
@@ -68,14 +69,15 @@ with optional_dependency("nltk", "spacy"):
         ) -> Dict[int, float]:
             ## Ensure at least 1 batch per process.
             num_docs: int = len(docs)
+            max_workers: int = max(1, min(num_cpus, math.floor(num_docs / (batch_size * 1))))
+
             with Timer("spacy_tokenize_docs", silent=verbosity <= 1):
                 if scaling.parallelize in {Parallelize.ray}:
                     tokenized_docs: List[List[str]] = dispatch(
                         LexicalDiversity.spacy_tokenize_docs,
                         docs,
                         spacy_tokenization_model=spacy_tokenization_model,
-                        num_cpus=min(num_cpus, 20),  ## Sent to Ray
-                        spacy_tokenization_max_workers=min(num_cpus, 20),
+                        max_workers=max_workers,
                         batch_size=batch_size,
                         parallelize=scaling.parallelize,
                         executor=executor,
@@ -84,9 +86,10 @@ with optional_dependency("nltk", "spacy"):
                     tokenized_docs: List[List[str]] = LexicalDiversity.spacy_tokenize_docs(
                         docs,
                         spacy_tokenization_model=spacy_tokenization_model,
-                        spacy_tokenization_max_workers=min(num_cpus, 20),
+                        max_workers=max_workers,
                         batch_size=batch_size,
                     )
+
             ngram_self_bleu_scores: Dict[int, float] = {}
             for ngram in ngrams:
                 if ngram == 1:
@@ -101,6 +104,7 @@ with optional_dependency("nltk", "spacy"):
                     weights = (0.2, 0.2, 0.2, 0.2, 0.2)
                 else:
                     raise ValueError
+
                 with Timer(f"self_bleu_ngram={ngram}", silent=verbosity <= 1):
                     ngram_self_bleu_scores[ngram]: float = LexicalDiversity.self_bleu_ngram(
                         ngram=ngram,
@@ -120,7 +124,7 @@ with optional_dependency("nltk", "spacy"):
             docs: List[str],
             *,
             spacy_tokenization_model: str,
-            spacy_tokenization_max_workers: int,
+            max_workers: int,
             batch_size: int,
             **kwargs,
         ) -> List[List[str]]:
@@ -128,21 +132,20 @@ with optional_dependency("nltk", "spacy"):
                 with ignore_warnings_and_stdout():
                     nlp: Language = spacy.load(spacy_tokenization_model, disable=["parser", "tagger", "ner"])
                     tokenized_docs: List[List[str]] = []
-                    for sent_doc in nlp.pipe(
-                        docs, n_process=spacy_tokenization_max_workers, batch_size=batch_size
-                    ):
-                        toks: List[str] = []
+                    for sent_doc in nlp.pipe(docs, n_process=max_workers, batch_size=batch_size):
+                        tokens: List[str] = []
                         for tok in sent_doc:
-                            toks.append(tok.text)
-                        tokenized_docs.append(toks)
+                            tokens.append(tok.text)
+                        tokenized_docs.append(tokens)
                     return tokenized_docs
             except Exception as e:
-                print(f'Error in "spacy_tokenize_docs":\n{format_exception_msg(e)}')
+                print(f'Error in "spacy_tokenize_docs":\n{String.format_exception_msg(e)}')
                 raise e
 
         @staticmethod
         def self_bleu_ngram(
             *,
+            ngram: int,
             weights: Tuple[float, ...],
             tokenized_docs: Union[List[List[str]], ray.ObjectRef],
             num_docs: int,
@@ -170,7 +173,7 @@ with optional_dependency("nltk", "spacy"):
             pbar: Optional[Dict] = None
             if verbosity >= 2:
                 pbar: Dict = dict(
-                    desc=LexicalDiversity.class_name,
+                    desc=f"Self-BLEU-{ngram}",
                 )
             try:
                 for ngram_self_bleu_scores_batch in accumulate_iter(futures, progress_bar=pbar):
@@ -209,40 +212,3 @@ with optional_dependency("nltk", "spacy"):
                 weights=weights,
                 smoothing_function=smoothing_function,
             )
-
-    # Metric.of('Self-BLEU', params=dict(
-    #     batch_size=50,
-    #     num_cpus=self_bleu_num_cpus,
-    #     spacy_ner_model='en_core_web_lg',
-    #     max_retries=1,
-    # ))
-    #
-    #
-    # class SelfBLEU(TabularMetric):
-    #     aliases = ['Self-BLEU']
-    #
-    #     class Params(TabularMetric.Params):
-    #         class Config(TabularMetric.Params.Config):
-    #             extra = Extra.allow
-    #
-    #         num_cpus: int = 8
-    #         num_gpus: int = 0
-    #         batch_size: int = 50
-    #         settings: Dict = dict(
-    #             spacy_tokenization_model='en_core_web_lg',
-    #             ngrams=(1, 2, 3, 4, 5),
-    #         )
-    #         generations_col: str = GENERATED_TEXTS_COL
-    #
-    #     def compute_only(self, data: TextGenerationsPredictionsBase) -> Dict[int, float]:
-    #         if not isinstance(data, TextGenerationsPredictionsBase):
-    #             raise ValueError(
-    #                 f'Expected data to be a {NextTokens} or {TextGenerations} instance; '
-    #                 f'found: {type_str(data)}'
-    #             )
-    #         scores: Dict[int, float] = self.calc_self_bleu(
-    #             docs=data.data[self.params.generations_col].tolist(),
-    #             **self.params.settings,
-    #             **self.params.dict(exclude={'settings'}),
-    #         )
-    #         return scores

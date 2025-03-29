@@ -1,22 +1,22 @@
-from typing import *
 from abc import ABC, abstractmethod
+from typing import *
 
 import pandas as pd
-from pydantic import Extra, root_validator
+from pydantic import ConfigDict, model_validator
 
 from synthergent.constants import FileFormat
-from synthergent.util import FileMetadata
-from synthergent.util import DataFrameReader
-from synthergent.util import Step
 from synthergent.util import (
+    DataFrameReader,
     Executor,
+    ExecutorConfig,
+    FileMetadata,
     Parameters,
+    Step,
     String,
     as_list,
     as_set,
     safe_validate_arguments,
 )
-from synthergent.config import ScalingConfig
 
 
 class QualityCheck(Step, ABC):
@@ -29,14 +29,15 @@ class QualityCheck(Step, ABC):
         num_gpus: int = 0
         display_exclude: Tuple[str, ...] = ("num_cpus", "num_gpus")
 
-        class Config(Parameters.Config):
-            ## Allow extra keyword parameters to be used when initializing the class.
-            extra = Extra.forbid
+        model_config = ConfigDict(
+            extra="ignore",
+        )
 
     params: Params = {}
 
-    @root_validator(pre=True)
-    def convert_params(cls, params: Dict) -> Dict:
+    @model_validator(mode="before")
+    @classmethod
+    def _QualityCheck_convert_params(cls, params: Dict) -> Dict:
         params["params"] = cls._convert_params(cls.Params, params.get("params"))
         return params
 
@@ -44,7 +45,7 @@ class QualityCheck(Step, ABC):
     def evaluate(
         self,
         data: pd.DataFrame,
-        scaling: ScalingConfig,
+        scaling: ExecutorConfig,
         executor: Optional[Executor],
         **kwargs,
     ) -> pd.DataFrame:
@@ -55,7 +56,7 @@ class QualityCheck(Step, ABC):
         self,
         *,
         data: Any,
-        scaling: ScalingConfig,
+        scaling: ExecutorConfig,
         executor: Optional[Executor],
         step_i: int,
         num_steps: int,

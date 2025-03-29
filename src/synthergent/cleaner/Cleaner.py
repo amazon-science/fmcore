@@ -2,9 +2,8 @@ from abc import ABC, abstractmethod
 from typing import *
 
 import pandas as pd
-from pydantic import Extra, root_validator
+from pydantic import ConfigDict, model_validator
 
-from synthergent.config import ScalingConfig
 from synthergent.constants import DataLayout, FileFormat, Parallelize
 from synthergent.util import (
     DataFrameReader,
@@ -15,13 +14,14 @@ from synthergent.util import (
     Step,
     String,
     Timer,
+    accumulate,
     as_set,
     dispatch,
     get_default,
     resolve_sample_size,
     safe_validate_arguments,
+    ExecutorConfig,
 )
-from synthergent.util.concurrency import accumulate
 
 
 class Cleaner(Step, ABC):
@@ -32,14 +32,15 @@ class Cleaner(Step, ABC):
 
         persist: bool = False
 
-        class Config(Parameters.Config):
-            ## Allow extra keyword parameters to be used when initializing the class.
-            extra = Extra.forbid
+        model_config = ConfigDict(
+            extra="forbid",
+        )
 
     params: Params = {}
 
-    @root_validator(pre=True)
-    def convert_params(cls, params: Dict) -> Dict:
+    @model_validator(mode="before")
+    @classmethod
+    def _Cleaner_convert_params(cls, params: Dict) -> Dict:
         params["params"] = cls._convert_params(cls.Params, params.get("params"))
         return params
 
@@ -56,7 +57,7 @@ class Cleaner(Step, ABC):
         self,
         *,
         data: Any,
-        scaling: ScalingConfig,
+        scaling: ExecutorConfig,
         executor: Optional[Any],
         step_i: int,
         num_steps: int,
@@ -87,7 +88,7 @@ class Cleaner(Step, ABC):
             scaling=scaling,
             verbosity=self.verbosity,
         )
-        if self.class_name == "Sample":
+        if self.class_name == "SubSample":
             data: ScalableDataFrame = ScalableDataFrame.of(data)
             if data.layout is DataLayout.DASK:
                 if self.params.persist:
@@ -129,7 +130,7 @@ class Cleaner(Step, ABC):
         self,
         data: Union[pd.DataFrame, FileMetadata],
         *,
-        scaling: ScalingConfig,
+        scaling: ExecutorConfig,
         verbosity: int,
     ) -> ScalableDataFrame:
         silent: bool = {0: True, 1: True}.get(verbosity, False)
@@ -167,7 +168,7 @@ class Cleaner(Step, ABC):
         self,
         data: ScalableDataFrame,
         *,
-        scaling: ScalingConfig,
+        scaling: ExecutorConfig,
         executor: Optional[Any],
         verbosity: int,
     ) -> ScalableDataFrame:

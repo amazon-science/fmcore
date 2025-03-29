@@ -1,7 +1,7 @@
 from typing import *
 
 import pandas as pd
-from pydantic import root_validator
+from pydantic import model_validator
 
 from synthergent.cleaner.Cleaner import Cleaner
 from synthergent.util import as_list, as_set
@@ -12,8 +12,9 @@ class FilterColumnsByValue(Cleaner):
         exact_match: Dict[str, List] = {}
         contains: Dict[str, List] = {}
 
-        @root_validator(pre=False)
-        def _check_params(cls, params: Dict) -> Dict:
+        @model_validator(mode="before")
+        @classmethod
+        def _FilterColumnsByValue_check_params(cls, params: Dict) -> Dict:
             if len(params["exact_match"]) == len(params["contains"]) == 0:
                 raise ValueError("You must pass at least one parameter")
             return params

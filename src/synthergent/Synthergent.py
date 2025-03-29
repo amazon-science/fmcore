@@ -2,23 +2,25 @@ import multiprocessing as mp
 from typing import *
 
 import pandas as pd
-from pydantic import root_validator
+from pydantic import model_validator
 
 from synthergent.constants import (
     FileFormat,
     Parallelize,
 )
+from synthergent.distillation.Distillation import Distillation
+from synthergent.FinalStep import FinalStep
+from synthergent.quality_check.QualityCheck import QualityCheck
 from synthergent.util import (
+    Chain,
+    ChainExecution,
+    ChainStep,
+    DataFrameWriter,
+    Executor,
     FileMetadata,
     ScalableDataFrame,
-    Writer,
-)
-from synthergent.util import ScalableDataFrame
-from synthergent.util.writer import DataFrameWriter
-from synthergent.util import Chain, ChainExecution, ChainStep
-from synthergent.util import (
-    Executor,
     String,
+    Writer,
     as_set,
     dispatch_executor,
     only_key,
@@ -26,16 +28,14 @@ from synthergent.util import (
     safe_validate_arguments,
     stop_executor,
     type_str,
+    ExecutorConfig,
 )
-from synthergent.config import ScalingConfig
-from synthergent.distillation.Distillation import Distillation
-from synthergent.FinalStep import FinalStep
-from synthergent.quality_check.QualityCheck import QualityCheck
 
 
 class Synthergent(Chain):
-    @root_validator(pre=False)
-    def _check_steps(cls, params: Dict) -> Dict:
+    @model_validator(mode="before")
+    @classmethod
+    def _Synthergent_check_params(cls, params: Dict) -> Dict:
         num_steps: int = len(params["steps"])
         for step_i, step in enumerate(params["steps"]):
             if isinstance(step, ChainStep) and isinstance(step.chain, FinalStep):
@@ -61,7 +61,7 @@ class Synthergent(Chain):
     def run(
         self,
         *args,
-        scaling: ScalingConfig = ScalingConfig(
+        scaling: ExecutorConfig = ExecutorConfig(
             batch_size=None,
             partition_size=None,
             parallelize=Parallelize.sync,

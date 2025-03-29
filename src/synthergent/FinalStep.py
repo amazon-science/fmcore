@@ -1,9 +1,7 @@
 from typing import *
 
 import pandas as pd
-from pydantic.typing import Literal
 
-from synthergent.config import ScalingConfig
 from synthergent.constants import FileFormat
 from synthergent.distillation.Distillation import Distillation
 from synthergent.quality_check.QualityCheck import QualityCheck
@@ -18,6 +16,7 @@ from synthergent.util import (
     as_set,
     safe_validate_arguments,
     type_str,
+    ExecutorConfig,
 )
 
 
@@ -30,7 +29,7 @@ class FinalStep(ParallelMap):
         self,
         *,
         data: Any,
-        scaling: ScalingConfig,
+        scaling: ExecutorConfig,
         executor: Optional[Executor],
         step_i: int,
         num_steps: int,
