@@ -61,6 +61,7 @@ class Distillation(Step, ABC):
         executor: Optional[Executor],
         step_i: int,
         num_steps: int,
+        batch_size: Optional[int] = None,
         **kwargs,
     ) -> Dict:
         if isinstance(data, (str, dict, FileMetadata)):
@@ -93,6 +94,7 @@ class Distillation(Step, ABC):
             data: ScalableDataFrame = self._clean_local(
                 data,
                 scaling=scaling,
+                batch_size=batch_size,
                 executor=executor,
                 verbosity=self.verbosity,
             )
@@ -132,12 +134,13 @@ class Distillation(Step, ABC):
         data: ScalableDataFrame,
         *,
         scaling: ExecutorConfig,
+        batch_size: Optional[int],
         executor: Optional[Any],
         verbosity: int,
     ) -> ScalableDataFrame:
         data: ScalableDataFrame = ScalableDataFrame.of(data, layout=DataLayout.PANDAS)
         futs = []
-        for data_batch in data.stream(batch_size=get_default(scaling.batch_size, len(data))):
+        for data_batch in data.stream(batch_size=get_default(batch_size, len(data))):
             futs.append(
                 dispatch(
                     self.clean,

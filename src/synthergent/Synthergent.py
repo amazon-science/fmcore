@@ -17,6 +17,7 @@ from synthergent.util import (
     ChainStep,
     DataFrameWriter,
     Executor,
+    ExecutorConfig,
     FileMetadata,
     ScalableDataFrame,
     String,
@@ -28,7 +29,6 @@ from synthergent.util import (
     safe_validate_arguments,
     stop_executor,
     type_str,
-    ExecutorConfig,
 )
 
 
@@ -62,11 +62,11 @@ class Synthergent(Chain):
         self,
         *args,
         scaling: ExecutorConfig = ExecutorConfig(
-            batch_size=None,
             partition_size=None,
             parallelize=Parallelize.sync,
             max_workers=max(1, min(mp.cpu_count() - 1, 16)),  ## Default: 1-6 processes
         ),
+        batch_size: Optional[int] = None,
         save: Optional[Union[FileMetadata, Dict, str]] = None,
         return_data_on_save: bool = False,
         verbosity: int = 1,
@@ -118,7 +118,7 @@ class Synthergent(Chain):
             if save is not None:
                 writer: Writer = Writer.of(
                     save.format,
-                    num_rows={Parallelize.ray: None}.get(scaling.parallelize, scaling.batch_size),
+                    num_rows={Parallelize.ray: None}.get(scaling.parallelize, batch_size),
                 )
                 writer.write(
                     data=exn.outputs["data"],

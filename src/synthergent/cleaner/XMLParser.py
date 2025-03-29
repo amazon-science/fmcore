@@ -21,6 +21,7 @@ class XMLParser(Cleaner):
         @model_validator(mode="before")
         @classmethod
         def _XMLParser_convert_params(cls, params: Dict) -> Dict:
+            cls.set_default_param_values(params)
             params["tags"] = as_list(params["tags"])
             return params
 

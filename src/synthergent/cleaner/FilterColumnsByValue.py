@@ -15,6 +15,7 @@ class FilterColumnsByValue(Cleaner):
         @model_validator(mode="before")
         @classmethod
         def _FilterColumnsByValue_check_params(cls, params: Dict) -> Dict:
+            cls.set_default_param_values(params)
             if len(params["exact_match"]) == len(params["contains"]) == 0:
                 raise ValueError("You must pass at least one parameter")
             return params

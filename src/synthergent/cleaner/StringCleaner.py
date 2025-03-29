@@ -17,6 +17,7 @@ class StringCleaner(Cleaner):
         @model_validator(mode="before")
         @classmethod
         def _StringCleaner_check_params(cls, params: Dict) -> Dict:
+            cls.set_default_param_values(params)
             params["col"] = as_list(params["col"])
             return params
 
