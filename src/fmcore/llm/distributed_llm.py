@@ -4,7 +4,7 @@ from typing import List, Iterator, AsyncIterator
 from langchain_core.messages import BaseMessage, BaseMessageChunk
 
 from fmcore.llm.base_llm import BaseLLM
-from fmcore.types.llm_types import DistributedLLMConfig, LLMConfig
+from fmcore.llm.types.llm_types import DistributedLLMConfig, LLMConfig
 
 
 class DistributedLLM(BaseLLM):

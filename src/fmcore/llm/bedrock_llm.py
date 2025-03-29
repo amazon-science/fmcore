@@ -8,7 +8,7 @@ from langchain_core.messages import BaseMessage, BaseMessageChunk
 from fmcore.aws.factory.bedrock_factory import BedrockFactory
 from fmcore.llm.base_llm import BaseLLM
 from fmcore.types.enums.provider_enums import ProviderType
-from fmcore.types.llm_types import LLMConfig
+from fmcore.llm.types.llm_types import LLMConfig
 from fmcore.utils.rate_limit_utils import RateLimiterUtils
 
 

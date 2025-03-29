@@ -4,7 +4,7 @@ from typing import Iterator, List, AsyncIterator, Union
 from bears.util import Registry
 from langchain_core.messages import BaseMessage, BaseMessageChunk
 
-from fmcore.types.llm_types import LLMConfig, DistributedLLMConfig
+from fmcore.llm.types.llm_types import LLMConfig, DistributedLLMConfig
 from fmcore.types.typed import MutableTyped
 
 

@@ -1,7 +1,7 @@
 from typing import Union, Optional, List
 
 from fmcore.types.typed import MutableTyped
-from fmcore.types.provider_types import (
+from fmcore.llm.types.provider_types import (
     BedrockProviderParams,
     LambdaProviderParams,
     OpenAIProviderParams,

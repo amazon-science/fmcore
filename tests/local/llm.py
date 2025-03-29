@@ -3,7 +3,7 @@ import asyncio
 from langchain_core.messages import HumanMessage
 
 from fmcore.llm.base_llm import BaseLLM
-from fmcore.types.llm_types import LLMConfig, DistributedLLMConfig
+from fmcore.llm.types.llm_types import LLMConfig, DistributedLLMConfig
 
 
 def sync_test(llm):
