@@ -179,7 +179,7 @@ with optional_dependency("nltk", "spacy"):
                 for ngram_self_bleu_scores_batch in accumulate_iter(futures, progress_bar=pbar):
                     ngram_self_bleu_scores.extend(ngram_self_bleu_scores_batch)
             except Exception as e:
-                print(f'Error in "self_bleu_ngram": {format_exception_msg(e)}')
+                print(f'Error in "self_bleu_ngram": {String.format_exception_msg(e)}')
                 raise e
             return sum(ngram_self_bleu_scores) / num_docs
 
