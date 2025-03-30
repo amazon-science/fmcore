@@ -8,7 +8,11 @@ from langchain_core.messages import BaseMessage, HumanMessage
 from fmcore.evaluator.base_evaluator import BaseEvaluator, I, O
 from fmcore.evaluator.enums.evaluator_enums import EvaluatorType
 from fmcore.evaluator.types.evaluator_params_types import BooleanLLMJudgeParams
-from fmcore.evaluator.types.evaluator_types import EvaluatorConfig, BooleanLLMJudgeInput, BooleanLLMJudgeOutput
+from fmcore.evaluator.types.evaluator_types import (
+    EvaluatorConfig,
+    BooleanLLMJudgeInput,
+    BooleanLLMJudgeOutput,
+)
 from fmcore.llm import BaseLLM
 
 
@@ -51,7 +55,7 @@ class BooleanLLMJudgeEvaluator(BaseEvaluator[BooleanLLMJudgeInput, BooleanLLMJud
             "config": evaluator_config,
             "llm": llm,
             "prompt_template": prompt_template,
-            "criteria": criteria
+            "criteria": criteria,
         }
 
     def evaluate(self, data: BooleanLLMJudgeInput) -> O:
@@ -115,7 +119,6 @@ class BooleanLLMJudgeEvaluator(BaseEvaluator[BooleanLLMJudgeInput, BooleanLLMJud
         # https://pypi.org/project/json-repair/
         # We might be changing this in the future if we find any robust impementations
         evaluation_response: Dict = json_repair.loads(response.content)
-
 
         # AST interpreters are not inherently thread-safe, as they maintain an internal symbol table
         # that is modified during execution. To ensure correctness, we instantiate a new Interpreter

@@ -16,6 +16,7 @@ class EvaluatorConfig(MutableTyped):
         evaluator_type (EvaluatorType): The type of evaluator to be used.
         evaluator_params (BaseEvaluatorParams): The parameters required by the evaluator.
     """
+
     evaluator_type: EvaluatorType
     evaluator_params: BaseEvaluatorParams
 
@@ -37,8 +38,7 @@ class EvaluatorConfig(MutableTyped):
         """
         if isinstance(values.get("evaluator_params"), Dict):  # Only transform if it's a dict
             values["evaluator_params"] = BaseEvaluatorParams.from_dict(
-                evaluator_type=values.get("evaluator_type"),
-                evaluator_params=values.get("evaluator_params")
+                evaluator_type=values.get("evaluator_type"), evaluator_params=values.get("evaluator_params")
             )
         return values
 
@@ -50,6 +50,7 @@ class BooleanLLMJudgeInput(MutableTyped):
     Attributes:
         context (Dict): The context information required for evaluation.
     """
+
     context: Dict
 
 
@@ -61,4 +62,5 @@ class BooleanLLMJudgeOutput(MutableTyped):
         decision (bool): The result of the evaluation, indicating whether the response
         meets the specified criteria.
     """
+
     decision: bool

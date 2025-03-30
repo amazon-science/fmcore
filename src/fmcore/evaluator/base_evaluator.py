@@ -20,6 +20,7 @@ class BaseEvaluator(Generic[I, O], MutableTyped, Registry, ABC):
     Attributes:
         config (EvaluatorConfig): The configuration settings for the evaluator.
     """
+
     config: EvaluatorConfig
 
     @classmethod

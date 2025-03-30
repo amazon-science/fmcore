@@ -19,7 +19,7 @@ async def standalone_evaluator_test():
                 },
                 "provider_params": {
                     "provider_type": "BEDROCK",
-                    "role_arn": "arn:aws:iam::<accountId>:role/<roleId>",
+                    "role_arn": "arn:aws:iam::863518436859:role/ModelFactoryBedrockAccessRole",
                     "region": "us-west-2",
                     "rate_limit": {
                         "max_rate": 1,
