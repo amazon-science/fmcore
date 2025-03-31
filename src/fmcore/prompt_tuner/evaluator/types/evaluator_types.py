@@ -1,10 +1,9 @@
-from dataclasses import Field
-from typing import Optional, Dict, Union, Any
+from typing import Dict
 
-from pydantic import root_validator, field_validator, model_validator
+from pydantic import model_validator
 
-from fmcore.evaluator.enums.evaluator_enums import EvaluatorType
-from fmcore.evaluator.types.evaluator_params_types import BaseEvaluatorParams
+from fmcore.prompt_tuner.evaluator.enums.evaluator_enums import EvaluatorType
+from fmcore.prompt_tuner.evaluator.types.evaluator_params_types import BaseEvaluatorParams
 from fmcore.types.typed import MutableTyped
 
 

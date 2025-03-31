@@ -3,7 +3,7 @@ from typing import TypeVar, Generic
 
 from bears.util import Registry
 
-from fmcore.evaluator.types.evaluator_types import EvaluatorConfig
+from fmcore.prompt_tuner.evaluator.types.evaluator_types import EvaluatorConfig
 from fmcore.types.typed import MutableTyped
 
 I = TypeVar("I")  # Input Type
@@ -16,6 +16,9 @@ class BaseEvaluator(Generic[I, O], MutableTyped, Registry, ABC):
 
     This class defines the core evaluation interface and provides a registry-based
     mechanism for dynamically managing evaluator subclasses.
+
+    Note: This is a throw away interface which will be replaced by Pipeline interface
+        that would use transformers internally chaining operations one after the other
 
     Attributes:
         config (EvaluatorConfig): The configuration settings for the evaluator.

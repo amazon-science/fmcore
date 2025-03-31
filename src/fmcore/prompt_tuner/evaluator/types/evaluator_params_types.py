@@ -3,7 +3,7 @@ from typing import Dict
 
 from bears.util import Registry
 
-from fmcore.evaluator.enums.evaluator_enums import EvaluatorType
+from fmcore.prompt_tuner.evaluator.enums.evaluator_enums import EvaluatorType
 from fmcore.llm.mixins.llm_mixins import LLMConfigMixin
 from fmcore.types.typed import MutableTyped
 
