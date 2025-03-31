@@ -21,8 +21,8 @@ async def standalone_evaluator_test():
                     "role_arn": "arn:aws:iam::<accountId:role/<role>",
                     "region": "us-west-2",
                     "rate_limit": {
-                        "max_rate": 1,
-                        "time_period": 10
+                        "max_rate": 60,
+                        "time_period": 60
                     },
                     "retries": {
                         "max_retries": 3
@@ -32,29 +32,37 @@ async def standalone_evaluator_test():
         }
     }
 
-
-
     evaluator_config = EvaluatorConfig(**config_dict)
     evaluator = BaseEvaluator.of(evaluator_config=evaluator_config)
 
-    context = {
+    # Test sarcastic tweet
+    sarcastic_context = {
         "input": {
-            "content": "I love how the new update to Windows 11 has made my computer so much faster and more efficient. I can now stream movies and play games without any lag. It's a game changer!",
+            "content": "Oh great, another meeting that could have been an email. I just love spending my precious time listening to people read slides word for word. It's absolutely thrilling!",
         },
         "output": {
             "label": "yes"
         }
     }
-    boolean_llm_judge_input = BooleanLLMJudgeInput(context=context)
-    result = evaluator.evaluate(boolean_llm_judge_input)
-    print(result)
+    sarcastic_input = BooleanLLMJudgeInput(context=sarcastic_context)
+    sarcastic_result = evaluator.evaluate(sarcastic_input)
+    print("Sarcastic tweet evaluation:")
+    print(sarcastic_result)
 
-
-async def main():
-    # Create LLM once and use for both tests
-    print("Running standalone Evaluator test...")
-    await standalone_evaluator_test()
+    # Test non-sarcastic tweet
+    non_sarcastic_context = {
+        "input": {
+            "content": "Just had a productive team meeting where we finalized the project timeline and assigned clear responsibilities. Looking forward to getting started on the implementation phase.",
+        },
+        "output": {
+            "label": "no"
+        }
+    }
+    non_sarcastic_input = BooleanLLMJudgeInput(context=non_sarcastic_context)
+    non_sarcastic_result = evaluator.evaluate(non_sarcastic_input)
+    print("\nNon-sarcastic tweet evaluation:")
+    print(non_sarcastic_result)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(standalone_evaluator_test())
