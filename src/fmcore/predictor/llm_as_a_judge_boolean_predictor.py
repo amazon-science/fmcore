@@ -29,7 +29,7 @@ class LLMAsAJudgeBooleanPredictor(BasePredictor[bool]):
         """
         # Get response from LLM
         llm_response = self.llm.invoke(data)
-        
+
         # Parse response to JSON
         json_response = self.json_mapper.map(llm_response.content)
         # Check if response meets criteria
@@ -47,9 +47,9 @@ class LLMAsAJudgeBooleanPredictor(BasePredictor[bool]):
         """
         # Get response from LLM
         llm_response = await self.llm.ainvoke(data)
-        
+
         # Parse response to JSON
         json_response = await self.json_mapper.amap(llm_response.content)
-        
+
         # Check if response meets criteria
         return await self.criteria_checker.amap(json_response)

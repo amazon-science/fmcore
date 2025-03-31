@@ -44,11 +44,9 @@ class BooleanLLMJudgeEvaluator(BaseEvaluator[BooleanLLMJudgeInput, BooleanLLMJud
         text_prompt_mapper = TextPromptMapper(template=Template(boolean_llm_judge_params.prompt))
         json_mapper = LLMResponseJsonMapper()
         criteria_checker = CriteriaCheckerMapper(criteria=boolean_llm_judge_params.criteria)
-        
+
         predictor = LLMAsAJudgeBooleanPredictor(
-            llm=llm,
-            json_mapper=json_mapper,
-            criteria_checker=criteria_checker
+            llm=llm, json_mapper=json_mapper, criteria_checker=criteria_checker
         )
 
         return {
@@ -83,6 +81,8 @@ class BooleanLLMJudgeEvaluator(BaseEvaluator[BooleanLLMJudgeInput, BooleanLLMJud
             BooleanLLMJudgeOutput: Evaluation result as a boolean decision.
         """
         # Format the context into messages using the template
-        formatted_message = await self.text_prompt_mapper.amap({"messages": [BaseMessage(content=str(data.context))]})
+        formatted_message = await self.text_prompt_mapper.amap(
+            {"messages": [BaseMessage(content=str(data.context))]}
+        )
         decision = await self.predictor.apredict([formatted_message])
         return BooleanLLMJudgeOutput(decision=decision)
