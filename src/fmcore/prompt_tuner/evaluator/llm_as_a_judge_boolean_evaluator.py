@@ -1,0 +1,93 @@
+from typing import Dict
+from langchain_core.messages import BaseMessage
+from jinja2 import Template
+
+from fmcore.prompt_tuner.evaluator.base_evaluator import BaseEvaluator, O
+from fmcore.prompt_tuner.evaluator.enums.evaluator_enums import EvaluatorType
+from fmcore.prompt_tuner.evaluator.types.evaluator_params_types import BooleanLLMJudgeParams
+from fmcore.prompt_tuner.evaluator.types.evaluator_types import (
+    EvaluatorConfig,
+    LLMAsAJudgeInput,
+    LLMAsAJudgeBooleanOutput,
+)
+from fmcore.llm.base_llm import BaseLLM
+from fmcore.mapper.text_prompt_mapper import TextPromptMapper
+from fmcore.mapper.llm_response_json_mapper import LLMResponseJsonMapper
+from fmcore.mapper.criteria_checker_mapper import CriteriaCheckerMapper
+from fmcore.mapper.llm_inference_mapper import LLMInferenceMapper
+
+
+class LLMAsJudgeBooleanEvaluator(BaseEvaluator[LLMAsAJudgeInput, LLMAsAJudgeBooleanOutput]):
+    """
+    An evaluator that uses an LLM to judge boolean criteria based on a given prompt template and context.
+    Uses llm_as_a_judge_boolean_mapper for the core functionality.
+    """
+
+    aliases = [EvaluatorType.BOOLEAN_LLM_JUDGE]
+
+    text_prompt_mapper: TextPromptMapper
+    llm_inference_mapper: LLMInferenceMapper
+    json_mapper: LLMResponseJsonMapper
+    criteria_checker: CriteriaCheckerMapper
+
+    @classmethod
+    def _get_constructor_parameters(cls, *, evaluator_config: EvaluatorConfig) -> dict:
+        """
+        Extracts and constructs the parameters required to initialize the evaluator.
+
+        Args:
+            evaluator_config (EvaluatorConfig): Configuration object containing evaluator parameters.
+
+        Returns:
+            dict: A dictionary containing initialized parameters (`config`, `text_prompt_mapper`, `llm`, `json_mapper`, `criteria_checker`).
+        """
+        boolean_llm_judge_params: BooleanLLMJudgeParams = evaluator_config.evaluator_params
+        # Create required mappers
+        text_prompt_mapper = TextPromptMapper(prompt_template=boolean_llm_judge_params.prompt)
+        llm_inference_mapper = LLMInferenceMapper(
+            llm=BaseLLM.of(llm_config=boolean_llm_judge_params.llm_config)
+        )
+        json_mapper = LLMResponseJsonMapper()
+        criteria_checker = CriteriaCheckerMapper(criteria=boolean_llm_judge_params.criteria)
+
+        return {
+            "config": evaluator_config,
+            "text_prompt_mapper": text_prompt_mapper,
+            "llm_inference_mapper": llm_inference_mapper,
+            "json_mapper": json_mapper,
+            "criteria_checker": criteria_checker,
+        }
+
+    def evaluate(self, data: LLMAsAJudgeInput) -> LLMAsAJudgeBooleanOutput:
+        """
+        Processes the input data by using the llm_as_a_judge_boolean_mapper to evaluate the context.
+
+        Args:
+            data (BooleanLLMJudgeInput): Input data containing context for evaluation.
+
+        Returns:
+            BooleanLLMJudgeOutput: Evaluation result as a boolean decision.
+        """
+        # Format the context into messages using the template
+        formatted_message: BaseMessage = self.text_prompt_mapper.map(data.context)
+        llm_response: BaseMessage = self.llm_inference_mapper.map([formatted_message])
+        json_response: Dict = self.json_mapper.map(llm_response.content)
+        decision: bool = self.criteria_checker.map(json_response)
+        return LLMAsAJudgeBooleanOutput(decision=decision)
+
+    async def aevaluate(self, data: LLMAsAJudgeInput) -> LLMAsAJudgeBooleanOutput:
+        """
+        Asynchronous version of `evaluate` that processes the input data.
+
+        Args:
+            data (BooleanLLMJudgeInput): Input data containing context for evaluation.
+
+        Returns:
+            BooleanLLMJudgeOutput: Evaluation result as a boolean decision.
+        """
+        # Format the context into messages using the template
+        formatted_message: BaseMessage = await self.text_prompt_mapper.amap(data.context)
+        llm_response: BaseMessage = await self.llm_inference_mapper.amap([formatted_message])
+        json_response: Dict = await self.json_mapper.amap(llm_response.content)
+        decision: bool = await self.criteria_checker.amap(json_response)
+        return LLMAsAJudgeBooleanOutput(decision=decision)
