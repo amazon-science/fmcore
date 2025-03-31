@@ -16,6 +16,7 @@ from fmcore.mapper.llm_response_json_mapper import LLMResponseJsonMapper
 from fmcore.mapper.criteria_checker_mapper import CriteriaCheckerMapper
 from fmcore.mapper.llm_inference_mapper import LLMInferenceMapper
 
+
 class BooleanLLMJudgeEvaluator(BaseEvaluator[BooleanLLMJudgeInput, BooleanLLMJudgeOutput]):
     """
     An evaluator that uses an LLM to judge boolean criteria based on a given prompt template and context.
@@ -43,7 +44,9 @@ class BooleanLLMJudgeEvaluator(BaseEvaluator[BooleanLLMJudgeInput, BooleanLLMJud
         boolean_llm_judge_params: BooleanLLMJudgeParams = evaluator_config.evaluator_params
         # Create required mappers
         text_prompt_mapper = TextPromptMapper(template=Template(boolean_llm_judge_params.prompt))
-        llm_inference_mapper = LLMInferenceMapper(llm=BaseLLM.of(llm_config=boolean_llm_judge_params.llm_config))
+        llm_inference_mapper = LLMInferenceMapper(
+            llm=BaseLLM.of(llm_config=boolean_llm_judge_params.llm_config)
+        )
         json_mapper = LLMResponseJsonMapper()
         criteria_checker = CriteriaCheckerMapper(criteria=boolean_llm_judge_params.criteria)
 
