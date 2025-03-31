@@ -3,6 +3,7 @@ from typing import Dict
 from fmcore.mapper.base_mapper import BaseMapper
 from asteval import Interpreter
 
+
 class CriteriaCheckerMapper(BaseMapper[Dict, bool]):
     """
     A mapper that checks if input data meets specified criteria.

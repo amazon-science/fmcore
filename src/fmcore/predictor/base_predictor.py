@@ -6,6 +6,7 @@ from langchain_core.messages import BaseMessage
 
 O = TypeVar("O")
 
+
 class BasePredictor(Generic[O], MutableTyped, ABC):
     """Base class for all predictors that handle message inputs."""
 
