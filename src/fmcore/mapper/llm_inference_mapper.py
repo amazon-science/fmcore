@@ -1,43 +1,33 @@
-from abc import ABC, abstractmethod
-from typing import List, Any
+from typing import List
 from langchain.schema import BaseMessage
 
 from fmcore.llm import BaseLLM
-from fmcore.llm.types.llm_types import LLMConfig
-from fmcore.transformers.base_transformer import BaseTransformer
+from fmcore.mapper.base_mapper import BaseMapper
 
 
-class LLMPredictor(BaseTransformer[List[BaseMessage], BaseMessage], ABC):
+class LLMInferenceMapper(BaseMapper[List[BaseMessage], BaseMessage]):
     """
-    A concrete LLM predictor that initializes an LLM configuration using Pydantic and uses it
+    A concrete LLM inference mapper that initializes an LLM configuration using Pydantic and uses it
     to process a list of BaseMessage objects, generating a single response message.
     """
 
     llm: BaseLLM
 
-    def __init__(self, llm_config: LLMConfig):
-        llm = BaseLLM.of(llm_config=llm_config)
-        super().__init__(llm=llm)
-
-    def transform(self, data: List[BaseMessage]) -> BaseMessage:
+    def map(self, data: List[BaseMessage]) -> BaseMessage:
         """
         Synchronously processes the input messages and returns the LLM prediction.
-
         Args:
             data (List[BaseMessage]): A list of messages to be processed.
-
         Returns:
             BaseMessage: The generated response message.
         """
         return self.llm.invoke(messages=data)
 
-    async def atransform(self, data: List[BaseMessage]) -> BaseMessage:
+    async def amap(self, data: List[BaseMessage]) -> BaseMessage:
         """
         Asynchronously processes the input messages and returns the LLM prediction.
-
         Args:
             data (List[BaseMessage]): A list of messages to be processed.
-
         Returns:
             BaseMessage: The generated response message.
         """
