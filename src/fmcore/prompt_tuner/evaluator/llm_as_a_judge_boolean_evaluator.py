@@ -43,7 +43,7 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[LLMAsAJudgeInput, LLMAsAJudgeBool
         """
         boolean_llm_judge_params: BooleanLLMJudgeParams = evaluator_config.evaluator_params
         # Create required mappers
-        text_prompt_mapper = TextPromptMapper(template=Template(boolean_llm_judge_params.prompt))
+        text_prompt_mapper = TextPromptMapper(prompt_template=boolean_llm_judge_params.prompt)
         llm_inference_mapper = LLMInferenceMapper(
             llm=BaseLLM.of(llm_config=boolean_llm_judge_params.llm_config)
         )
