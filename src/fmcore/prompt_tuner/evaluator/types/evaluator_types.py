@@ -42,9 +42,9 @@ class EvaluatorConfig(MutableTyped):
         return values
 
 
-class BooleanLLMJudgeInput(MutableTyped):
+class LLMAsAJudgeInput(MutableTyped):
     """
-    Input data structure for Boolean LLM Judge.
+    Input data structure for LLM as a Judge.
 
     Attributes:
         context (Dict): The context information required for evaluation.
@@ -53,9 +53,9 @@ class BooleanLLMJudgeInput(MutableTyped):
     context: Dict
 
 
-class BooleanLLMJudgeOutput(MutableTyped):
+class LLMAsAJudgeBooleanOutput(MutableTyped):
     """
-    Output data structure for Boolean LLM Judge.
+    Output data structure for Boolean outputs from LLM as a Judge.
 
     Attributes:
         decision (bool): The result of the evaluation, indicating whether the response
