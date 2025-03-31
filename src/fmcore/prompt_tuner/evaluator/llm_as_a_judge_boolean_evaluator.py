@@ -7,8 +7,8 @@ from fmcore.prompt_tuner.evaluator.enums.evaluator_enums import EvaluatorType
 from fmcore.prompt_tuner.evaluator.types.evaluator_params_types import BooleanLLMJudgeParams
 from fmcore.prompt_tuner.evaluator.types.evaluator_types import (
     EvaluatorConfig,
-    BooleanLLMJudgeInput,
-    BooleanLLMJudgeOutput,
+    LLMAsAJudgeInput,
+    LLMAsAJudgeBooleanOutput,
 )
 from fmcore.llm.base_llm import BaseLLM
 from fmcore.mapper.text_prompt_mapper import TextPromptMapper
@@ -17,7 +17,7 @@ from fmcore.mapper.criteria_checker_mapper import CriteriaCheckerMapper
 from fmcore.mapper.llm_inference_mapper import LLMInferenceMapper
 
 
-class BooleanLLMJudgeEvaluator(BaseEvaluator[BooleanLLMJudgeInput, BooleanLLMJudgeOutput]):
+class LLMAsJudgeBooleanEvaluator(BaseEvaluator[LLMAsAJudgeInput, LLMAsAJudgeBooleanOutput]):
     """
     An evaluator that uses an LLM to judge boolean criteria based on a given prompt template and context.
     Uses llm_as_a_judge_boolean_mapper for the core functionality.
@@ -58,7 +58,7 @@ class BooleanLLMJudgeEvaluator(BaseEvaluator[BooleanLLMJudgeInput, BooleanLLMJud
             "criteria_checker": criteria_checker,
         }
 
-    def evaluate(self, data: BooleanLLMJudgeInput) -> O:
+    def evaluate(self, data: LLMAsAJudgeInput) -> LLMAsAJudgeBooleanOutput:
         """
         Processes the input data by using the llm_as_a_judge_boolean_mapper to evaluate the context.
 
@@ -73,9 +73,9 @@ class BooleanLLMJudgeEvaluator(BaseEvaluator[BooleanLLMJudgeInput, BooleanLLMJud
         llm_response: BaseMessage = self.llm_inference_mapper.map([formatted_message])
         json_response: Dict = self.json_mapper.map(llm_response.content)
         decision: bool = self.criteria_checker.map(json_response)
-        return BooleanLLMJudgeOutput(decision=decision)
+        return LLMAsAJudgeBooleanOutput(decision=decision)
 
-    async def aevaluate(self, data: BooleanLLMJudgeInput) -> O:
+    async def aevaluate(self, data: LLMAsAJudgeInput) -> LLMAsAJudgeBooleanOutput:
         """
         Asynchronous version of `evaluate` that processes the input data.
 
@@ -90,4 +90,4 @@ class BooleanLLMJudgeEvaluator(BaseEvaluator[BooleanLLMJudgeInput, BooleanLLMJud
         llm_response: BaseMessage = await self.llm_inference_mapper.amap([formatted_message])
         json_response: Dict = await self.json_mapper.amap(llm_response.content)
         decision: bool = await self.criteria_checker.amap(json_response)
-        return BooleanLLMJudgeOutput(decision=decision)
+        return LLMAsAJudgeBooleanOutput(decision=decision)

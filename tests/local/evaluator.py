@@ -1,7 +1,7 @@
 import asyncio
 
 from fmcore.prompt_tuner.evaluator.base_evaluator import BaseEvaluator
-from fmcore.prompt_tuner.evaluator.types.evaluator_types import BooleanLLMJudgeInput, EvaluatorConfig
+from fmcore.prompt_tuner.evaluator.types.evaluator_types import LLMAsAJudgeInput, EvaluatorConfig
 
 
 async def standalone_evaluator_test():
@@ -18,7 +18,7 @@ async def standalone_evaluator_test():
                 },
                 "provider_params": {
                     "provider_type": "BEDROCK",
-                    "role_arn": "arn:aws:iam::<accountId:role/<role>",
+                    "role_arn": "arn:aws:iam::<accountId>:role/<role_name>",
                     "region": "us-west-2",
                     "rate_limit": {
                         "max_rate": 60,
@@ -44,7 +44,7 @@ async def standalone_evaluator_test():
             "label": "yes"
         }
     }
-    sarcastic_input = BooleanLLMJudgeInput(context=sarcastic_context)
+    sarcastic_input = LLMAsAJudgeInput(context=sarcastic_context)
     sarcastic_result = evaluator.evaluate(sarcastic_input)
     print("Sarcastic tweet evaluation:")
     print(sarcastic_result)
@@ -58,7 +58,7 @@ async def standalone_evaluator_test():
             "label": "no"
         }
     }
-    non_sarcastic_input = BooleanLLMJudgeInput(context=non_sarcastic_context)
+    non_sarcastic_input = LLMAsAJudgeInput(context=non_sarcastic_context)
     non_sarcastic_result = evaluator.evaluate(non_sarcastic_input)
     print("\nNon-sarcastic tweet evaluation:")
     print(non_sarcastic_result)
