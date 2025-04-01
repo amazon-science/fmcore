@@ -31,7 +31,7 @@ async def standalone_prompt_tuner():
                 },
                 "provider_params": {
                     "provider_type": "BEDROCK",
-                    "role_arn": "arn:aws:iam::863518436859:role/ModelFactoryBedrockAccessRole",
+                    "role_arn": "arn:aws:iam::<accountId>:role/<roleId>",
                     "region": "us-west-2",
                     "rate_limit": {
                         "max_rate": 1000,
@@ -50,7 +50,7 @@ async def standalone_prompt_tuner():
                 },
                 "provider_params": {
                     "provider_type": "BEDROCK",
-                    "role_arn": "arn:aws:iam::863518436859:role/ModelFactoryBedrockAccessRole",
+                    "role_arn": "arn:aws:iam::<accountId>:role/<roleId>",
                     "region": "us-west-2",
                     "rate_limit": {
                         "max_rate": 1000,
@@ -74,7 +74,7 @@ async def standalone_prompt_tuner():
                         },
                         "provider_params": {
                             "provider_type": "BEDROCK",
-                            "role_arn": "arn:aws:iam::863518436859:role/ModelFactoryBedrockAccessRole",
+                            "role_arn": "arn:aws:iam::<accountId>:role/<roleId>",
                             "region": "us-west-2",
                             "rate_limit": {
                                 "max_rate": 1000,
