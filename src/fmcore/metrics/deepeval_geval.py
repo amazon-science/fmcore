@@ -30,9 +30,7 @@ class DeepEvalGEvalMetric(BaseMetric):
         llm = BaseLLM.of(llm_config=metric_config.llm_config)
         model = DeepEvalLLMAdapter(llm=llm)
 
-        geval_metric_params = IntrospectionUtils.filter_params(
-            func=GEval, params=metric_config.metric_params
-        )
+        geval_metric_params = IntrospectionUtils.filter_params(func=GEval, params=metric_config.metric_params)
         if "evaluation_params" not in geval_metric_params:
             geval_metric_params["evaluation_params"] = DeepEvalUtils.infer_evaluation_params(
                 field_mapping=metric_config.field_mapping

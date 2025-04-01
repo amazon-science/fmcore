@@ -1,8 +1,4 @@
-from datetime import datetime
-
-import pandas as pd
-from bears import FileMetadata, Writer
-from bears.constants import FileFormat
+import asyncio
 
 from fmcore.runners.prompt_tuner_runner import PromptTunerRunner
 
@@ -28,7 +24,7 @@ run_config = {
                 "path": "/Users/rajsiba/train_sarcasm.parquet",
                 "format": "PARQUET",
                 "storage": "LOCAL_FILE_SYSTEM",
-            }
+            },
         },
         "output": {
             "name": "prompts",
@@ -91,14 +87,10 @@ run_config = {
                     "RESPONSE": "RESPONSE",
                 },
             },
-            "optimizer_params": {
-                "num_candidates": 1,
-                "num_trials": 2
-            },
+            "optimizer_params": {"num_candidates": 1, "num_trials": 2},
         },
     },
 }
 
 
-
-PromptTunerRunner().run(run_config=run_config)
+asyncio.run(PromptTunerRunner().run(run_config=run_config))

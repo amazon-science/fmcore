@@ -6,7 +6,6 @@ from langchain_core.messages import BaseMessage
 
 
 class DSPyLLMAdapter(dspy.LM):
-
     def __init__(
         self,
         llm_config: LLMConfig,

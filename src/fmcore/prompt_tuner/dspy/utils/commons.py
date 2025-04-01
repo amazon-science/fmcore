@@ -261,13 +261,15 @@ class DSPyUtils:
         # First get the messages using the existing method
         messages = DSPyUtils.convert_module_to_messages(module)
         prompt_template: ChatPromptTemplate = ChatPromptTemplate.from_messages(messages=messages)
-        keys: List[str] = list(module.signature.input_fields.keys()) + list(module.signature.output_fields.keys())
+        keys: List[str] = list(module.signature.input_fields.keys()) + list(
+            module.signature.output_fields.keys()
+        )
         prompt = prompt_template.format(**{key: "{{{}}}".format(key) for key in keys})
         return prompt
 
     @staticmethod
     def evaluate_module(
-            module: dspy.Module, dataset: List[dspy.Example], evaluator: dspy.Evaluate
+        module: dspy.Module, dataset: List[dspy.Example], evaluator: dspy.Evaluate
     ) -> PromptEvaluationResult:
         """
         Evaluates a DSPy module using a dataset and an evaluation metric.
@@ -290,11 +292,7 @@ class DSPyUtils:
         for example, prediction, is_correct in evaluation_results:
             record = {**example.inputs().toDict(), **prediction.toDict()}
             prompt = prompt_template.format(**record)
-            row = {
-                **record,
-                "prompt": prompt,
-                "is_correct": is_correct
-            }
+            row = {**record, "prompt": prompt, "is_correct": is_correct}
             processed_results.append(row)
 
         return PromptEvaluationResult(score=score, data=pd.DataFrame(processed_results))

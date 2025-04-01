@@ -43,9 +43,7 @@ class MIPROV2Optimizer(BaseDspyOptimizer):
             PromptTunerResult containing sorted list of optimized prompts and their scores
         """
         # Initialize MIPROv2 optimizer with filtered constructor params
-        constructor_params = IntrospectionUtils.filter_params(
-            func=MIPROv2, params=optimizer_params or {}
-        )
+        constructor_params = IntrospectionUtils.filter_params(func=MIPROv2, params=optimizer_params or {})
         optimizer = MIPROv2(
             metric=self.evaluate,
             prompt_model=self.teacher,
@@ -54,9 +52,7 @@ class MIPROV2Optimizer(BaseDspyOptimizer):
         )
 
         # Run optimization with filtered compile params
-        compile_params = IntrospectionUtils.filter_params(
-            func=MIPROv2.compile, params=optimizer_params or {}
-        )
+        compile_params = IntrospectionUtils.filter_params(func=MIPROv2.compile, params=optimizer_params or {})
         optimized_program = optimizer.compile(
             student=self.module,
             trainset=dataset.train,
@@ -65,6 +61,7 @@ class MIPROV2Optimizer(BaseDspyOptimizer):
             **compile_params,
         )
 
-        optimized_candidates = [candidate["program"].predictor.predict
-                             for candidate in optimized_program.candidate_programs]
+        optimized_candidates = [
+            candidate["program"].predictor.predict for candidate in optimized_program.candidate_programs
+        ]
         return optimized_candidates

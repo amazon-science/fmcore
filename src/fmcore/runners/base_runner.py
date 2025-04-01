@@ -5,7 +5,6 @@ from bears.util import Registry
 
 
 class BaseRunner(MutableTyped, Registry, ABC):
-
     @abstractmethod
     def run(self, run_config: dict) -> NoReturn:
         pass

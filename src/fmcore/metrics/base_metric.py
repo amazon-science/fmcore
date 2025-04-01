@@ -56,9 +56,7 @@ class BaseMetric(MutableTyped, Registry, ABC):
         """
 
         BaseMetricClass = BaseMetric.get_subclass(key=metric_config.metric_name.name)
-        constructor_params = BaseMetricClass._get_constructor_parameters(
-            metric_config=metric_config
-        )
+        constructor_params = BaseMetricClass._get_constructor_parameters(metric_config=metric_config)
         return BaseMetricClass(**constructor_params)
 
     @abstractmethod
