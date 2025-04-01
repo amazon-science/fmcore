@@ -48,7 +48,7 @@ class BooleanLLMJudgeParams(BaseEvaluatorParams, LLMConfigMixin):
         criteria (str): The criteria against which the evaluation is performed.
     """
 
-    aliases = [EvaluatorType.BOOLEAN_LLM_JUDGE]
+    aliases = [EvaluatorType.LLM_AS_A_JUDGE_BOOLEAN]
 
     prompt: str
     criteria: str

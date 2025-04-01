@@ -6,7 +6,7 @@ from fmcore.types.typed import MutableTyped
 I = TypeVar("I")  # Input Type
 O = TypeVar("O")  # Output Type
 
-
+# TODO Evaluate if this can be replaced with SKlearn Interfaces
 class BaseMapper(Generic[I, O], MutableTyped, ABC):
     """
     A generic base class for implementing mappers that process input data
