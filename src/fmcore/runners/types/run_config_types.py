@@ -2,8 +2,6 @@ from typing import Dict
 
 from bears import FileMetadata
 
-from fmcore.prompt_tuner.types.enums.prompt_tuner_enums import PromptTunerTaskType
-from fmcore.prompt_tuner.types.prompt_tuner_types import PromptTunerConfig
 from fmcore.types.enums.dataset_enums import DatasetType
 from fmcore.types.typed import MutableTyped
 
@@ -30,16 +28,3 @@ class BaseRunConfig(MutableTyped):
     """
 
     dataset_config: DatasetConfig
-
-
-class PromptTunerRunConfig(BaseRunConfig):
-    """
-    Configuration for running a prompt tuning task.
-
-    Attributes:
-        task_type (PromptTunerTaskType): The type of prompt tuning task to be executed.
-        prompt_tuner_config (PromptTunerConfig): Configuration for the prompt tuning process.
-    """
-
-    task_type: PromptTunerTaskType
-    prompt_tuner_config: PromptTunerConfig

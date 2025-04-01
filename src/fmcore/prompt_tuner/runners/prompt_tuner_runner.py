@@ -5,14 +5,14 @@ import pandas as pd
 from bears import FileMetadata, Writer
 
 from fmcore.prompt_tuner.base_prompt_tuner import BasePromptTuner
+from fmcore.prompt_tuner.types.prompt_tuner_run_config_types import PromptTunerRunConfig
 from fmcore.prompt_tuner.types.prompt_tuner_types import PromptTunerResult
 from fmcore.runners.base_runner import BaseRunner
 from fmcore.types.enums.dataset_enums import DatasetType
-from fmcore.types.run_config_types import PromptTunerRunConfig
 from fmcore.utils.dataset_utils import DatasetUtils
 
 
-class PromptTunerRunner(BaseRunner):
+class PromptTunerRunner(BaseRunner[PromptTunerRunConfig]):
     """
     Runner class for executing prompt tuning.
 

@@ -1,10 +1,7 @@
 import asyncio
 
-from fmcore.prompt_tuner import BasePromptTuner
-from fmcore.prompt_tuner.types.prompt_tuner_types import PromptTunerConfig
-from fmcore.runners.prompt_tuner_runner import PromptTunerRunner
-from fmcore.types.enums.dataset_enums import DatasetType
-from fmcore.types.run_config_types import PromptTunerRunConfig
+from fmcore.prompt_tuner.runners.prompt_tuner_runner import PromptTunerRunner
+from fmcore.prompt_tuner.types.prompt_tuner_run_config_types import PromptTunerRunConfig
 
 
 async def standalone_prompt_tuner():

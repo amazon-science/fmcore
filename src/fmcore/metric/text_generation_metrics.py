@@ -1754,7 +1754,7 @@ class TextGenerationStudent(Metric):
                 resources_per_model=self.params.resources_per_model,
                 num_models=self.params.tune_num_models,
                 eval_steps=self.params.eval_steps,
-                objective_metric=self.params.optimizer_metric,
+                objective_metric=self.params.objective_metric,
                 objective_type=self.params.objective_type,
                 objective_dataset=DataSplit.VALIDATION,
                 eval_batch_size=self.params.eval_batch_size,
