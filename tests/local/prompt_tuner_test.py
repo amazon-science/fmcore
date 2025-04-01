@@ -23,7 +23,7 @@ async def standalone_prompt_tuner():
         }
     },
         "prompt_tuner_config": {
-        "framework": "LMOPS",
+        "framework": "DSPY",
         "prompt_config": {
             "prompt": "Is the content sarcastic?",
             "input_fields": [{
@@ -36,7 +36,7 @@ async def standalone_prompt_tuner():
             }],
         },
         "optimizer_config": {
-            "optimizer_type": "BINARY_CLASSIFICATION",
+            "optimizer_type": "MIPRO_V2",
             "student_config": {
                 "model_id": "anthropic.claude-3-haiku-20240307-v1:0",
                 "model_params": {
@@ -76,14 +76,35 @@ async def standalone_prompt_tuner():
                 }]
             },
             "evaluator_config": {
-                "evaluator_type": "CLASSIFICATION",
-                "evaluator_params": {}
+                "evaluator_type": "LLM_AS_A_JUDGE_BOOLEAN",
+                "evaluator_params": {
+                    "prompt": 'You will be given a tweet and a label. Your task is to determine whether the LLM has correctly classified the sarcasm in the given input. Provide your judgment as `True` or `False`, along with a brief reason. \n\n\nTweet: {{input.content}}  \nLabel: {{output.label}} \n\n\nReturn the result in the following JSON format:  \n```json\n{\n  "judge_prediction": "True/False",\n  "reason": "reason"\n}\n```',
+                    "criteria": "judge_prediction == 'True'",
+                    "llm_config": {
+                        "model_id": "anthropic.claude-3-haiku-20240307-v1:0",
+                        "model_params": {
+                            "temperature": 0.5,
+                            "max_tokens": 1024
+                        },
+                        "provider_params_list": [{
+                            "provider_type": "BEDROCK",
+                            "role_arn": "arn:aws:iam::<accountId>:role/<roleId>",
+                            "region": "us-west-2",
+                            "rate_limit": {
+                                "max_rate": 1000,
+                                "time_period": 60
+                            },
+                            "retries": {
+                                "max_retries": 3
+                            }
+                        }]
+                    }
+                }
             },
             "optimizer_params": {
-                "rounds": 2,
-                "optimization_section_tag": "categories",
-                "num_candidates_to_generate": 1,
-            }
+                "auto": "light",
+                "optimizer_metric": "ACCURACY"
+            },
         },
     }
     }
