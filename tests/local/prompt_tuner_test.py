@@ -2,7 +2,9 @@ import asyncio
 
 from fmcore.prompt_tuner import BasePromptTuner
 from fmcore.prompt_tuner.types.prompt_tuner_types import PromptTunerConfig
+from fmcore.runners.prompt_tuner_runner import PromptTunerRunner
 from fmcore.types.enums.dataset_enums import DatasetType
+from fmcore.types.run_config_types import PromptTunerRunConfig
 
 
 async def standalone_prompt_tuner():
@@ -72,7 +74,7 @@ async def standalone_prompt_tuner():
                         },
                         "provider_params": {
                             "provider_type": "BEDROCK",
-                            "role_arn": "arn:aws:iam::<accountId>:role/<roleId>",
+                            "role_arn": "arn:aws:iam::863518436859:role/ModelFactoryBedrockAccessRole",
                             "region": "us-west-2",
                             "rate_limit": {
                                 "max_rate": 1000,
@@ -91,25 +93,28 @@ async def standalone_prompt_tuner():
             },
         },
     }
-
-    from datasets import load_dataset
-
-    ds = load_dataset("nikesh66/Sarcasm-dataset")
-    df = ds["train"].to_pandas()
-    df.rename(columns={"Tweet": "content", "Sarcasm (yes/no)": "label"}, inplace=True)
-    data = df.sample(n=100)
-
-    config = PromptTunerConfig(**tuner_config_dict)
-    prompt_tuner = BasePromptTuner.of(config=config)
-
-    dataset = {
-        DatasetType.TRAIN:  df.sample(n=100),
-        DatasetType.VAL:  df.sample(n=100),
-        DatasetType.TEST:  df.sample(n=100)
+    dataset_config = {
+        "inputs": {
+            "TRAIN": {
+                "path": "/Volumes/workplace/fmcore/fmcore/datasets/sarcasm/train.parquet",
+                "storage": "LOCAL_FILE_SYSTEM",
+                "format": "PARQUET"
+            }
+        },
+        "output": {
+            "name": "results",
+            "path": "/Volumes/workplace/fmcore/fmcore/results/output/sarcasm",
+            "storage": "LOCAL_FILE_SYSTEM",
+            "format": "CSV"
+        }
     }
-    result = prompt_tuner.tune(data = dataset)
-
-    print(result)
+    prompt_tuner_run_config = {
+        "task_type": "TEXT_GENERATION",
+        "dataset_config": dataset_config,
+        "prompt_tuner_config": tuner_config_dict
+    }
+    prompt_tuner_run_config = PromptTunerRunConfig(**prompt_tuner_run_config)
+    await PromptTunerRunner().run(config=prompt_tuner_run_config)
 
 
 async def main():

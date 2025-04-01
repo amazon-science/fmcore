@@ -1,2 +1,0 @@
-from fmcore.prompt_tuner.dspy.optimizers.base_dspy_optimizer import BaseDspyOptimizer
-from fmcore.prompt_tuner.dspy.optimizers.miprov2_optimizer import MIPROV2Optimizer

@@ -23,20 +23,9 @@ class DSPyUtils:
     """
 
     @staticmethod
-    def create_dspy_lm(llm_config: LLMConfig):
-        """
-        Creates and returns a DSPyLLMAdapter instance using the provided LLM configuration.
-
-        Args:
-            llm_config (LLMConfig): The configuration for the LLM.
-
-        Returns:
-            DSPyLLMAdapter: An instance of DSPyLLMAdapter initialized with the given config.
-        """
-        return DSPyLLMAdapter(llm_config=llm_config)
-
-    @staticmethod
-    def create_dspy_dataset(data: Dict[DatasetType, pd.DataFrame], prompt_config: PromptConfig) -> DspyDataset:
+    def create_dspy_dataset(
+        data: Dict[DatasetType, pd.DataFrame], prompt_config: PromptConfig
+    ) -> DspyDataset:
         """
         Creates a DSPy dataset from a DataFrame and prompt configuration.
 

@@ -13,6 +13,7 @@ class BaseOptimizerParams(MutableTyped):
     Attributes:
         optimizer_metric (OptimizerMetricType): The metric used for optimization.
     """
+
     optimizer_metric: OptimizerMetricType
 
 

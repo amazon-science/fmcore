@@ -17,8 +17,20 @@ from fmcore.mapper.llm_inference_mapper import LLMInferenceMapper
 
 class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
     """
-    An evaluator that uses an LLM to judge boolean criteria based on a given prompt template and context.
-    Uses llm_as_a_judge_boolean_mapper for the core functionality.
+    An evaluator that processes input data in the form of a dictionary (Dict) and returns
+    a boolean (bool) decision based on a judgment criterion evaluated by a large language model (LLM).
+
+    This evaluator is designed to assess a given context or criteria encoded within the input dictionary
+    and produce a binary decision (True or False). The core functionality involves:
+
+    1. Mapping the input dictionary to a prompt template using `text_prompt_mapper`.
+    2. Feeding the formatted prompt into an LLM using `llm_inference_mapper` for evaluation.
+    3. Parsing the LLM's response into structured JSON via `json_mapper`.
+    4. Applying `criteria_checker` to the parsed JSON to make a final boolean judgment.
+
+    The transformation of input data from a raw dictionary to a boolean output makes this evaluator
+    particularly suited for use cases such as rule-based decision making, automated validation, or
+    context-dependent boolean classification tasks.
     """
 
     aliases = [EvaluatorType.LLM_AS_A_JUDGE_BOOLEAN]

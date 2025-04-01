@@ -83,7 +83,7 @@ class PromptEvaluationResult(MutableTyped):
         data (Optional[pd.DataFrame]): Optional additional data associated with the evaluation.
     """
 
-    score: float
+    score: float  # TODO this should be metric name
     data: Optional[pd.DataFrame]
 
 

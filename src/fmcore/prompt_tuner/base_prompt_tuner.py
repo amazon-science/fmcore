@@ -17,7 +17,7 @@ class BasePromptTuner(MutableTyped, Registry, ABC):
     Attributes:
         config (PromptTunerConfig): Configuration for the prompt tuner.
 
-    TODO
+    TODO: This interface should be removed in the future by 01/04/2025
     """
 
     config: PromptTunerConfig

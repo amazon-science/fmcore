@@ -6,8 +6,8 @@ from dspy.teleprompt import MIPROv2
 from fmcore.prompt_tuner import OptimizerType
 from fmcore.prompt_tuner.dspy.datasets.base_dataset import DspyDataset
 from fmcore.prompt_tuner.dspy.lm_adapters.dspy_adapter import DSPyLLMAdapter
-from fmcore.prompt_tuner.dspy.optimizers.base_dspy_optimizer import (
-    BaseDspyOptimizer,
+from fmcore.prompt_tuner.dspy.optimizer_wrapper.base_dspy_optimizer_wrapper import (
+    BaseDspyOptimizerWrapper,
 )
 from fmcore.prompt_tuner.dspy.utils.dspy_utils import DSPyUtils
 from fmcore.prompt_tuner.evaluator import BaseEvaluator
@@ -16,7 +16,7 @@ from fmcore.prompt_tuner.types.prompt_tuner_types import PromptTunerConfig
 from fmcore.utils.introspection_utils import IntrospectionUtils
 
 
-class MIPROV2Optimizer(BaseDspyOptimizer):
+class MIPROV2OptimizerWrapper(BaseDspyOptimizerWrapper):
     """
     Optimizer class for prompt tuning using DSPy's MIPROv2.
 
@@ -50,12 +50,6 @@ class MIPROV2Optimizer(BaseDspyOptimizer):
         Returns:
             Dict: A dictionary of parameters used to initialize the DSPy prompt tuning process.
         """
-        # Create DSPy signature and module
-        signature: dspy.Signature = DSPyUtils.create_dspy_signature(
-            prompt_config=prompt_tuner_config.prompt_config
-        )
-        module: dspy.Module = DSPyUtils.create_dspy_module(signature=signature)
-
         # Initialize student model and configure DSPy
         optimizer_config: BaseOptimizerConfig = prompt_tuner_config.optimizer_config
         student_model = DSPyLLMAdapter(llm_config=optimizer_config.student_config)
@@ -79,7 +73,6 @@ class MIPROV2Optimizer(BaseDspyOptimizer):
         return {
             "student": student_model,
             "teacher": teacher_model,
-            "module": module,
             "evaluate": evaluate,
             "optimizer_config": optimizer_config,
         }

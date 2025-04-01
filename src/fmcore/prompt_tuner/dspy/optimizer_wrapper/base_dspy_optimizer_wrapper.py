@@ -9,14 +9,21 @@ from fmcore.types.typed import MutableTyped
 from bears.util import Registry
 
 
-class BaseDspyOptimizer(MutableTyped, Registry, ABC):
+class BaseDspyOptimizerWrapper(MutableTyped, Registry, ABC):
     """
-    Abstract base class for DSPy optimizers, providing common functionality
-    for optimizing prompts using DSPy framework.
+    DO NOT WRITE OPTIMIZERS INHERITING THIS INTERFACE
 
-    Subclasses of this class are responsible for implementing the specific
-    optimizers like BootStrap, MIProV2, COPRO etc.,
-    https://dspy.ai/learn/optimization/optimizers/
+    Abstract base class for DSPy optimizers, providing common functionality
+    for optimizing prompts using the DSPy framework.
+
+    This is a wrapper over DSPy optimizers because DSPy does not provide a unified interface
+    for different optimizers. The inputs and outputs of optimizers like BootStrap, MIProV2,
+    and COPRO vary significantly, requiring specific transformation logic. This class
+    ensures that the necessary parsing and transformation are handled at the optimizer level,
+    without implementing optimizers directly.
+
+    Subclasses of this class should implement optimizer-specific logic.
+    Reference: https://dspy.ai/learn/optimization/optimizers/
 
     Attributes:
         module: The DSPy module used in the optimization process.
@@ -46,7 +53,7 @@ class BaseDspyOptimizer(MutableTyped, Registry, ABC):
         pass
 
     @classmethod
-    def of(cls, prompt_tuner_config: PromptTunerConfig) -> "BaseDspyOptimizer":
+    def of(cls, module: dspy.Module, prompt_tuner_config: PromptTunerConfig) -> "BaseDspyOptimizerWrapper":
         """
         Factory method to create an instance of a subclass of BaseDspyOptimizer
         using the provided configuration.
@@ -56,14 +63,16 @@ class BaseDspyOptimizer(MutableTyped, Registry, ABC):
                 containing the optimizer configuration.
 
         Returns:
-            BaseDspyOptimizer: An instance of the appropriate optimizer subclass.
+            BaseDspyOptimizerWrapper: An instance of the appropriate optimizer subclass.
         """
-        BaseDspyOptimizerClass = BaseDspyOptimizer.get_subclass(
+        BaseDspyOptimizerClass = BaseDspyOptimizerWrapper.get_subclass(
             key=prompt_tuner_config.optimizer_config.optimizer_type.name
         )
         constructor_parameters = BaseDspyOptimizerClass._get_constructor_parameters(
             prompt_tuner_config=prompt_tuner_config
         )
+        # Add modules to the constructor params
+        constructor_parameters.update({"module": module})
         return BaseDspyOptimizerClass(**constructor_parameters)
 
     @abstractmethod
