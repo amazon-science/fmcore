@@ -26,9 +26,7 @@ class BaseDspyOptimizer(MutableTyped, Registry, ABC):
         **kwargs,
     ) -> str:
         BaseDspyOptimizerClass = BaseDspyOptimizer.get_subclass(key=optimizerType)
-        return BaseDspyOptimizerClass(
-            student=student, teacher=teacher, module=module, evaluate=evaluate
-        )
+        return BaseDspyOptimizerClass(student=student, teacher=teacher, module=module, evaluate=evaluate)
 
     @abstractmethod
     def optimize(self, dataset: DspyDataset, optimzer_params: Dict[str, Any]) -> List[dspy.Module]:

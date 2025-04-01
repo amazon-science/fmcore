@@ -13,7 +13,6 @@ from fmcore.utils.dataset_utils import DatasetUtils
 
 
 class PromptTunerRunner(BaseRunner):
-    
     async def run(self, prompt_tuner_run_config: PromptTunerRunConfig) -> NoReturn:
         """
         Run the prompt tuner with the provided configuration.
@@ -30,7 +29,9 @@ class PromptTunerRunner(BaseRunner):
         # Run the prompt tuner
         prompt_tuner = BasePromptTuner.of(config=prompt_tuner_run_config.prompt_tuner_config)
         tuner_result: PromptTunerResult = prompt_tuner.tune(data=data)
-        self.process_results(tuner_result=tuner_result, output_metadata=prompt_tuner_run_config.dataset_config.output)
+        self.process_results(
+            tuner_result=tuner_result, output_metadata=prompt_tuner_run_config.dataset_config.output
+        )
 
     async def process_results(self, tuner_result: PromptTunerResult, output_metadata: FileMetadata):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -40,9 +41,7 @@ class PromptTunerRunner(BaseRunner):
             {
                 "prompt_id": prompt.prompt_id,
                 "prompt": prompt.prompt,
-                "validation_score": (
-                    prompt.validation_result.score if prompt.validation_result else None
-                ),
+                "validation_score": (prompt.validation_result.score if prompt.validation_result else None),
                 "test_score": prompt.test_result.score if prompt.test_result else None,
             }
             for prompt in tuner_result.prompts

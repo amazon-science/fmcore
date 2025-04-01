@@ -102,9 +102,7 @@ class DSPyPromptTuner(BasePromptTuner):
         dataset: DspyDataset = DspyDataset(data=data, prompt_config=self.config.prompt_config)
 
         # Create signature and module separately
-        signature: Type[Signature] = DSPyUtils.create_dspy_signature(
-            prompt_config=self.config.prompt_config
-        )
+        signature: Type[Signature] = DSPyUtils.create_dspy_signature(prompt_config=self.config.prompt_config)
         module: Module = DSPyUtils.create_dspy_module(signature=signature)
 
         # Create evaluation function and evaluator

@@ -38,13 +38,9 @@ class BotoFactory:
             credentials = response[AWSConstants.CREDENTIALS]
             return {
                 AWSConstants.AWS_CREDENTIALS_ACCESS_KEY: credentials[AWSConstants.ACCESS_KEY_ID],
-                AWSConstants.AWS_CREDENTIALS_SECRET_KEY: credentials[
-                    AWSConstants.SECRET_ACCESS_KEY
-                ],
+                AWSConstants.AWS_CREDENTIALS_SECRET_KEY: credentials[AWSConstants.SECRET_ACCESS_KEY],
                 AWSConstants.AWS_CREDENTIALS_TOKEN: credentials[AWSConstants.SESSION_TOKEN],
-                AWSConstants.AWS_CREDENTIALS_EXPIRY_TIME: credentials[
-                    AWSConstants.EXPIRATION
-                ].isoformat(),
+                AWSConstants.AWS_CREDENTIALS_EXPIRY_TIME: credentials[AWSConstants.EXPIRATION].isoformat(),
             }
 
         # Create refreshable credentials

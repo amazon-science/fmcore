@@ -54,9 +54,7 @@ def custom_prepare_instructions(signature: SignatureMeta):
     def format_signature_fields_for_instructions(fields: Dict[str, FieldInfo]):
         return format_fields(
             fields_with_values={
-                FieldInfoWithName(name=field_name, info=field_info): field_metadata(
-                    field_name, field_info
-                )
+                FieldInfoWithName(name=field_name, info=field_info): field_metadata(field_name, field_info)
                 for field_name, field_info in fields.items()
             },
         )
