@@ -1,8 +1,4 @@
-from datetime import datetime
-
-import pandas as pd
-from bears import FileMetadata, Writer
-from bears.constants import FileFormat
+import asyncio
 
 from fmcore.runners.prompt_tuner_runner import PromptTunerRunner
 
@@ -101,4 +97,4 @@ run_config = {
 
 
 
-PromptTunerRunner().run(run_config=run_config)
+asyncio.run(PromptTunerRunner().run(run_config=run_config))
