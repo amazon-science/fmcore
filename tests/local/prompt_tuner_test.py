@@ -1,11 +1,28 @@
 import asyncio
 
-from fmcore.prompt_tuner.runners.prompt_tuner_runner import PromptTunerRunner
+from fmcore.prompt_tuner import BasePromptTuner
 from fmcore.prompt_tuner.types.prompt_tuner_run_config_types import PromptTunerRunConfig
 
 
 async def standalone_prompt_tuner():
-    tuner_config_dict = {
+    prompt_tuner_run_config = {
+        "task_type": "TEXT_GENERATION",
+        "dataset_config": {
+        "inputs": {
+            "TRAIN": {
+                "path": "/Volumes/workplace/fmcore/fmcore/datasets/sarcasm/train.parquet",
+                "storage": "LOCAL_FILE_SYSTEM",
+                "format": "PARQUET"
+            }
+        },
+        "output": {
+            "name": "results",
+            "path": "/Volumes/workplace/fmcore/fmcore/results/output/sarcasm/",
+            "storage": "LOCAL_FILE_SYSTEM",
+            "format": "PARQUET"
+        }
+    },
+        "prompt_tuner_config": {
         "framework": "DSPY",
         "prompt_config": {
             "prompt": "Is the content sarcastic?",
@@ -26,7 +43,7 @@ async def standalone_prompt_tuner():
                     "temperature": 0.5,
                     "max_tokens": 1024
                 },
-                "provider_params": {
+                "provider_params_list": [{
                     "provider_type": "BEDROCK",
                     "role_arn": "arn:aws:iam::<accountId>:role/<roleId>",
                     "region": "us-west-2",
@@ -37,7 +54,7 @@ async def standalone_prompt_tuner():
                     "retries": {
                         "max_retries": 3
                     }
-                }
+                }]
             },
             "teacher_config": {
                 "model_id": "anthropic.claude-3-haiku-20240307-v1:0",
@@ -45,7 +62,7 @@ async def standalone_prompt_tuner():
                     "temperature": 0.5,
                     "max_tokens": 1024
                 },
-                "provider_params": {
+                "provider_params_list": [{
                     "provider_type": "BEDROCK",
                     "role_arn": "arn:aws:iam::<accountId>:role/<roleId>",
                     "region": "us-west-2",
@@ -56,7 +73,7 @@ async def standalone_prompt_tuner():
                     "retries": {
                         "max_retries": 3
                     }
-                }
+                }]
             },
             "evaluator_config": {
                 "evaluator_type": "LLM_AS_A_JUDGE_BOOLEAN",
@@ -69,7 +86,7 @@ async def standalone_prompt_tuner():
                             "temperature": 0.5,
                             "max_tokens": 1024
                         },
-                        "provider_params": {
+                        "provider_params_list": [{
                             "provider_type": "BEDROCK",
                             "role_arn": "arn:aws:iam::<accountId>:role/<roleId>",
                             "region": "us-west-2",
@@ -80,7 +97,7 @@ async def standalone_prompt_tuner():
                             "retries": {
                                 "max_retries": 3
                             }
-                        }
+                        }]
                     }
                 }
             },
@@ -90,28 +107,11 @@ async def standalone_prompt_tuner():
             },
         },
     }
-    dataset_config = {
-        "inputs": {
-            "TRAIN": {
-                "path": "/Volumes/workplace/fmcore/fmcore/datasets/sarcasm/train.parquet",
-                "storage": "LOCAL_FILE_SYSTEM",
-                "format": "PARQUET"
-            }
-        },
-        "output": {
-            "name": "results",
-            "path": "/Volumes/workplace/fmcore/fmcore/results/output/sarcasm",
-            "storage": "LOCAL_FILE_SYSTEM",
-            "format": "CSV"
-        }
-    }
-    prompt_tuner_run_config = {
-        "task_type": "TEXT_GENERATION",
-        "dataset_config": dataset_config,
-        "prompt_tuner_config": tuner_config_dict
     }
     prompt_tuner_run_config = PromptTunerRunConfig(**prompt_tuner_run_config)
-    await PromptTunerRunner().run(config=prompt_tuner_run_config)
+    tuner = BasePromptTuner.of(config=prompt_tuner_run_config)
+    tuner.tune()
+
 
 
 async def main():

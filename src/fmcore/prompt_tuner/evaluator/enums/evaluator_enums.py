@@ -7,3 +7,4 @@ class EvaluatorType(str, Enum):
     """
 
     LLM_AS_A_JUDGE_BOOLEAN = "LLM_AS_A_JUDGE_BOOLEAN"
+    CLASSIFICATION = "CLASSIFICATION"

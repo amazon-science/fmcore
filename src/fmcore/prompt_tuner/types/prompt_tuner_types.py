@@ -34,21 +34,13 @@ class PromptConfig(MutableTyped):
     """
 
     prompt: str
-    input_fields: List[PromptField]
-    output_fields: List[PromptField]
+    input_fields: Optional[List[PromptField]] = []
+    output_fields: Optional[List[PromptField]] = []
 
 
 class PromptTunerConfig(MutableTyped):
     """
     Configuration class for a prompt tuner, including the framework, prompt configuration, and optimizer configuration.
-
-    Attributes:
-        framework (PromptTunerFramework): The framework used for tuning.
-        prompt_config (PromptConfig): Configuration details for the prompt.
-        optimizer_config (BaseOptimizerConfig): Configuration details for the optimizer.
-
-    Methods:
-        parse_optimizer_config (model_validator): A Pydantic validator that parses the optimizer config if it's provided as a dictionary.
     """
 
     framework: PromptTunerFramework
@@ -56,21 +48,45 @@ class PromptTunerConfig(MutableTyped):
     optimizer_config: BaseOptimizerConfig
 
     @model_validator(mode="before")
-    def parse_optimizer_config(cls, values: Dict):
+    def validate_prompt_tuner_config(cls, values: Dict):
         """
-        Validates and transforms the optimizer configuration before the model is created.
-        If the optimizer configuration is a dictionary, it converts it into a BaseOptimizerConfig object.
+        Validates the configuration values before the model is created.
+
+        1. Ensures that `input_fields` and `output_fields` are provided in `prompt_config` if the framework is 'dspy'.
+        2. Converts `optimizer_config` to a `BaseOptimizerConfig` if it's a dictionary.
 
         Args:
             values (Dict): The input values for the class.
 
         Returns:
-            Dict: The transformed values with the optimizer_config as a BaseOptimizerConfig.
+            Dict: The transformed and validated values.
+
+        Raises:
+            ValueError: If `input_fields` or `output_fields` are missing when the framework is 'dspy'.
         """
-        if isinstance(values.get("optimizer_config"), Dict):  # Only transform if it's a dict
+        framework = values.get("framework")
+        prompt_config_data = values.get("prompt_config")
+
+        # Convert prompt_config_data to an instance of PromptConfig if it's a dictionary
+        if isinstance(prompt_config_data, dict):
+            prompt_config = PromptConfig(**prompt_config_data)
+            values["prompt_config"] = prompt_config
+        else:
+            prompt_config = prompt_config_data
+
+        # Validate prompt fields if the framework is 'dspy'
+        if framework == PromptTunerFramework.DSPY.value:
+            if not prompt_config.input_fields or not prompt_config.output_fields:
+                raise ValueError(
+                    "For 'dspy' framework, both input_fields and output_fields must be provided in the prompt config."
+                )
+
+        # Handle optimizer config transformation
+        if isinstance(values.get("optimizer_config"), Dict):
             values["optimizer_config"] = BaseOptimizerConfig.from_dict(
                 optimizer_config=values.get("optimizer_config")
             )
+
         return values
 
 

@@ -8,7 +8,7 @@ O = TypeVar("O")  # Output Type
 
 
 # TODO Evaluate if this can be replaced with SKlearn Interfaces
-class BaseMapper(Generic[I, O], MutableTyped, ABC):
+class BaseMapper(MutableTyped, Generic[I, O], ABC):
     """
     A generic base class for implementing mappers that process input data
     of type `I` and produce output of type `O`.

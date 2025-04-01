@@ -1,5 +1,9 @@
+from typing import Dict
+
+from bears import FileMetadata
 from pydantic import Field
 
+from fmcore.types.enums.dataset_enums import DatasetType
 from fmcore.types.typed import MutableTyped
 
 
@@ -26,3 +30,16 @@ class RetryConfig(MutableTyped):
     max_retries: int = Field(default=3)
     backoff_factor: float = Field(default=1.0)
     jitter: float = Field(default=1.0)
+
+
+class DatasetConfig(MutableTyped):
+    """
+    Configuration for dataset storage and file references.
+
+    Attributes:
+        inputs (Dict[DatasetType, FileMetadata]): Mapping of dataset types (TRAIN, TEST, VAL) to file metadata.
+        output (FileMetadata): Metadata for the output file.
+    """
+
+    inputs: Dict[DatasetType, FileMetadata] = {}
+    output: FileMetadata

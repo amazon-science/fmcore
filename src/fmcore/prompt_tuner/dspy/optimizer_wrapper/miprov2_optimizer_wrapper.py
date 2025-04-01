@@ -3,7 +3,6 @@ from typing import Dict, Optional, List, Callable
 import dspy
 from dspy.teleprompt import MIPROv2
 
-from fmcore.prompt_tuner import OptimizerType
 from fmcore.prompt_tuner.dspy.datasets.base_dataset import DspyDataset
 from fmcore.prompt_tuner.dspy.lm_adapters.dspy_adapter import DSPyLLMAdapter
 from fmcore.prompt_tuner.dspy.optimizer_wrapper.base_dspy_optimizer_wrapper import (
@@ -11,6 +10,7 @@ from fmcore.prompt_tuner.dspy.optimizer_wrapper.base_dspy_optimizer_wrapper impo
 )
 from fmcore.prompt_tuner.dspy.utils.dspy_utils import DSPyUtils
 from fmcore.prompt_tuner.evaluator import BaseEvaluator
+from fmcore.prompt_tuner.types.enums.optimizer_enums import DSPyOptimizerType
 from fmcore.prompt_tuner.types.optimizer_types import BaseOptimizerConfig
 from fmcore.prompt_tuner.types.prompt_tuner_types import PromptTunerConfig
 from fmcore.utils.introspection_utils import IntrospectionUtils
@@ -31,7 +31,7 @@ class MIPROV2OptimizerWrapper(BaseDspyOptimizerWrapper):
         teacher (Optional[dspy.LM]): The optional teacher model used for guidance.
     """
 
-    aliases = [OptimizerType.MIPRO_V2]
+    aliases = [DSPyOptimizerType.MIPRO_V2]
 
     student: dspy.LM
     teacher: Optional[dspy.LM]

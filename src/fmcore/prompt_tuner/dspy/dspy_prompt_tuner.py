@@ -37,7 +37,7 @@ class DSPyPromptTuner(BasePromptTuner):
 
     aliases = [PromptTunerFramework.DSPY]
 
-    def tune(self, *, data: Dict[DatasetType, pd.DataFrame]) -> PromptTunerResult:
+    def tune_with_data(self, *, data: Dict[DatasetType, pd.DataFrame]) -> PromptTunerResult:
         """
         Tunes a prompt using the DSPy optimizer and the provided training data.
 
@@ -60,16 +60,21 @@ class DSPyPromptTuner(BasePromptTuner):
         Raises:
             ValueError: If the optimization process fails or returns invalid results.
         """
-
         # Step 1: Convert data into DSPy dataset examples
-        dataset: DspyDataset = DspyDataset(data=data, prompt_config=self.config.prompt_config)
+        dataset: DspyDataset = DspyDataset(
+            data=data, prompt_config=self.config.prompt_tuner_config.prompt_config
+        )
 
         # Step 2: Create DSPy signature and module
-        signature: dspy.Signature = DSPyUtils.create_dspy_signature(prompt_config=self.config.prompt_config)
+        signature: dspy.Signature = DSPyUtils.create_dspy_signature(
+            prompt_config=self.config.prompt_tuner_config.prompt_config
+        )
         module: dspy.Module = DSPyUtils.create_dspy_module(signature=signature)
 
         # Step 3: Initialize DSPy optimizer
-        optimizer_wrapper = BaseDspyOptimizerWrapper.of(module=module, prompt_tuner_config=self.config)
+        optimizer_wrapper = BaseDspyOptimizerWrapper.of(
+            module=module, prompt_tuner_config=self.config.prompt_tuner_config
+        )
         optimized_modules: List[dspy.Module] = optimizer_wrapper.optimize(dataset=dataset)
 
         # Step 4: Configure the evaluation function
