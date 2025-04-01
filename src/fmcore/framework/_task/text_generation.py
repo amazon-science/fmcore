@@ -39,6 +39,7 @@ PROMPT_TEMPLATE_ID_COL: str = "prompt_template_id"
 PROMPT_TEMPLATE_EXPANDER_SEP: str = "-prompt_template="
 PROMPT_TEMPLATE_INDEX_COL_PREFIX: str = "original_"
 GENERATED_TEXTS_COL: str = "generations"
+THINKING_COL: str = "thinking"
 GENERATED_TOKEN_SCORES_COL_TEMPLATE: str = "generated_token_{token_timestep_i}_scores"
 
 TokenCombinationStrategy = Literal["sum", "max", "min", "median"]
@@ -600,6 +601,7 @@ class TextGenerationParams(Parameters, ABC):  ## Becomes an anonymous class late
     renormalize_logits: bool = True
     max_new_tokens: conint(ge=1)
     min_new_tokens: conint(ge=1) = 1
+    thinking_tokens: Optional[conint(ge=1)] = None
 
     ## Extra params on top of HF:
     stop_sequences: Optional[List[str]] = None

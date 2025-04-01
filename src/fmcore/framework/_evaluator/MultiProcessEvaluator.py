@@ -424,7 +424,11 @@ class MultiProcessEvaluator(Evaluator):
             if actors_were_created_in_this_call:
                 main_logger(f"Created {num_actors_created} process actors.")
 
-            dataset: Dataset = dataset.read(read_as=read_as, npartitions=num_actors_created)
+            dataset: Dataset = dataset.read(
+                read_as=read_as,
+                npartitions=num_actors_created,
+                fetch_assets=False,  ## TODO: remove this?
+            )
             data: ScalableDataFrame = dataset.data
             input_len: int = len(data)
             input_len_str: str = String.readable_number(input_len, decimals=1, short=True)

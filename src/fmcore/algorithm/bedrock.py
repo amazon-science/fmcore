@@ -2,8 +2,9 @@ import json
 import random
 from typing import Any, ClassVar, Dict, List, Optional, Set, Tuple, Union
 
+import requests
 from autoenum import AutoEnum, auto
-from bears import FileMetadata
+from bears import FileMetadata, MLType
 from bears.constants import Parallelize
 from bears.util import (
     Alias,
@@ -26,6 +27,7 @@ from pydantic import confloat, conint, constr, model_validator
 
 from fmcore.framework._task.text_generation import (
     GENERATED_TEXTS_COL,
+    THINKING_COL,
     GenerativeLM,
     Prompts,
     TextGenerationParams,
@@ -39,8 +41,47 @@ class ConfigSelectionStrategy(AutoEnum):
     ROUND_ROBIN_AT_INIT = auto()
 
 
-with optional_dependency("boto3"):
+with optional_dependency("boto3", "imageio"):
+    import base64
+    from io import BytesIO
+
+    import imageio
     from botocore.exceptions import ClientError
+
+    def process_image_url(image_url: str) -> Optional[str]:
+        """
+        Process an image URL by downloading the image and converting it to base64.
+
+        Args:
+            image_url (str): URL of the image to process
+
+        Returns:
+            Optional[str]: Base64-encoded image or None if processing failed
+
+        Example usage:
+            >>> base64_image = process_image_url("https://example.com/image.jpg")
+            >>> if base64_image is not None:
+            >>>     print("Successfully processed image")
+        """
+        try:
+            ## Download the image from the URL:
+            response = requests.get(image_url, timeout=10)
+            response.raise_for_status()
+            image_bytes = response.content
+
+            ## Convert the image to a standard format (PNG):
+            image_array = imageio.imread(BytesIO(image_bytes))
+            memfile = BytesIO()
+            imageio.imwrite(memfile, image_array, format="png")
+            memfile.seek(0)
+            png_bytes = memfile.read()
+
+            ## Encode as base64:
+            base64_image = base64.b64encode(png_bytes).decode("utf-8")
+            return base64_image
+        except Exception as e:
+            Log.error(f"Failed to process image from URL {image_url}: {e}")
+            return None
 
     def call_claude_v1_v2(
         bedrock_client,
@@ -88,25 +129,85 @@ with optional_dependency("boto3"):
         *,
         model_name: str,
         prompt: str,
+        image: Optional[Any] = None,
+        image_media_type: Optional[str] = None,
         max_tokens_to_sample: int,
+        thinking_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
         system: Optional[str] = None,
         top_k: Optional[int] = None,
         top_p: Optional[float] = None,
         stop_sequences: Optional[List[str]] = None,
         **kwargs,
-    ) -> str:
+    ) -> Union[str, Dict[str, str]]:
+        """
+        Call Claude v3 models with support for images and thinking parameter.
+
+        Args:
+            bedrock_client: Boto3 bedrock client
+            model_name (str): Claude model name
+            prompt (str): Text prompt to send
+            image (Optional[Any]): Base64-encoded image data
+            image_media_type (Optional[str]): Media type of the image (e.g., "image/png")
+            max_tokens_to_sample (int): Maximum tokens to generate
+            thinking_tokens (Optional[int]): Number of tokens allocated for model thinking (Claude 3.7 only)
+            temperature (Optional[float]): Temperature parameter for generation
+            system (Optional[str]): System prompt
+            top_k (Optional[int]): Top-k parameter
+            top_p (Optional[float]): Top-p parameter
+            stop_sequences (Optional[List[str]]): Sequences that stop generation
+            **kwargs: Additional parameters passed to the Bedrock API
+
+        Returns:
+            Union[str, Dict[str, str]]: Generated text or dict with response and thinking
+
+        Example usage:
+            >>> bedrock_client = boto3.client(service_name="bedrock-runtime")
+            >>> result = call_claude_v3(
+            >>>     bedrock_client=bedrock_client,
+            >>>     prompt="Describe this image",
+            >>>     model_name="anthropic.claude-3-sonnet-20240229-v1:0",
+            >>>     max_tokens_to_sample=500,
+            >>>     image=base64_encoded_image,
+            >>>     image_media_type="image/png"
+            >>> )
+        """
         assert any_are_none(top_k, top_p), "At least one of top_k, top_p must be None"
+
+        ## Prepare the message content:
+        message_content: List[Dict[str, Any]] = []
+
+        ## Add image if provided:
+        if image is not None:
+            message_content.append(
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": image_media_type,
+                        "data": image,
+                    },
+                }
+            )
+
+        ## Add text prompt:
+        message_content.append({"type": "text", "text": prompt})
+
         bedrock_params = {
             "anthropic_version": "bedrock-2023-05-31",
             "max_tokens": max_tokens_to_sample,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
+            "messages": [{"role": "user", "content": message_content}],
         }
+
+        ## Add thinking parameter for Claude 3.7:
+        if "anthropic.claude-3-7" in model_name and thinking_tokens is not None:
+            max_tokens_to_sample = max(1025, max_tokens_to_sample)
+            bedrock_params["max_tokens"] = max_tokens_to_sample  ## Fixed assignment syntax
+            bedrock_params["thinking"] = {
+                "type": "enabled",
+                "budget_tokens": thinking_tokens,
+            }
+
         if system is not None:
             assert isinstance(system, str) and len(system) > 0
             bedrock_params["system"] = system
@@ -115,7 +216,7 @@ with optional_dependency("boto3"):
             raise ValueError("Cannot specify both top_p and temperature; at most one must be specified.")
 
         if top_k is not None:
-            assert isinstance(top_k, int) and len(system) >= 1
+            assert isinstance(top_k, int)
             bedrock_params["top_k"] = top_k
         elif top_p is not None:
             assert isinstance(top_p, (float, int)) and 0 <= top_p <= 1
@@ -127,8 +228,8 @@ with optional_dependency("boto3"):
         if stop_sequences is not None:
             bedrock_params["stop_sequences"] = stop_sequences
 
+        # print(json.dumps(bedrock_params, indent=4))
         bedrock_params_json: str = json.dumps(bedrock_params)
-        # print(f'\n\nbedrock_params_json:\n{json.dumps(bedrock_params, indent=4)}')
         response = bedrock_client.invoke_model(
             body=bedrock_params_json,
             modelId=model_name,
@@ -136,7 +237,21 @@ with optional_dependency("boto3"):
             contentType="application/json",
         )
         response_body: Dict = json.loads(response.get("body").read())
-        return "\n".join([d["text"] for d in response_body.get("content")])
+
+        ## Handle different response formats:
+        out_dict: Dict[str, str] = {
+            "generated_text": "\n".join(
+                [d["text"] for d in response_body.get("content", []) if d.get("type") == "text"]
+            ),
+        }
+        if "anthropic.claude-3-7" in model_name and thinking_tokens is not None:
+            ## For Claude 3.7 with thinking enabled, return both thinking and response:
+            out_dict["thinking"] = (
+                "\n".join(
+                    [d["thinking"] for d in response_body.get("content", []) if d.get("type") == "thinking"]
+                ),
+            )
+        return out_dict
 
     def call_claude_v3_messages_api(
         bedrock_client,
@@ -204,7 +319,7 @@ with optional_dependency("boto3"):
         prompt: str,
         model_name: str,
         generation_params: Dict,
-    ) -> str:
+    ) -> Union[str, Dict[str, str]]:
         """
         Call AWS Bedrock service to generate text from a prompt.
 
@@ -215,7 +330,7 @@ with optional_dependency("boto3"):
             bedrock_client (Any): Boto3 bedrock-runtime client
 
         Returns:
-            str: The generated text
+            Union[str, Dict[str, str]]: The generated text or dict with response and thinking
 
         Example usage:
             >>> bedrock_client = boto3.client(service_name="bedrock-runtime", region_name="us-east-1")
@@ -227,22 +342,24 @@ with optional_dependency("boto3"):
                 )
         """
         if "anthropic.claude-3" in model_name:
-            if "anthropic.claude-3-5" in model_name:
+            if "anthropic.claude-3-5" in model_name or "anthropic.claude-3-7" in model_name:
                 ## Use the messages API implementation:
-                generated_text: str = call_claude_v3_messages_api(
+                result: Union[str, Dict[str, str]] = call_claude_v3(
                     bedrock_client=bedrock_client,
                     prompt=prompt,
                     model_name=model_name,
                     **generation_params,
                 )
+                return result
             else:
                 ## Use the original v3 implementation:
-                generated_text: str = call_claude_v3(
+                result: Union[str, Dict[str, str]] = call_claude_v3(
                     bedrock_client=bedrock_client,
                     prompt=prompt,
                     model_name=model_name,
                     **generation_params,
                 )
+                return result
         elif "claude" in model_name:
             generated_text: str = call_claude_v1_v2(
                 bedrock_client=bedrock_client,
@@ -250,6 +367,7 @@ with optional_dependency("boto3"):
                 model_name=model_name,
                 **generation_params,
             )
+            return generated_text
         else:
             bedrock_invoke_model_params = {"prompt": prompt, **generation_params}
             response = bedrock_client.invoke_model(
@@ -260,7 +378,7 @@ with optional_dependency("boto3"):
             )
             response_body = json.loads(response.get("body").read())
             generated_text: str = response_body.get("completion")
-        return generated_text
+            return generated_text
 
     class BedrockAccountConfig(Parameters):
         """
@@ -308,8 +426,10 @@ with optional_dependency("boto3"):
                 "top_k",
                 "top_p",
                 "max_new_tokens",
+                "thinking_tokens",
                 "stop_sequences",
                 "system",
+                "thinking",  ## Add support for the thinking parameter
             ]
             batch_size: Optional[conint(ge=1)] = None
             account_config: List[BedrockAccountConfig]
@@ -464,6 +584,7 @@ with optional_dependency("boto3"):
             generation_params: TextGenerationParams = self.hyperparams.generation_params
             bedrock_params: Dict[str, Any] = {
                 "max_tokens_to_sample": generation_params.max_new_tokens,
+                "thinking_tokens": generation_params.thinking_tokens,
             }
             for param in remove_values(
                 self.hyperparams.ALLOWED_TEXT_GENERATION_PARAMS,
@@ -487,20 +608,47 @@ with optional_dependency("boto3"):
                     )
                     return False  ## Not recoverable
 
-        def prompt_model_with_retries(self, prompt: str) -> str:
+        def prompt_model_with_retries(
+            self,
+            *,
+            prompt: str,
+            image: Optional = None,
+        ) -> Union[str, Dict[str, str]]:
+            """
+            Prompt the model with retries, supporting both text and image inputs.
+
+            Args:
+                prompt (str): Text prompt
+                image: URL or data of an image to include
+
+            Returns:
+                Union[str, Dict[str, str]]: Generated text or dict with response and thinking
+            """
             if self.hyperparams.config_selection_strategy is ConfigSelectionStrategy.RANDOM_PER_REQUEST:
                 self.refresh_session()
 
             if self.bedrock_client is None:
                 raise SystemError("BedrockPrompter not initialized. Call initialize() first.")
 
+            ## Process image if provided:
+            image: Optional = None
+            if isinstance(image, str):
+                ## Check if the image is a URL:
+                if image.startswith("http://") or image.startswith("https://"):
+                    image = process_image_url(image)
+
             try:
+                generation_params = self.bedrock_text_generation_params
+                if image is not None:
+                    generation_params["image"] = image
+                    generation_params["image_media_type"] = "image/png"
+
                 return retry(
                     call_bedrock,
                     bedrock_client=self.bedrock_client,
                     prompt=prompt,
                     model_name=self.hyperparams.model_name,
-                    generation_params=self.bedrock_text_generation_params,
+                    generation_params=generation_params,
                     retries=self.hyperparams.retries,
                     wait=self.hyperparams.retry_wait,
                     jitter=self.hyperparams.retry_jitter,
@@ -513,18 +661,62 @@ with optional_dependency("boto3"):
                 Log.error(String.format_exception_msg(e))
                 return ""
 
-        def predict_step(self, batch: Prompts, **kwargs) -> Any:
-            generated_texts: List = []
-            for prompt in batch.prompts().tolist():
-                ## Template has already been applied
-                generated_text: Any = dispatch(
+        def predict_step(self, batch: Prompts, **kwargs) -> Dict[str, List[Any]]:
+            """
+            Generate text from prompts, supporting both text-only and multi-modal inputs.
+
+            Args:
+                batch (Prompts): Batch of prompts
+                **kwargs: Additional arguments
+
+            Returns:
+                Dict[str, List[Any]]: Dictionary containing generated texts and thinking outputs
+            """
+            generated_texts: List[Union[str, Dict[str, str]]] = []
+
+            ## Identify image column if available:
+            image_column: Optional[str] = None
+            for col_name, col_type in batch.data_schema.flatten().items():
+                if col_type == MLType.IMAGE:
+                    image_column = col_name
+                    break
+
+            for i, prompt in enumerate(batch.prompts().tolist()):
+                ## Get image URL if available:
+                image: Optional = None
+                if image_column is not None:
+                    image = batch.data[image_column].iloc[i]
+
+                ## Generate text with image if available:
+                result: Union[str, Dict[str, str]] = dispatch(
                     self.prompt_model_with_retries,
-                    prompt,
+                    prompt=prompt,
+                    image=image,
                     executor=self.executor,
                     parallelize=Parallelize.sync
                     if self.hyperparams.max_workers is None
                     else Parallelize.threads,
                 )
-                generated_texts.append(generated_text)
-            generated_texts: List[str] = accumulate(generated_texts)
-            return {GENERATED_TEXTS_COL: generated_texts}
+                generated_texts.append(result)
+
+            ## Process results:
+            results = accumulate(generated_texts)
+
+            ## Extract thinking and responses:
+            thinking_outputs: List[str] = []
+            generated_texts: List[str] = []
+
+            for result in results:
+                if isinstance(result, dict) and "thinking" in result and "generated_text" in result:
+                    thinking_outputs.append(result["thinking"])
+                    generated_texts.append(result["generated_text"])
+                else:
+                    thinking_outputs.append("")
+                    generated_texts.append(result if isinstance(result, str) else "")
+
+            ## Return both thinking and responses:
+            output_dict = {GENERATED_TEXTS_COL: generated_texts}
+            if any(len(t) > 0 for t in thinking_outputs):
+                output_dict[THINKING_COL] = thinking_outputs
+
+            return output_dict
