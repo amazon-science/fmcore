@@ -73,9 +73,7 @@ class DatasetUtils:
 
         # Case 3: Train and val data available but no test - create test from val (50/50)
         elif DatasetType.VAL in data and DatasetType.TEST not in data:
-            val_df, test_df = train_test_split(
-                data[DatasetType.VAL], train_size=0.5, random_state=42
-            )
+            val_df, test_df = train_test_split(data[DatasetType.VAL], train_size=0.5, random_state=42)
 
             data[DatasetType.VAL] = val_df.reset_index(drop=True)
             data[DatasetType.TEST] = test_df.reset_index(drop=True)
