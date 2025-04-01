@@ -3,8 +3,11 @@ from typing import Optional, List
 from pydantic import Field
 
 from fmcore.prompt_tuner.types.enums.optimizer_enums import OptimizerMetricType, LMOPSOptimizerType
-from fmcore.prompt_tuner.types.mixins.optimizer_mixins import StudentConfigMixin, TeacherConfigMixin, \
-    EvaluatorConfigMixin
+from fmcore.prompt_tuner.types.mixins.optimizer_mixins import (
+    StudentConfigMixin,
+    TeacherConfigMixin,
+    EvaluatorConfigMixin,
+)
 from fmcore.prompt_tuner.types.optimizer_types import BaseOptimizerParams, BaseOptimizerConfig
 
 
@@ -23,7 +26,9 @@ class LMOPSClassificationOptimizerParams(BaseOptimizerParams):
     budget: str = Field(default="$ value")
 
 
-class LMOPSClassificationOptimizerConfig(BaseOptimizerConfig, StudentConfigMixin, TeacherConfigMixin, EvaluatorConfigMixin):
+class LMOPSClassificationOptimizerConfig(
+    BaseOptimizerConfig, StudentConfigMixin, TeacherConfigMixin, EvaluatorConfigMixin
+):
     """
     Configuration for the LMOPS Classification Optimizer.
 
