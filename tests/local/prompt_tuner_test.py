@@ -110,7 +110,7 @@ async def standalone_prompt_tuner():
     }
     prompt_tuner_run_config = PromptTunerRunConfig(**prompt_tuner_run_config)
     tuner = BasePromptTuner.of(config=prompt_tuner_run_config)
-    tuner.tune()
+    await tuner.tune()
 
 
 
