@@ -59,7 +59,7 @@ class BasePromptTuner(MutableTyped, Registry, ABC):
         """
         pass
 
-    def tune(self) -> NoReturn:
+    async def tune(self) -> NoReturn:
         """
         Loads datasets and performs the tuning process using the available configuration.
 
