@@ -52,3 +52,18 @@ class BooleanLLMJudgeParams(BaseEvaluatorParams, LLMConfigMixin):
 
     prompt: str
     criteria: str
+
+
+class ClassificationParams(BaseEvaluatorParams):
+    """
+    Parameters for the Classification evaluator.
+
+    This evaluator takes a prompt and an LLM instance to classify the LLM's response.
+
+    Attributes:
+        prompt (str): The prompt used for the LLM-based evaluation.
+    """
+
+    aliases = [EvaluatorType.CLASSIFICATION]
+
+    pass
