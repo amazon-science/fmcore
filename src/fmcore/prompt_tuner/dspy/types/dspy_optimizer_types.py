@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fmcore.prompt_tuner.types.enums.optimizer_enums import OptimizerMetricType, OptimizerType
+from fmcore.prompt_tuner.types.enums.optimizer_enums import OptimizerMetricType, DSPyOptimizerType
 from fmcore.prompt_tuner.types.mixins.optimizer_mixins import (
     StudentConfigMixin,
     TeacherConfigMixin,
@@ -39,5 +39,5 @@ class MIPROv2OptimizerConfig(
         optimizer_params (Optional[MIPROv2OptimizerParams]): Configuration parameters for the optimizer.
     """
 
-    aliases = [OptimizerType.MIPRO_V2]
+    aliases = [DSPyOptimizerType.MIPRO_V2]
     optimizer_params: Optional[MIPROv2OptimizerParams]

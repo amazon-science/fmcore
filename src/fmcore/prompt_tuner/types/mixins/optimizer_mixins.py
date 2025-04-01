@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import Optional, Union
 
-from fmcore.llm.types.llm_types import LLMConfig
+from fmcore.llm.types.llm_types import LLMConfig, DistributedLLMConfig
 from fmcore.prompt_tuner.evaluator.types.evaluator_types import EvaluatorConfig
 from fmcore.types.mixins_types import Mixin
 from fmcore.types.typed import MutableTyped
@@ -14,7 +14,7 @@ class StudentConfigMixin(MutableTyped, Mixin):
         student_config (Optional[LLMConfig]): The LLM configuration object for student model
     """
 
-    student_config: LLMConfig
+    student_config: Union[LLMConfig, DistributedLLMConfig]
 
 
 class TeacherConfigMixin(MutableTyped, Mixin):
@@ -25,7 +25,7 @@ class TeacherConfigMixin(MutableTyped, Mixin):
         teacher_config (Optional[LLMConfig]): The LLM configuration object for teacher model
     """
 
-    teacher_config: LLMConfig
+    teacher_config: Union[LLMConfig, DistributedLLMConfig]
 
 
 class EvaluatorConfigMixin(MutableTyped, Mixin):

@@ -1,8 +1,13 @@
 from abc import ABC
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 from bears.util import Registry
-from fmcore.prompt_tuner.types.enums.optimizer_enums import OptimizerType, OptimizerMetricType
+from fmcore.prompt_tuner.types.enums.optimizer_enums import (
+    OptimizerType,
+    OptimizerMetricType,
+    LMOPSOptimizerType,
+    DSPyOptimizerType,
+)
 from fmcore.types.typed import MutableTyped
 
 
@@ -28,7 +33,7 @@ class BaseOptimizerConfig(MutableTyped, Registry, ABC):
         optimizer_type (OptimizerType): The type of optimizer.
     """
 
-    optimizer_type: OptimizerType
+    optimizer_type: Union[DSPyOptimizerType, LMOPSOptimizerType]
 
     @classmethod
     def from_dict(cls, optimizer_config: Dict) -> "BaseOptimizerConfig":

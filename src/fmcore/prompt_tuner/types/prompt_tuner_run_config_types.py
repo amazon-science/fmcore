@@ -1,9 +1,10 @@
 from fmcore.prompt_tuner.types.enums.prompt_tuner_enums import PromptTunerTaskType
 from fmcore.prompt_tuner.types.prompt_tuner_types import PromptTunerConfig
-from fmcore.runners.types.run_config_types import BaseRunConfig
+from fmcore.types.config_types import DatasetConfig
+from fmcore.types.typed import MutableTyped
 
 
-class PromptTunerRunConfig(BaseRunConfig):
+class PromptTunerRunConfig(MutableTyped):
     """
     Configuration for running a prompt tuning task.
 
@@ -13,4 +14,5 @@ class PromptTunerRunConfig(BaseRunConfig):
     """
 
     task_type: PromptTunerTaskType
+    dataset_config: DatasetConfig
     prompt_tuner_config: PromptTunerConfig
