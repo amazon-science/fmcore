@@ -1,14 +1,12 @@
 from typing import Dict
 from langchain_core.messages import BaseMessage
-from jinja2 import Template
 
-from fmcore.prompt_tuner.evaluator.base_evaluator import BaseEvaluator, O
+from fmcore.prompt_tuner.evaluator.base_evaluator import BaseEvaluator
 from fmcore.prompt_tuner.evaluator.enums.evaluator_enums import EvaluatorType
 from fmcore.prompt_tuner.evaluator.types.evaluator_params_types import BooleanLLMJudgeParams
 from fmcore.prompt_tuner.evaluator.types.evaluator_types import (
     EvaluatorConfig,
     LLMAsAJudgeInput,
-    LLMAsAJudgeBooleanOutput,
 )
 from fmcore.llm.base_llm import BaseLLM
 from fmcore.mapper.text_prompt_mapper import TextPromptMapper
@@ -17,13 +15,25 @@ from fmcore.mapper.criteria_checker_mapper import CriteriaCheckerMapper
 from fmcore.mapper.llm_inference_mapper import LLMInferenceMapper
 
 
-class LLMAsJudgeBooleanEvaluator(BaseEvaluator[LLMAsAJudgeInput, LLMAsAJudgeBooleanOutput]):
+class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
     """
-    An evaluator that uses an LLM to judge boolean criteria based on a given prompt template and context.
-    Uses llm_as_a_judge_boolean_mapper for the core functionality.
+    An evaluator that processes input data in the form of a dictionary (Dict) and returns
+    a boolean (bool) decision based on a judgment criterion evaluated by a large language model (LLM).
+
+    This evaluator is designed to assess a given context or criteria encoded within the input dictionary
+    and produce a binary decision (True or False). The core functionality involves:
+
+    1. Mapping the input dictionary to a prompt template using `text_prompt_mapper`.
+    2. Feeding the formatted prompt into an LLM using `llm_inference_mapper` for evaluation.
+    3. Parsing the LLM's response into structured JSON via `json_mapper`.
+    4. Applying `criteria_checker` to the parsed JSON to make a final boolean judgment.
+
+    The transformation of input data from a raw dictionary to a boolean output makes this evaluator
+    particularly suited for use cases such as rule-based decision making, automated validation, or
+    context-dependent boolean classification tasks.
     """
 
-    aliases = [EvaluatorType.BOOLEAN_LLM_JUDGE]
+    aliases = [EvaluatorType.LLM_AS_A_JUDGE_BOOLEAN]
 
     text_prompt_mapper: TextPromptMapper
     llm_inference_mapper: LLMInferenceMapper
@@ -58,7 +68,7 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[LLMAsAJudgeInput, LLMAsAJudgeBool
             "criteria_checker": criteria_checker,
         }
 
-    def evaluate(self, data: LLMAsAJudgeInput) -> LLMAsAJudgeBooleanOutput:
+    def evaluate(self, data: Dict) -> bool:
         """
         Processes the input data by using the llm_as_a_judge_boolean_mapper to evaluate the context.
 
@@ -69,13 +79,13 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[LLMAsAJudgeInput, LLMAsAJudgeBool
             BooleanLLMJudgeOutput: Evaluation result as a boolean decision.
         """
         # Format the context into messages using the template
-        formatted_message: BaseMessage = self.text_prompt_mapper.map(data.context)
+        formatted_message: BaseMessage = self.text_prompt_mapper.map(data)
         llm_response: BaseMessage = self.llm_inference_mapper.map([formatted_message])
         json_response: Dict = self.json_mapper.map(llm_response.content)
         decision: bool = self.criteria_checker.map(json_response)
-        return LLMAsAJudgeBooleanOutput(decision=decision)
+        return decision
 
-    async def aevaluate(self, data: LLMAsAJudgeInput) -> LLMAsAJudgeBooleanOutput:
+    async def aevaluate(self, data: Dict) -> bool:
         """
         Asynchronous version of `evaluate` that processes the input data.
 
@@ -90,4 +100,4 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[LLMAsAJudgeInput, LLMAsAJudgeBool
         llm_response: BaseMessage = await self.llm_inference_mapper.amap([formatted_message])
         json_response: Dict = await self.json_mapper.amap(llm_response.content)
         decision: bool = await self.criteria_checker.amap(json_response)
-        return LLMAsAJudgeBooleanOutput(decision=decision)
+        return decision

@@ -18,7 +18,7 @@ async def standalone_evaluator_test():
                 },
                 "provider_params": {
                     "provider_type": "BEDROCK",
-                    "role_arn": "arn:aws:iam::<accountId>:role/<role_name>",
+                    "role_arn": "arn:aws:iam::<accountId>:role/<roleId>",
                     "region": "us-west-2",
                     "rate_limit": {
                         "max_rate": 60,
