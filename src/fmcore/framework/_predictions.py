@@ -193,13 +193,13 @@ class Predictions(InputOutputDataMixin, Registry, ABC):
             infer_ground_truths=False,
             infer_features=False,
         )
-        if inferred_pred_schema.columns_set < set(pred_cols):
-            raise ValueError(
-                f"Could not infer how predictions dataframe columns map to MLTypes:\n"
-                f"Predictions columns: {pred_cols}\n"
-                f"Inferred MLTypes for predictions columns: {inferred_pred_schema.predictions_schema}\n"
-                f"All inferred MLTypes: {inferred_pred_schema}"
-            )
+        # if inferred_pred_schema.columns_set < set(pred_cols):
+        #     raise ValueError(
+        #         f"Could not infer how predictions dataframe columns map to MLTypes:\n"
+        #         f"Predictions columns: {pred_cols}\n"
+        #         f"Inferred MLTypes for predictions columns: {inferred_pred_schema.predictions_schema}\n"
+        #         f"All inferred MLTypes: {inferred_pred_schema}"
+        #     )
         predictions_schema: MLTypeSchema = inferred_pred_schema.predictions_schema
 
         ## TODO: update this line after supporting ScalableDataFrame.merge
