@@ -65,7 +65,9 @@ class BaseDspyOptimizerWrapper(MutableTyped, Registry, ABC):
         Returns:
             BaseDspyOptimizerWrapper: An instance of the appropriate optimizer subclass.
         """
-        BaseDspyOptimizerClass = BaseDspyOptimizerWrapper.get_subclass(key=prompt_tuner_config.optimizer_config.optimizer_type)
+        BaseDspyOptimizerClass = BaseDspyOptimizerWrapper.get_subclass(
+            key=prompt_tuner_config.optimizer_config.optimizer_type
+        )
         return BaseDspyOptimizerClass._get_instance(prompt_tuner_config=prompt_tuner_config)
 
     @abstractmethod

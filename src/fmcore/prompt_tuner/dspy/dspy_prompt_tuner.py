@@ -64,7 +64,7 @@ class DSPyPromptTuner(BasePromptTuner):
         dataset: DspyDataset = DspyDataset(data=data, prompt_config=self.config.prompt_config)
 
         # Step 2: Initialize DSPy optimizer
-        optimizer_wrapper = BaseDspyOptimizerWrapper.of( prompt_tuner_config=self.config)
+        optimizer_wrapper = BaseDspyOptimizerWrapper.of(prompt_tuner_config=self.config)
         optimized_modules: List[dspy.Module] = optimizer_wrapper.optimize(dataset=dataset)
 
         # Step 3: Configure the evaluation function

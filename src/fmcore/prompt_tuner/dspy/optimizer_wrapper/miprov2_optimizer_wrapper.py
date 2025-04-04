@@ -62,20 +62,23 @@ class MIPROV2OptimizerWrapper(BaseDspyOptimizerWrapper):
         )
 
         module: dspy.Module = DSPyUtils.create_dspy_signature_from_prompt_config(
-            prompt_config=prompt_tuner_config.prompt_config)
+            prompt_config=prompt_tuner_config.prompt_config
+        )
 
         # Initialize evaluator for optimization
         # We assume that the evaluator used here would by default return boolean
         # TODO Add validations to ensure only evaluators will bool return types can be used
         evaluate: Callable = DSPyUtils.create_dspy_evaluate_from_evaluator_config(
-            evaluator_config=prompt_tuner_config.optimizer_config.evaluator_config)
+            evaluator_config=prompt_tuner_config.optimizer_config.evaluator_config
+        )
 
         return MIPROV2OptimizerWrapper(
             student=student_model,
             teacher=teacher_model,
             module=module,
             evaluate=evaluate,
-            optimizer_config=optimizer_config)
+            optimizer_config=optimizer_config,
+        )
 
     def optimize(self, dataset: DspyDataset) -> List[dspy.Module]:
         """

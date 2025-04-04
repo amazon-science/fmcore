@@ -43,6 +43,7 @@ class PromptTunerConfig(MutableTyped):
     """
     Configuration class for a prompt tuner, including the framework, prompt configuration, and optimizer configuration.
     """
+
     task_type: PromptTunerTaskType
     dataset_config: DatasetConfig
     prompt_config: PromptConfig
