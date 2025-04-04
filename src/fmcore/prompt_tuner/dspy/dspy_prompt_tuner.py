@@ -61,23 +61,13 @@ class DSPyPromptTuner(BasePromptTuner):
             ValueError: If the optimization process fails or returns invalid results.
         """
         # Step 1: Convert data into DSPy dataset examples
-        dataset: DspyDataset = DspyDataset(
-            data=data, prompt_config=self.config.prompt_tuner_config.prompt_config
-        )
+        dataset: DspyDataset = DspyDataset(data=data, prompt_config=self.config.prompt_config)
 
-        # Step 2: Create DSPy signature and module
-        signature: dspy.Signature = DSPyUtils.create_dspy_signature(
-            prompt_config=self.config.prompt_tuner_config.prompt_config
-        )
-        module: dspy.Module = DSPyUtils.create_dspy_module(signature=signature)
-
-        # Step 3: Initialize DSPy optimizer
-        optimizer_wrapper = BaseDspyOptimizerWrapper.of(
-            module=module, prompt_tuner_config=self.config.prompt_tuner_config
-        )
+        # Step 2: Initialize DSPy optimizer
+        optimizer_wrapper = BaseDspyOptimizerWrapper.of( prompt_tuner_config=self.config)
         optimized_modules: List[dspy.Module] = optimizer_wrapper.optimize(dataset=dataset)
 
-        # Step 4: Configure the evaluation function
+        # Step 3: Configure the evaluation function
         # DSPy Evaluate natively handles parallelization for module evaluation
         # Pinning it to 20 threads for now to avoid resource contention while calling LLMs
         evaluator = dspy.Evaluate(
@@ -89,7 +79,7 @@ class DSPyPromptTuner(BasePromptTuner):
             return_outputs=True,  # Ensure evaluation outputs are returned for further analysis
         )
 
-        # Step 5: Iterate over optimized modules to create tuned prompts
+        # Step 4: Iterate over optimized modules to create tuned prompts
         tuned_prompts: List[TunedPrompt] = []
         for index, module in enumerate(optimized_modules):
             # Convert each module to a text prompt

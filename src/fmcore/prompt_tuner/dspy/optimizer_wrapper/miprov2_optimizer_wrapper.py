@@ -9,7 +9,6 @@ from fmcore.prompt_tuner.dspy.optimizer_wrapper.base_dspy_optimizer_wrapper impo
     BaseDspyOptimizerWrapper,
 )
 from fmcore.prompt_tuner.dspy.utils.dspy_utils import DSPyUtils
-from fmcore.prompt_tuner.evaluator import BaseEvaluator
 from fmcore.prompt_tuner.types.enums.optimizer_enums import DSPyOptimizerType
 from fmcore.prompt_tuner.types.optimizer_types import BaseOptimizerConfig
 from fmcore.prompt_tuner.types.prompt_tuner_types import PromptTunerConfig
@@ -37,7 +36,7 @@ class MIPROV2OptimizerWrapper(BaseDspyOptimizerWrapper):
     teacher: Optional[dspy.LM]
 
     @classmethod
-    def _get_constructor_parameters(cls, prompt_tuner_config: PromptTunerConfig) -> Dict:
+    def _get_instance(cls, prompt_tuner_config: PromptTunerConfig) -> "MIPROV2OptimizerWrapper":
         """
         Constructs and configures the necessary components for DSPy prompt tuning.
 
@@ -62,20 +61,21 @@ class MIPROV2OptimizerWrapper(BaseDspyOptimizerWrapper):
             else student_model
         )
 
+        module: dspy.Module = DSPyUtils.create_dspy_signature_from_prompt_config(
+            prompt_config=prompt_tuner_config.prompt_config)
+
         # Initialize evaluator for optimization
         # We assume that the evaluator used here would by default return boolean
         # TODO Add validations to ensure only evaluators will bool return types can be used
-        evaluator = BaseEvaluator.of(evaluator_config=optimizer_config.evaluator_config)
+        evaluate: Callable = DSPyUtils.create_dspy_evaluate_from_evaluator_config(
+            evaluator_config=prompt_tuner_config.optimizer_config.evaluator_config)
 
-        # Create evaluation function
-        evaluate: Callable = DSPyUtils.create_evaluation_function_from_evaluator(evaluator=evaluator)
-
-        return {
-            "student": student_model,
-            "teacher": teacher_model,
-            "evaluate": evaluate,
-            "optimizer_config": optimizer_config,
-        }
+        return MIPROV2OptimizerWrapper(
+            student=student_model,
+            teacher=teacher_model,
+            module=module,
+            evaluate=evaluate,
+            optimizer_config=optimizer_config)
 
     def optimize(self, dataset: DspyDataset) -> List[dspy.Module]:
         """

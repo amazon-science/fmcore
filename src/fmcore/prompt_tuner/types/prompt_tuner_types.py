@@ -3,8 +3,9 @@ from typing import List, Dict, Optional
 import pandas as pd
 from pydantic import model_validator
 
-from fmcore.prompt_tuner.types.enums.prompt_tuner_enums import PromptTunerFramework
+from fmcore.prompt_tuner.types.enums.prompt_tuner_enums import PromptTunerFramework, PromptTunerTaskType
 from fmcore.prompt_tuner.types.optimizer_types import BaseOptimizerConfig
+from fmcore.types.config_types import DatasetConfig
 from fmcore.types.typed import MutableTyped
 
 
@@ -42,9 +43,10 @@ class PromptTunerConfig(MutableTyped):
     """
     Configuration class for a prompt tuner, including the framework, prompt configuration, and optimizer configuration.
     """
-
-    framework: PromptTunerFramework
+    task_type: PromptTunerTaskType
+    dataset_config: DatasetConfig
     prompt_config: PromptConfig
+    framework: PromptTunerFramework
     optimizer_config: BaseOptimizerConfig
 
     @model_validator(mode="before")
@@ -79,6 +81,11 @@ class PromptTunerConfig(MutableTyped):
             if not prompt_config.input_fields or not prompt_config.output_fields:
                 raise ValueError(
                     "For 'dspy' framework, both input_fields and output_fields must be provided in the prompt config."
+                )
+        elif framework == PromptTunerFramework.LMOPS.value:
+            if prompt_config.input_fields or prompt_config.output_fields:
+                raise ValueError(
+                    "For 'lmops' framework, input_fields and output_fields should not be provided in the prompt config."
                 )
 
         # Handle optimizer config transformation
