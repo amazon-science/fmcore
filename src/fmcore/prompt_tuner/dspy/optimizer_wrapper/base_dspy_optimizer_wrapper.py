@@ -37,23 +37,23 @@ class BaseDspyOptimizerWrapper(MutableTyped, Registry, ABC):
 
     @classmethod
     @abstractmethod
-    def _get_constructor_parameters(cls, *, prompt_tuner_config: PromptTunerConfig) -> Dict:
+    def _get_instance(cls, *, prompt_tuner_config: PromptTunerConfig) -> "BaseDspyOptimizerWrapper":
         """
-        Abstract method to get the constructor parameters for the optimizer.
+        Creates and returns an instance of a subclass implementing BaseDspyOptimizerWrapper.
 
-        Subclasses should implement this method to return a dictionary of
-        parameters that are required to instantiate the optimizer.
+        Subclasses must implement this method to instantiate and return an optimizer
+        based on the given prompt tuner configuration.
 
         Args:
-            prompt_tuner_config (PromptTunerConfig): Configuration for the prompt tuner.
+            prompt_tuner_config (PromptTunerConfig): The configuration for the prompt tuner.
 
         Returns:
-            Dict: A dictionary of parameters required to construct the optimizer.
+            BaseDspyOptimizerWrapper: An instance of the optimizer.
         """
         pass
 
     @classmethod
-    def of(cls, module: dspy.Module, prompt_tuner_config: PromptTunerConfig) -> "BaseDspyOptimizerWrapper":
+    def of(cls, prompt_tuner_config: PromptTunerConfig) -> "BaseDspyOptimizerWrapper":
         """
         Factory method to create an instance of a subclass of BaseDspyOptimizer
         using the provided configuration.
@@ -66,14 +66,9 @@ class BaseDspyOptimizerWrapper(MutableTyped, Registry, ABC):
             BaseDspyOptimizerWrapper: An instance of the appropriate optimizer subclass.
         """
         BaseDspyOptimizerClass = BaseDspyOptimizerWrapper.get_subclass(
-            key=prompt_tuner_config.optimizer_config.optimizer_type.name
+            key=prompt_tuner_config.optimizer_config.optimizer_type
         )
-        constructor_parameters = BaseDspyOptimizerClass._get_constructor_parameters(
-            prompt_tuner_config=prompt_tuner_config
-        )
-        # Add modules to the constructor params
-        constructor_parameters.update({"module": module})
-        return BaseDspyOptimizerClass(**constructor_parameters)
+        return BaseDspyOptimizerClass._get_instance(prompt_tuner_config=prompt_tuner_config)
 
     @abstractmethod
     def optimize(self, dataset: DspyDataset) -> List[dspy.Module]:

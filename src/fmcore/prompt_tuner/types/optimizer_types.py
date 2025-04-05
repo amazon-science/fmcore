@@ -33,7 +33,9 @@ class BaseOptimizerConfig(MutableTyped, Registry, ABC):
         optimizer_type (OptimizerType): The type of optimizer.
     """
 
-    optimizer_type: Union[DSPyOptimizerType, LMOPSOptimizerType]
+    # Using str instead of enum to allow external optimizer types to be used.
+    # An enum would restrict users to predefined optimizer types only.
+    optimizer_type: str
 
     @classmethod
     def from_dict(cls, optimizer_config: Dict) -> "BaseOptimizerConfig":

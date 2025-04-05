@@ -5,10 +5,9 @@ from langchain_core.prompts.chat import ChatPromptTemplate
 from typing import Callable, Dict, List
 
 from fmcore.prompt_tuner.dspy.datasets.base_dataset import DspyDataset
-from fmcore.prompt_tuner.dspy.lm_adapters.dspy_adapter import DSPyLLMAdapter
 from fmcore.prompt_tuner.evaluator import BaseEvaluator
+from fmcore.prompt_tuner.evaluator.types.evaluator_types import EvaluatorConfig
 from fmcore.prompt_tuner.types.prompt_tuner_types import PromptConfig, PromptEvaluationResult
-from fmcore.llm.types.llm_types import LLMConfig
 from fmcore.types.enums.dataset_enums import DatasetType
 
 
@@ -134,6 +133,20 @@ class DSPyUtils:
         return TaskModule(signature=signature)
 
     @staticmethod
+    def create_dspy_signature_from_prompt_config(prompt_config: PromptConfig) -> dspy.Module:
+        """
+        Create a DSPy module from a given prompt configuration.
+
+        Args:
+            prompt_config (PromptConfig): The prompt configuration used to generate the DSPy signature.
+
+        Returns:
+            dspy.Module: A DSPy module created from the generated signature.
+        """
+        signature: dspy.Signature = DSPyUtils.create_dspy_signature(prompt_config=prompt_config)
+        return DSPyUtils.create_dspy_module(signature=signature)
+
+    @staticmethod
     def create_evaluation_function_from_evaluator(evaluator: BaseEvaluator) -> Callable:
         def evaluate_func(example: dspy.Example, prediction: dspy.Prediction, trace=None):
             """
@@ -156,6 +169,20 @@ class DSPyUtils:
             return evaluator.evaluate(data=row)
 
         return evaluate_func
+
+    @staticmethod
+    def create_dspy_evaluate_from_evaluator_config(evaluator_config: EvaluatorConfig) -> Callable:
+        """
+        Create a DSPy evaluation function from a given evaluator configuration.
+
+        Args:
+            evaluator_config (EvaluatorConfig): The evaluator configuration used to initialize the evaluator.
+
+        Returns:
+            Callable: A function that performs evaluation using the configured evaluator.
+        """
+        evaluator = BaseEvaluator.of(evaluator_config=evaluator_config)
+        return DSPyUtils.create_evaluation_function_from_evaluator(evaluator=evaluator)
 
     @staticmethod
     def convert_module_to_messages(module: dspy.Module) -> List[Dict[str, str]]:

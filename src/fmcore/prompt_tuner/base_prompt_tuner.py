@@ -6,7 +6,6 @@ from typing import Dict, NoReturn
 
 from bears import FileMetadata, Writer
 
-from fmcore.prompt_tuner.types.prompt_tuner_run_config_types import PromptTunerRunConfig
 from fmcore.prompt_tuner.types.prompt_tuner_types import PromptTunerConfig, PromptTunerResult
 from fmcore.types.enums.dataset_enums import DatasetType
 from fmcore.types.typed import MutableTyped
@@ -25,10 +24,10 @@ class BasePromptTuner(MutableTyped, Registry, ABC):
         config (PromptTunerConfig): Configuration for the prompt tuner.
     """
 
-    config: PromptTunerRunConfig
+    config: PromptTunerConfig
 
     @classmethod
-    def of(cls, config: PromptTunerRunConfig) -> "BasePromptTuner":
+    def of(cls, config: PromptTunerConfig) -> "BasePromptTuner":
         """
         Factory method to instantiate a specific prompt tuner based on the
         provided configuration.
@@ -41,7 +40,7 @@ class BasePromptTuner(MutableTyped, Registry, ABC):
             BasePromptTuner: An instance of the correct subclass of BasePromptTuner
             based on the configuration's framework.
         """
-        BasePromptTunerClass = BasePromptTuner.get_subclass(key=config.prompt_tuner_config.framework.name)
+        BasePromptTunerClass = BasePromptTuner.get_subclass(key=config.framework.name)
         return BasePromptTunerClass(config=config)
 
     @abstractmethod

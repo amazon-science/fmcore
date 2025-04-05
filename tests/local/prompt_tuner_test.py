@@ -2,28 +2,27 @@ import asyncio
 
 from fmcore.prompt_tuner import BasePromptTuner
 from fmcore.prompt_tuner.types.prompt_tuner_run_config_types import PromptTunerRunConfig
+from fmcore.prompt_tuner.types.prompt_tuner_types import PromptTunerConfig
 
 
 async def standalone_prompt_tuner():
-    prompt_tuner_run_config = {
+    prompt_tuner_config = {
         "task_type": "TEXT_GENERATION",
         "dataset_config": {
-        "inputs": {
-            "TRAIN": {
-                "path": "/Volumes/workplace/fmcore/fmcore/datasets/sarcasm/train.parquet",
+            "inputs": {
+                "TRAIN": {
+                    "path": "/Volumes/workplace/fmcore/fmcore/datasets/sarcasm/train.parquet",
+                    "storage": "LOCAL_FILE_SYSTEM",
+                    "format": "PARQUET"
+                }
+            },
+            "output": {
+                "name": "results",
+                "path": "/Volumes/workplace/fmcore/fmcore/results/output/sarcasm/",
                 "storage": "LOCAL_FILE_SYSTEM",
                 "format": "PARQUET"
             }
         },
-        "output": {
-            "name": "results",
-            "path": "/Volumes/workplace/fmcore/fmcore/results/output/sarcasm/",
-            "storage": "LOCAL_FILE_SYSTEM",
-            "format": "PARQUET"
-        }
-    },
-        "prompt_tuner_config": {
-        "framework": "DSPY",
         "prompt_config": {
             "prompt": "Is the content sarcastic?",
             "input_fields": [{
@@ -35,6 +34,7 @@ async def standalone_prompt_tuner():
                 "description": "label of the tweet"
             }],
         },
+        "framework": "DSPY",
         "optimizer_config": {
             "optimizer_type": "MIPRO_V2",
             "student_config": {
@@ -105,11 +105,10 @@ async def standalone_prompt_tuner():
                 "auto": "light",
                 "optimizer_metric": "ACCURACY"
             },
-        },
+        }
     }
-    }
-    prompt_tuner_run_config = PromptTunerRunConfig(**prompt_tuner_run_config)
-    tuner = BasePromptTuner.of(config=prompt_tuner_run_config)
+    prompt_tuner_config = PromptTunerConfig(**prompt_tuner_config)
+    tuner = BasePromptTuner.of(config=prompt_tuner_config)
     await tuner.tune()
 
 
