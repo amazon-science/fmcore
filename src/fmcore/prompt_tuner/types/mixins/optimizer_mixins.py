@@ -1,12 +1,13 @@
 from typing import Optional, Union
 
+from pydantic import Field
+
 from fmcore.llm.types.llm_types import LLMConfig, DistributedLLMConfig
 from fmcore.prompt_tuner.evaluator.types.evaluator_types import EvaluatorConfig
-from fmcore.types.mixins_types import Mixin
 from fmcore.types.typed import MutableTyped
 
 
-class StudentConfigMixin(MutableTyped, Mixin):
+class StudentConfigMixin(MutableTyped):
     """
     Mixin for Student LLM configuration.
 
@@ -14,10 +15,10 @@ class StudentConfigMixin(MutableTyped, Mixin):
         student_config (Optional[LLMConfig]): The LLM configuration object for student model
     """
 
-    student_config: Union[LLMConfig, DistributedLLMConfig]
+    student_config: Union[LLMConfig, DistributedLLMConfig] = Field(...)
 
 
-class TeacherConfigMixin(MutableTyped, Mixin):
+class TeacherConfigMixin(MutableTyped):
     """
     Mixin for Student LLM configuration.
 
@@ -25,10 +26,10 @@ class TeacherConfigMixin(MutableTyped, Mixin):
         teacher_config (Optional[LLMConfig]): The LLM configuration object for teacher model
     """
 
-    teacher_config: Union[LLMConfig, DistributedLLMConfig]
+    teacher_config: Union[LLMConfig, DistributedLLMConfig] = Field(...)
 
 
-class EvaluatorConfigMixin(MutableTyped, Mixin):
+class EvaluatorConfigMixin(MutableTyped):
     """
     Mixin for Evaluator Config configuration.
 
@@ -36,4 +37,4 @@ class EvaluatorConfigMixin(MutableTyped, Mixin):
         evaluator_config (Optional[EvaluatorConfig]): The LLM configuration object for evaluator model
     """
 
-    evaluator_config: EvaluatorConfig
+    evaluator_config: EvaluatorConfig = Field(...)

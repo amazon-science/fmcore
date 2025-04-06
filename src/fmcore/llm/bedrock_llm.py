@@ -7,7 +7,6 @@ from langchain_core.messages import BaseMessage, BaseMessageChunk
 
 from fmcore.aws.factory.bedrock_factory import BedrockFactory
 from fmcore.llm.base_llm import BaseLLM
-from fmcore.llm.enums.provider_enums import ProviderType
 from fmcore.llm.types.llm_types import LLMConfig
 from fmcore.utils.rate_limit_utils import RateLimiterUtils
 
@@ -25,20 +24,18 @@ class BedrockLLM(BaseLLM, BaseModel):
         rate_limiter (AsyncLimiter): Async rate limiter enforcing API rate limits.
     """
 
-    aliases = [ProviderType.BEDROCK]
+    aliases = ["BEDROCK"]
 
     client: ChatBedrockConverse
     rate_limiter: AsyncLimiter
 
     @classmethod
-    def _get_constructor_parameters(cls, *, llm_config: LLMConfig) -> dict:
+    def _get_instance(cls, *, llm_config: LLMConfig) -> "BedrockLLM":
         """
-        Constructs the initialization parameters for a BedrockLLM instance.
+        Constructs a BedrockLLM instance.
 
-        Returns a dictionary containing:
-            - config: The original LLM configuration.
-            - client: A ChatBedrockConverse client built from the configuration.
-            - rate_limiter: An AsyncLimiter based on the provider's rate limit settings.
+        Returns:
+            - BedrockLLM: An implementation of BaseLLM.
 
         Args:
             llm_config (SingleLLMConfig): Contains model_id, model_params, and provider_params.
@@ -47,7 +44,7 @@ class BedrockLLM(BaseLLM, BaseModel):
         rate_limiter = RateLimiterUtils.create_async_rate_limiter(
             rate_limit_config=llm_config.provider_params.rate_limit
         )
-        return {"config": llm_config, "client": converse_client, "rate_limiter": rate_limiter}
+        return BedrockLLM(config=llm_config, client=converse_client, rate_limiter=rate_limiter)
 
     def invoke(self, messages: List[BaseMessage]) -> BaseMessage:
         """

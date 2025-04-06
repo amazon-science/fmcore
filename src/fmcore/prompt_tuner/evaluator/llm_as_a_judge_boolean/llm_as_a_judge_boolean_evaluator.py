@@ -1,13 +1,9 @@
 from typing import Dict
 from langchain_core.messages import BaseMessage
 
+from fmcore.prompt_tuner.evaluator.llm_as_a_judge_boolean.llm_as_a_judge_boolean_evaluator_types import BooleanLLMJudgeParams
 from fmcore.prompt_tuner.evaluator.base_evaluator import BaseEvaluator
-from fmcore.prompt_tuner.evaluator.enums.evaluator_enums import EvaluatorType
-from fmcore.prompt_tuner.evaluator.types.evaluator_params_types import BooleanLLMJudgeParams
-from fmcore.prompt_tuner.evaluator.types.evaluator_types import (
-    EvaluatorConfig,
-    LLMAsAJudgeInput,
-)
+from fmcore.prompt_tuner.evaluator.types.evaluator_types import EvaluatorConfig
 from fmcore.llm.base_llm import BaseLLM
 from fmcore.mapper.text_prompt_mapper import TextPromptMapper
 from fmcore.mapper.llm_response_json_mapper import LLMResponseJsonMapper
@@ -33,7 +29,7 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
     context-dependent boolean classification tasks.
     """
 
-    aliases = [EvaluatorType.LLM_AS_A_JUDGE_BOOLEAN]
+    aliases = ["LLM_AS_A_JUDGE_BOOLEAN"]
 
     text_prompt_mapper: TextPromptMapper
     llm_inference_mapper: LLMInferenceMapper
@@ -41,16 +37,20 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
     criteria_checker: CriteriaCheckerMapper
 
     @classmethod
-    def _get_constructor_parameters(cls, *, evaluator_config: EvaluatorConfig) -> dict:
+    def _get_instance(cls, *, evaluator_config: EvaluatorConfig) -> "LLMAsJudgeBooleanEvaluator":
         """
-        Extracts and constructs the parameters required to initialize the evaluator.
+        Factory method to create an instance of LLMAsJudgeBooleanEvaluator using the provided configuration.
+
+        This method extracts evaluator-specific parameters, initializes all required components
+        (such as mappers and the LLM), and returns a fully constructed evaluator instance.
 
         Args:
-            evaluator_config (EvaluatorConfig): Configuration object containing evaluator parameters.
+            evaluator_config (EvaluatorConfig): The configuration object containing evaluator parameters.
 
         Returns:
-            dict: A dictionary containing initialized parameters (`config`, `text_prompt_mapper`, `llm`, `json_mapper`, `criteria_checker`).
+            LLMAsJudgeBooleanEvaluator: A fully initialized evaluator instance.
         """
+
         boolean_llm_judge_params: BooleanLLMJudgeParams = evaluator_config.evaluator_params
         # Create required mappers
         text_prompt_mapper = TextPromptMapper(prompt_template=boolean_llm_judge_params.prompt)
@@ -60,13 +60,13 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
         json_mapper = LLMResponseJsonMapper()
         criteria_checker = CriteriaCheckerMapper(criteria=boolean_llm_judge_params.criteria)
 
-        return {
-            "config": evaluator_config,
-            "text_prompt_mapper": text_prompt_mapper,
-            "llm_inference_mapper": llm_inference_mapper,
-            "json_mapper": json_mapper,
-            "criteria_checker": criteria_checker,
-        }
+        return LLMAsJudgeBooleanEvaluator(
+            config=evaluator_config,
+            text_prompt_mapper=text_prompt_mapper,
+            llm_inference_mapper=llm_inference_mapper,
+            json_mapper=json_mapper,
+            criteria_checker=criteria_checker,
+        )
 
     def evaluate(self, data: Dict) -> bool:
         """

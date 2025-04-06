@@ -23,10 +23,11 @@ class MIPROv2OptimizerParams(BaseOptimizerParams):
 
     optimizer_metric: OptimizerMetricType = OptimizerMetricType.ACCURACY
     auto: Optional[str] = "light"
+    num_candidates: int = 7
 
 
 class MIPROv2OptimizerConfig(
-    BaseOptimizerConfig, StudentConfigMixin, TeacherConfigMixin, EvaluatorConfigMixin
+    StudentConfigMixin, TeacherConfigMixin, EvaluatorConfigMixin, BaseOptimizerConfig
 ):
     """
     Configuration for the MIPROv2 optimizer.

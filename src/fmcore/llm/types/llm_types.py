@@ -1,11 +1,11 @@
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Dict
+
+from pydantic import model_validator
 
 from fmcore.types.typed import MutableTyped
 from fmcore.llm.types.provider_types import (
     BedrockProviderParams,
-    LambdaProviderParams,
-    OpenAIProviderParams,
-    ProviderParamsUnion,
+    BaseProviderParams,
 )
 
 
@@ -30,13 +30,39 @@ class LLMConfig(MutableTyped):
     Configuration for different LLM providers.
 
     Attributes:
-        provider_params (Union[BedrockProviderParams, LambdaProviderParams, OpenAIProviderParams]):
-            The parameters for the selected provider.
+        provider_type(str): The provider for the model
+        model_id (str): The identifier for the model.
+        model_params (ModelParams): Parameters specific to the model.
+        provider_params (BaseProviderParams): The parameters for the selected provider.
     """
 
+    provider_type: str
     model_id: str
     model_params: ModelParams = ModelParams()
-    provider_params: ProviderParamsUnion
+    provider_params: BaseProviderParams
+
+    @model_validator(mode="before")
+    def parse_provider_params(cls, values: Dict):
+        """
+        Transforms provider_params based on provider_type before object creation.
+
+        This method allows clients to register their providers dynamically at runtime.
+        Each providers can have its own params.
+
+        Args:
+            values (Dict): The input dictionary containing provider_type and provider_params.
+
+        Returns:
+            Dict: The transformed values with provider_params converted to the appropriate class.
+        """
+        if cls is not LLMConfig:
+            return values
+
+        if isinstance(values.get("provider_params"), Dict):  # Only transform if it's a dict
+            values["provider_params"] = BaseProviderParams.from_dict(
+                provider_type=values.get("provider_type"), provider_params=values.get("provider_params")
+            )
+        return values
 
 
 class DistributedLLMConfig(MutableTyped):
@@ -45,17 +71,47 @@ class DistributedLLMConfig(MutableTyped):
 
     Why is this separate from LLMConfig?
     ------------------------------------
-    1. **Type Consistency**: LLMConfig supports a single provider, while this class
-       handles multiple. Merging them would require type checks everywhere.
-    2. **Different Use Cases**: Single-provider configs are simple, while distributed
-       execution involves multiple accounts, load balancing, and failover.
+    1. **Functional Separation**: `LLMConfig` supports a single provider, while this
+       class handles multiple providers for distributed use cases.
+
+    2. **Clarity and Maintainability**: Avoids complex type branching and keeps
+       each class focused, clean, and easier to work with.
+
+    3. **Liskov Substitution Principle (LSP)**: Code expecting a single-provider config
+       should not need to account for distributed behavior. This separation ensures
+       substitutability without breaking expectations.
 
     Attributes:
+        provider_type(str): The provider for the model
         model_id (str): The identifier for the model.
         model_params (ModelParams): Parameters specific to the model.
-        provider_params_list (List[ProviderParamsUnion]): A list of configurations for multiple providers.
+        provider_params_list (List[ProviderParams): A list of configurations for multiple provider params.
     """
 
+
+    provider_type: str
     model_id: str
     model_params: ModelParams = ModelParams()
-    provider_params_list: List[ProviderParamsUnion]  # Holds configurations for multiple providers
+    provider_params_list: List[BaseProviderParams]  # Holds configurations for multiple providers
+
+    @model_validator(mode="before")
+    def parse_provider_params_list(cls, values: Dict):
+        """
+        Converts each provider_params item to its appropriate class using the given provider_type.
+        """
+        raw_params_list = values.get("provider_params_list", [])
+        provider_type = values.get("provider_type")
+        processed_params_list = []
+
+        for raw_params in raw_params_list:
+            if isinstance(raw_params, dict):
+                processed_param = BaseProviderParams.from_dict(
+                    provider_type=provider_type,
+                    provider_params=raw_params
+                )
+                processed_params_list.append(processed_param)
+            else:
+                processed_params_list.append(raw_params)  # Already an instance
+
+        values["provider_params_list"] = processed_params_list
+        return values

@@ -1,7 +1,9 @@
 from abc import ABC
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, Any
 
 from bears.util import Registry
+from pydantic import model_serializer
+
 from fmcore.prompt_tuner.types.enums.optimizer_enums import (
     OptimizerType,
     OptimizerMetricType,
@@ -36,6 +38,13 @@ class BaseOptimizerConfig(MutableTyped, Registry, ABC):
     # Using str instead of enum to allow external optimizer types to be used.
     # An enum would restrict users to predefined optimizer types only.
     optimizer_type: str
+
+    @model_serializer(mode="wrap")
+    def serialize(self, handler):
+        # Force serialization from the actual runtime class
+        model_cls = self.__class__.__pydantic_model__
+        model_instance = model_cls.model_validate(self)
+        return handler(model_instance)
 
     @classmethod
     def from_dict(cls, optimizer_config: Dict) -> "BaseOptimizerConfig":

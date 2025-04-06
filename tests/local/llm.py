@@ -71,14 +71,14 @@ async def invoke_llm(llm):
 
 async def standalone_llm_test():
     config_dict = {
+        "provider_type": "BEDROCK",
         "model_id": "anthropic.claude-3-haiku-20240307-v1:0",
         "model_params": {
             "temperature": 0.5,
             "max_tokens": 1024
         },
         "provider_params": {
-            "provider_type": "BEDROCK",
-            "role_arn": "arn:aws:iam::<accountId>:role/<role>",
+            "role_arn": "arn:aws:iam::<accoutId>:role/<roleId>",
             "region": "us-west-2",
             "rate_limit": {
                 "max_rate": 1,
@@ -97,6 +97,7 @@ async def standalone_llm_test():
 
 async def distributed_llm_test():
     distributed_config_data = {
+        "provider_type": "BEDROCK",
         "model_id": "anthropic.claude-3-haiku-20240307-v1:0",
         "model_params": {
             "max_tokens": 128,
@@ -105,8 +106,7 @@ async def distributed_llm_test():
         },
         "provider_params_list": [
             {
-                "provider_type": "BEDROCK",
-                "role_arn": "arn:aws:iam::<accountId>:role/<role>",
+                "role_arn": "arn:aws:iam::<accoutId>:role/<roleId>",
                 "region": "us-west-2",
                 "rate_limit": {
                     "max_rate": 1,  # Limit to 5 requests per 10 seconds for testing
@@ -118,8 +118,7 @@ async def distributed_llm_test():
                 }
             },
             {
-                "provider_type": "BEDROCK",
-                "role_arn": "arn:aws:iam::<accountId>:role/<role>",
+                "role_arn": "arn:aws:iam::<accoutId>:role/<roleId>",
                 "region": "us-east-1",
                 "rate_limit": {
                     "max_rate": 1,  # Limit to 5 requests per 10 seconds for testing
