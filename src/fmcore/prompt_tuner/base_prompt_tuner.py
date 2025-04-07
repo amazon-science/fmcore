@@ -40,7 +40,7 @@ class BasePromptTuner(MutableTyped, Registry, ABC):
             BasePromptTuner: An instance of the correct subclass of BasePromptTuner
             based on the configuration's framework.
         """
-        BasePromptTunerClass = BasePromptTuner.get_subclass(key=config.framework.name)
+        BasePromptTunerClass = BasePromptTuner.get_subclass(key=config.framework)
         return BasePromptTunerClass(config=config)
 
     @abstractmethod

@@ -39,12 +39,6 @@ class BaseOptimizerConfig(MutableTyped, Registry, ABC):
     # An enum would restrict users to predefined optimizer types only.
     optimizer_type: str
 
-    @model_serializer(mode="wrap")
-    def serialize(self, handler):
-        # Force serialization from the actual runtime class
-        model_cls = self.__class__.__pydantic_model__
-        model_instance = model_cls.model_validate(self)
-        return handler(model_instance)
 
     @classmethod
     def from_dict(cls, optimizer_config: Dict) -> "BaseOptimizerConfig":

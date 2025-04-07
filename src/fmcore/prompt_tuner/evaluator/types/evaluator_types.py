@@ -1,6 +1,6 @@
 from typing import Dict
 
-from pydantic import model_validator
+from pydantic import model_validator, SerializeAsAny
 
 from fmcore.prompt_tuner.evaluator.types.evaluator_params_types import BaseEvaluatorParams
 from fmcore.types.typed import MutableTyped
@@ -13,10 +13,13 @@ class EvaluatorConfig(MutableTyped):
     Attributes:
         evaluator_type (EvaluatorType): The type of evaluator to be used.
         evaluator_params (BaseEvaluatorParams): The parameters required by the evaluator.
+
+    Note:
+        Follows the same principles as `LLMConfig`.
     """
 
     evaluator_type: str
-    evaluator_params: BaseEvaluatorParams
+    evaluator_params: SerializeAsAny[BaseEvaluatorParams]
 
     @model_validator(mode="before")
     def parse_provider_params(cls, values: Dict):
