@@ -17,6 +17,7 @@ class DistributedLLM(BaseLLM):
     Attributes:
         llm_clients (List[BaseLLM]): A list of LLM instances, each associated with a different account.
     """
+
     config: DistributedLLMConfig
     llm_clients: List[BaseLLM]
 
@@ -65,6 +66,7 @@ class DistributedLLM(BaseLLM):
         Returns:
             BaseLLM: A randomly selected LLM client, weighted by its rate limit.
         """
+        # Parking Lot: Explore Bandit Algorithm here to
         weights = [llm.rate_limiter.max_rate for llm in self.llm_clients]
         return random.choices(self.llm_clients, weights=weights, k=1)[0]
 

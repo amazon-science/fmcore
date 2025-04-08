@@ -39,7 +39,6 @@ class BaseOptimizerConfig(MutableTyped, Registry, ABC):
     # An enum would restrict users to predefined optimizer types only.
     optimizer_type: str
 
-
     @classmethod
     def from_dict(cls, optimizer_config: Dict) -> "BaseOptimizerConfig":
         """

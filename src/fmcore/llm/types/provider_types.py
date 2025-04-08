@@ -50,4 +50,5 @@ class BedrockProviderParams(BaseProviderParams, AWSAccountMixin, RateLimiterMixi
         RateLimiterMixin: Supplies API rate limiting settings.
         RetryConfigMixin: Supplies retry policy settings.
     """
+
     aliases = ["BEDROCK"]

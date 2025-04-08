@@ -4,7 +4,6 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fmcore"
-dynamic = ["version"]
 authors = [
     { name = "Abhishek Divekar", email = "adivekar@utexas.edu" },
     { name = "Siba Rajendran", email = "rsiba234@gmail.com" }

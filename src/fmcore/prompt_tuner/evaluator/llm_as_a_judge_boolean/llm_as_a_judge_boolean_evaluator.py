@@ -1,7 +1,9 @@
 from typing import Dict
 from langchain_core.messages import BaseMessage
 
-from fmcore.prompt_tuner.evaluator.llm_as_a_judge_boolean.llm_as_a_judge_boolean_evaluator_types import BooleanLLMJudgeParams
+from fmcore.prompt_tuner.evaluator.llm_as_a_judge_boolean.llm_as_a_judge_boolean_evaluator_types import (
+    BooleanLLMJudgeParams,
+)
 from fmcore.prompt_tuner.evaluator.base_evaluator import BaseEvaluator
 from fmcore.prompt_tuner.evaluator.types.evaluator_types import EvaluatorConfig
 from fmcore.llm.base_llm import BaseLLM

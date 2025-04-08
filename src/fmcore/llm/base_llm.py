@@ -18,6 +18,7 @@ class BaseLLM(MutableTyped, Registry, ABC):
     Attributes:
         config (LLMConfig, DistributedLLMConfig): Configuration for the LLM.
     """
+
     config: Union[LLMConfig, DistributedLLMConfig]
 
     @classmethod
@@ -62,11 +63,7 @@ class BaseLLM(MutableTyped, Registry, ABC):
         # Hardcoding the "DistributedLLM" key to avoid a circular dependency.
         # If we introduce the DistributedLLM class here, it would require importing BaseLLM,
         # but BaseLLM also depends on DistributedLLM, causing a circular import error.
-        key = (
-            "DistributedLLM"
-            if isinstance(llm_config, DistributedLLMConfig)
-            else llm_config.provider_type
-        )
+        key = "DistributedLLM" if isinstance(llm_config, DistributedLLMConfig) else llm_config.provider_type
 
         BaseLLMClass = BaseLLM.get_subclass(key=key)
         return BaseLLMClass._get_instance(llm_config=llm_config)

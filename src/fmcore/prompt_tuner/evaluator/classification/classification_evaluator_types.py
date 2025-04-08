@@ -17,4 +17,3 @@ class ClassificationParams(BaseEvaluatorParams):
 
     prediction_field: str
     ground_truth_field: str
-

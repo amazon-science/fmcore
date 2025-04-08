@@ -34,13 +34,10 @@ class ClassificationEvaluator(BaseEvaluator[Dict, bool]):
 
         equality_checker: EqualityCheckerMapper = EqualityCheckerMapper(
             prediction_key=classification_params.prediction_field,
-            ground_truth_key=classification_params.ground_truth_field
+            ground_truth_key=classification_params.ground_truth_field,
         )
 
-        return ClassificationEvaluator(
-            config=evaluator_config,
-            equality_checker=equality_checker
-        )
+        return ClassificationEvaluator(config=evaluator_config, equality_checker=equality_checker)
 
     def evaluate(self, data: Dict) -> bool:
         """

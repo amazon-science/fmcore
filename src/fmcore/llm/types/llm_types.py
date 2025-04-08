@@ -120,8 +120,7 @@ class DistributedLLMConfig(MutableTyped):
         for raw_params in raw_params_list:
             if isinstance(raw_params, dict):
                 processed_param = BaseProviderParams.from_dict(
-                    provider_type=provider_type,
-                    provider_params=raw_params
+                    provider_type=provider_type, provider_params=raw_params
                 )
                 processed_params_list.append(processed_param)
             else:
