@@ -11,7 +11,7 @@ from fmcore.llm.types.llm_types import LLMConfig
 from fmcore.utils.rate_limit_utils import RateLimiterUtils
 
 
-class BedrockLLM(BaseLLM, BaseModel):
+class BedrockLLM(BaseLLM[List[BaseMessage], BaseMessage, BaseMessageChunk], BaseModel):
     """
     AWS Bedrock language model with built-in asynchronous rate limiting.
 
