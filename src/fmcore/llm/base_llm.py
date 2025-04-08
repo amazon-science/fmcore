@@ -5,9 +5,9 @@ from bears.util import Registry
 from fmcore.llm.types.llm_types import LLMConfig, DistributedLLMConfig
 from fmcore.types.typed import MutableTyped
 
-Input = TypeVar("Input")     # e.g., List[BaseMessage]
-Output = TypeVar("Output")   # e.g., BaseMessage
-Chunk = TypeVar("Chunk")     # e.g., BaseMessageChunk
+Input = TypeVar("Input")  # e.g., List[BaseMessage]
+Output = TypeVar("Output")  # e.g., BaseMessage
+Chunk = TypeVar("Chunk")  # e.g., BaseMessageChunk
 
 
 class BaseLLM(MutableTyped, Generic[Input, Output, Chunk], Registry, ABC):
