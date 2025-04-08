@@ -1,7 +1,7 @@
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 
 import pandas as pd
-from pydantic import model_validator
+from pydantic import model_validator, SerializeAsAny
 
 from fmcore.prompt_tuner.types.enums.prompt_tuner_enums import PromptTunerFramework, PromptTunerTaskType
 from fmcore.prompt_tuner.types.optimizer_types import BaseOptimizerConfig
@@ -42,13 +42,23 @@ class PromptConfig(MutableTyped):
 class PromptTunerConfig(MutableTyped):
     """
     Configuration class for a prompt tuner, including the framework, prompt configuration, and optimizer configuration.
+
+    Attributes:
+        task_type (PromptTunerTaskType): The type of task being tuned.
+        dataset_config (DatasetConfig): Dataset-related configuration.
+        prompt_config (PromptConfig): Prompt structure and behavior.
+        framework (str): The prompt tuning framework being used.
+        optimizer_config (SerializeAsAny[BaseOptimizerConfig]): Optimizer configuration.
+
+    Note:
+        Follows the same principles as `LLMConfig`.
     """
 
     task_type: PromptTunerTaskType
     dataset_config: DatasetConfig
     prompt_config: PromptConfig
-    framework: PromptTunerFramework
-    optimizer_config: BaseOptimizerConfig
+    framework: str
+    optimizer_config: SerializeAsAny[BaseOptimizerConfig]
 
     @model_validator(mode="before")
     def validate_prompt_tuner_config(cls, values: Dict):

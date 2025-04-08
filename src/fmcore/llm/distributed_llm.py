@@ -1,5 +1,5 @@
 import random
-from typing import List, Iterator, AsyncIterator
+from typing import List, Iterator, AsyncIterator, Any
 
 from langchain_core.messages import BaseMessage, BaseMessageChunk
 
@@ -18,12 +18,13 @@ class DistributedLLM(BaseLLM):
         llm_clients (List[BaseLLM]): A list of LLM instances, each associated with a different account.
     """
 
+    config: DistributedLLMConfig
     llm_clients: List[BaseLLM]
 
     @classmethod
-    def _get_constructor_parameters(cls, *, llm_config: DistributedLLMConfig) -> dict:
+    def _get_instance(cls, *, llm_config: DistributedLLMConfig) -> "DistributedLLM":
         """
-        Creates initialization parameters for the DistributedLLM.
+        Constructs an instance of DistributedLLM.
 
         This method initializes an LLM instance for each account in the configuration.
 
@@ -32,14 +33,13 @@ class DistributedLLM(BaseLLM):
                                                and account-specific settings.
 
         Returns:
-            dict: A dictionary containing:
-                - "config": The original LLM configuration.
-                - "llms": A list of LLM instances, one for each account.
+            - DistributedLLM: An implementation of DistributedLLM.
         """
 
         llm_clients = []
         for provider_params in llm_config.provider_params_list:
             standalone_llm_config = LLMConfig(
+                provider_type=llm_config.provider_type,
                 model_id=llm_config.model_id,
                 model_params=llm_config.model_params,
                 provider_params=provider_params,  # Using individual account settings
@@ -47,7 +47,7 @@ class DistributedLLM(BaseLLM):
             llm: BaseLLM = BaseLLM.of(llm_config=standalone_llm_config)
             llm_clients.append(llm)
 
-        return {"config": llm_config, "llm_clients": llm_clients}
+        return DistributedLLM(config=llm_config, llm_clients=llm_clients)
 
     def get_random_client(self) -> BaseLLM:
         """
@@ -66,6 +66,7 @@ class DistributedLLM(BaseLLM):
         Returns:
             BaseLLM: A randomly selected LLM client, weighted by its rate limit.
         """
+        # Parking Lot: Explore Bandit Algorithm here to
         weights = [llm.rate_limiter.max_rate for llm in self.llm_clients]
         return random.choices(self.llm_clients, weights=weights, k=1)[0]
 

@@ -43,3 +43,6 @@ class MutableTyped(Typed, ABC):
         # The UI currently sends a lot of additional fields which are not required
         # Allowing those fields for now to avoid RTEs
         extra = Extra.allow
+
+        ## Ref for Pydantic enums: https://docs.pydantic.dev/latest/api/config/#pydantic.config.ConfigDict.use_enum_values
+        use_enum_values = True

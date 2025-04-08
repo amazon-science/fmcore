@@ -1,7 +1,9 @@
 from abc import ABC
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, Any
 
 from bears.util import Registry
+from pydantic import model_serializer
+
 from fmcore.prompt_tuner.types.enums.optimizer_enums import (
     OptimizerType,
     OptimizerMetricType,

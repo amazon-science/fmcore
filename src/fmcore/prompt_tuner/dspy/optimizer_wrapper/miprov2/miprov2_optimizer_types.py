@@ -21,8 +21,9 @@ class MIPROv2OptimizerParams(BaseOptimizerParams):
         auto (Optional[str]): An optional auto-tuning setting, defaults to 'light'.
     """
 
-    optimizer_metric: OptimizerMetricType = OptimizerMetricType.ACCURACY
+    optimizer_metric: str = OptimizerMetricType.ACCURACY
     auto: Optional[str] = "light"
+    num_candidates: int = 7
 
 
 class MIPROv2OptimizerConfig(

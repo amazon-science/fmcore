@@ -28,17 +28,19 @@ class BaseEvaluator(Generic[I, O], MutableTyped, Registry, ABC):
 
     @classmethod
     @abstractmethod
-    def _get_constructor_parameters(cls, *, evaluator_config: EvaluatorConfig) -> dict:
+    def _get_instance(cls, *, evaluator_config: EvaluatorConfig) -> dict:
         """
-        Generate the constructor parameters required for initializing a subclass.
-        To understand more checkout - BaseLLM in fmcore
-        https://github.com/amazon-science/fmcore/blob/labs-release/src/fmcore/llm/base_llm.py#L28
+        Returns an instance of the evaluator subclass, initialized using the given `evaluator_config`.
+
+        This method must be implemented by each subclass to construct and return an instance
+        of itself. It enables dynamic instantiation of LLM implementations while keeping the
+        base class and registry mechanism unchanged.
+
         Args:
-            evaluator_config (EvaluatorConfig): The configuration object containing Evaluator-related settings.
+            evaluator_config (EvaluatorConfig): The configuration object containing settings for the Evaluator.
 
         Returns:
-            dict: A dictionary of keyword arguments (`**kwargs`) that can be used to instantiate the subclass dynamically.
-
+            BaseLLM: An instance of the subclass that extends `BaseLLM`.
         """
         pass
 
@@ -53,9 +55,8 @@ class BaseEvaluator(Generic[I, O], MutableTyped, Registry, ABC):
         Returns:
             BaseEvaluator: An instance of the appropriate evaluator subclass.
         """
-        BaseEvaluatorClass = BaseEvaluator.get_subclass(key=evaluator_config.evaluator_type.name)
-        constructor_params = BaseEvaluatorClass._get_constructor_parameters(evaluator_config=evaluator_config)
-        return BaseEvaluatorClass(**constructor_params)
+        BaseEvaluatorClass = BaseEvaluator.get_subclass(key=evaluator_config.evaluator_type)
+        return BaseEvaluatorClass._get_instance(evaluator_config=evaluator_config)
 
     @abstractmethod
     def evaluate(self, data: I) -> O:
