@@ -1,16 +1,18 @@
 from abc import ABC, abstractmethod
-from typing import Iterator, List, AsyncIterator, Union
+from typing import Iterator, AsyncIterator, TypeVar, Generic, Union, List
 
 from bears.util import Registry
-from langchain_core.messages import BaseMessage, BaseMessageChunk
-
 from fmcore.llm.types.llm_types import LLMConfig, DistributedLLMConfig
 from fmcore.types.typed import MutableTyped
 
+Input = TypeVar("Input")  # e.g., List[BaseMessage]
+Output = TypeVar("Output")  # e.g., BaseMessage
+Chunk = TypeVar("Chunk")  # e.g., BaseMessageChunk
 
-class BaseLLM(MutableTyped, Registry, ABC):
+
+class BaseLLM(MutableTyped, Generic[Input, Output, Chunk], Registry, ABC):
     """
-    Abstract base class for LLM implementations.
+    Generic abstract base class for LLM implementations.
 
     This class defines the interface and configuration for different LLMs.
     Concrete implementations must provide the actual logic for the abstract methods.
@@ -25,7 +27,7 @@ class BaseLLM(MutableTyped, Registry, ABC):
     @abstractmethod
     def _get_instance(cls, *, llm_config: LLMConfig) -> "BaseLLM":
         """
-        Returns an instance of the llm subclass, initialized using the given `llm_config`.
+        Returns an instance of the LLM subclass, initialized using the given `llm_config`.
 
         This method must be implemented by each subclass to construct and return an instance
         of itself. It enables dynamic instantiation of LLM implementations while keeping the
@@ -42,7 +44,7 @@ class BaseLLM(MutableTyped, Registry, ABC):
         """
 
     @classmethod
-    def of(cls, llm_config: Union[LLMConfig, DistributedLLMConfig]):
+    def of(cls, llm_config: Union[LLMConfig, DistributedLLMConfig]) -> "BaseLLM":
         """
         Instantiates an LLM subclass based on the provided configuration.
 
@@ -59,89 +61,84 @@ class BaseLLM(MutableTyped, Registry, ABC):
         Returns:
             BaseLLM: An instance of the resolved subclass implementing BaseLLM.
         """
-
-        # Hardcoding the "DistributedLLM" key to avoid a circular dependency.
-        # If we introduce the DistributedLLM class here, it would require importing BaseLLM,
-        # but BaseLLM also depends on DistributedLLM, causing a circular import error.
         key = "DistributedLLM" if isinstance(llm_config, DistributedLLMConfig) else llm_config.provider_type
-
         BaseLLMClass = BaseLLM.get_subclass(key=key)
         return BaseLLMClass._get_instance(llm_config=llm_config)
 
     @abstractmethod
-    def invoke(self, messages: List[BaseMessage]) -> BaseMessage:
+    def invoke(self, messages: Input) -> Output:
         """
-        Synchronously invokes the LLM with the given messages.
+        Synchronously invokes the LLM with the given input.
 
         Args:
-            messages (List[BaseMessage]): The input messages.
+            messages (Input): The input messages.
 
         Returns:
-            BaseMessage: The LLM response.
+            Output: The LLM response.
         """
         pass
 
     @abstractmethod
-    async def ainvoke(self, messages: List[BaseMessage]) -> BaseMessage:
+    async def ainvoke(self, messages: Input) -> Output:
         """
-        Asynchronously invokes the LLM with the given messages.
+        Asynchronously invokes the LLM with the given input.
 
         Args:
-            messages (List[BaseMessage]): The input messages.
+            messages (Input): The input messages.
 
         Returns:
-            BaseMessage: The LLM response.
+            Output: The LLM response.
         """
         pass
 
     @abstractmethod
-    def stream(self, messages: List[BaseMessage]) -> Iterator[BaseMessageChunk]:
+    def stream(self, messages: Input) -> Iterator[Chunk]:
         """
-        Streams responses from the LLM for the given messages.
+        Streams responses from the LLM for the given input.
 
         Args:
-            messages (List[BaseMessage]): The input messages.
+            messages (Input): The input messages.
 
         Returns:
-            Iterator[BaseMessageChunk]: A stream of LLM response chunks.
+            Iterator[Chunk]: A stream of LLM response chunks.
         """
         pass
 
     @abstractmethod
-    def astream(self, messages: List[BaseMessage]) -> AsyncIterator[BaseMessageChunk]:
+    def astream(self, messages: Input) -> AsyncIterator[Chunk]:
         """
-        Asynchronously streams responses from the LLM for the given messages.
+        Asynchronously streams responses from the LLM for the given input.
 
         Args:
-            messages (List[BaseMessage]): The input messages.
+            messages (Input): The input messages.
 
         Returns:
-            Iterator[BaseMessageChunk]: A stream of LLM response chunks.
+            AsyncIterator[Chunk]: A stream of LLM response chunks.
         """
         pass
 
     @abstractmethod
-    def batch(self, messages: List[List[BaseMessage]]) -> List[BaseMessage]:
+    def batch(self, messages: List[Input]) -> List[Output]:
         """
-        Processes a batch of messages in a single call.
+        Processes a batch of input messages in a single call.
 
         Args:
-            messages (List[List[BaseMessage]]): A list of message lists.
+            messages (List[Input]): A list of input message groups.
 
         Returns:
-            List[BaseMessage]: A list of responses corresponding to each input message list.
+            List[Output]: A list of responses corresponding to each input group.
         """
         pass
 
     @abstractmethod
-    async def abatch(self, messages: List[List[BaseMessage]]) -> List[BaseMessage]:
+    async def abatch(self, messages: List[Input]) -> List[Output]:
         """
-        Asynchronously processes a batch of messages in a single call.
+        Asynchronously processes a batch of input messages in a single call.
 
         Args:
-            messages (List[List[BaseMessage]]): A list of message lists.
+            messages (List[Input]): A list of input message groups.
 
         Returns:
-            List[BaseMessage]: A list of responses corresponding to each input message list.
+            List[Output]: A list of responses corresponding to each input group.
         """
         pass
