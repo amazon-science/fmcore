@@ -1,5 +1,6 @@
-from typing import Dict
+from typing import Dict, Any
 import boto3
+import aioboto3
 from botocore.credentials import RefreshableCredentials
 from botocore.session import get_session
 
@@ -12,17 +13,17 @@ class BotoFactory:
     __clients: Dict[str, boto3.client] = {}
 
     @classmethod
-    def __get_refreshable_session(cls, role_arn: str, region: str, session_name: str) -> boto3.Session:
+    def __get_refreshable_session(cls, role_arn: str, region: str, session_name: str) -> get_session:
         """
-        Creates a Boto3 session with refreshable credentials for the assumed IAM role.
+        Creates a botocore session with refreshable credentials for the assumed IAM role.
 
         Args:
             role_arn (str): ARN of the IAM role to assume.
             session_name (str): Name for the assumed session.
-            region (str, optional): AWS region for the session..
+            region (str): AWS region for the session.
 
         Returns:
-            boto3.Session: A session with automatically refreshed credentials.
+            botocore.session: A session with automatically refreshed credentials.
         """
 
         def refresh() -> dict:
@@ -49,43 +50,81 @@ class BotoFactory:
         botocore_session._credentials = refreshable_credentials
         botocore_session.set_config_variable(AWSConstants.REGION, region)
 
-        return boto3.Session(botocore_session=botocore_session)
+        return botocore_session
 
     @classmethod
-    def __create_session(cls, *, role_arn: str, region: str, session_name: str) -> boto3.Session:
+    def __create_session(cls, *, role_arn: str = None, region: str, session_name: str) -> boto3.Session:
         """
         Creates a Boto3 session, either using role-based authentication or default credentials.
 
         Args:
             region (str): AWS region for the session.
-            role_arn (str): IAM role ARN to assume (if provided).
+            role_arn (str, optional): IAM role ARN to assume.
+            session_name (str): Name for the session.
 
         Returns:
             boto3.Session: A configured Boto3 session.
         """
-        return (
-            cls.__get_refreshable_session(role_arn=role_arn, region=region, session_name=session_name)
-            if role_arn
-            else boto3.Session(region_name=region)
+        if not role_arn:
+            return boto3.Session(region_name=region)
+
+        # Get a botocore session with refreshable credentials
+        botocore_session = cls.__get_refreshable_session(
+            role_arn=role_arn,
+            region=region,
+            session_name=session_name
         )
 
+        return boto3.Session(botocore_session=botocore_session)
+
     @classmethod
-    def get_client(cls, *, service_name: str, region: str, role_arn: str) -> boto3.client:
+    def get_client(cls, *, service_name: str, region: str, role_arn: str = None) -> boto3.client:
         """
         Retrieves a cached Boto3 client or creates a new one.
 
         Args:
             service_name (str): AWS service name (e.g., 's3', 'bedrock-runtime').
             region (str): AWS region for the client.
-            role_arn (str): IAM role ARN for authentication (optional).
+            role_arn (str, optional): IAM role ARN for authentication.
 
         Returns:
             boto3.client: A configured Boto3 client.
         """
-        key = f"{service_name}-{region}"
-        session = cls.__create_session(region=region, role_arn=role_arn, session_name=f"{key}-Session")
+        key = f"{service_name}-{region}-{role_arn or 'default'}"
 
         if key not in cls.__clients:
+            session = cls.__create_session(
+                region=region,
+                role_arn=role_arn,
+                session_name=f"{service_name}-Session"
+            )
             cls.__clients[key] = session.client(service_name, region_name=region)
 
         return cls.__clients[key]
+
+    @classmethod
+    def get_async_session(cls, *, service_name: str, region: str, role_arn: str = None):
+        """
+        Retrieves a cached async client or creates a new one.
+
+        Args:
+            service_name (str): AWS service name (e.g., 's3', 'bedrock-runtime').
+            region (str): AWS region for the client.
+            role_arn (str, optional): IAM role ARN for authentication.
+
+        Returns:
+            An async client that should be used with 'async with'
+        """
+        session = None
+
+        if role_arn:
+            botocore_session = cls.__get_refreshable_session(
+                role_arn=role_arn,
+                region=region,
+                session_name=f"Async-{service_name}-Session"
+            )
+            session = aioboto3.Session(botocore_session=botocore_session)
+        else:
+            session = aioboto3.Session(region_name=region)
+
+        return session

@@ -52,3 +52,23 @@ class BedrockProviderParams(BaseProviderParams, AWSAccountMixin, RateLimiterMixi
     """
 
     aliases = ["BEDROCK"]
+
+
+class LambdaProviderParams(BaseProviderParams, AWSAccountMixin, RateLimiterMixin, RetryConfigMixin):
+    """
+    Configuration for a Bedrock provider using AWS.
+
+    This class combines AWS account settings with request configuration parameters
+    (such as rate limits and retry policies) needed to interact with Bedrock services.
+    It mixes in AWS-specific account details, rate limiting, and retry configurations
+    to form a complete provider setup.
+
+    Mixes in:
+        AWSAccountMixin: Supplies AWS-specific account details (e.g., role ARN, region).
+        RateLimiterMixin: Supplies API rate limiting settings.
+        RetryConfigMixin: Supplies retry policy settings.
+    """
+
+    aliases = ["LAMBDA"]
+
+    function_name: str

@@ -20,6 +20,7 @@ async def async_test(llm):
     print(f"Async response: {response.content}")
 
 
+
 def sync_test_stream(llm):
     """Test synchronous stream LLM invocation."""
     messages = [HumanMessage(content="Tell me a joke—no questions, no feedback, just the joke!")]
@@ -78,7 +79,7 @@ async def standalone_llm_test():
             "max_tokens": 1024
         },
         "provider_params": {
-            "role_arn": "arn:aws:iam::<accoutId>:role/<roleId>",
+            "role_arn": "arn:aws:iam::136238946932:role/ModelFactoryBedrockAccessRole",
             "region": "us-west-2",
             "rate_limit": {
                 "max_rate": 1,
@@ -90,9 +91,7 @@ async def standalone_llm_test():
         }
     }
 
-    llm_config = LLMConfig(**config_dict)
-    llm = BaseLLM.of(llm_config=llm_config)
-    await invoke_llm(llm)
+
 
 
 async def distributed_llm_test():
@@ -106,7 +105,7 @@ async def distributed_llm_test():
         },
         "provider_params_list": [
             {
-                "role_arn": "arn:aws:iam::<accoutId>:role/<roleId>",
+                "role_arn": "arn:aws:iam::136238946932:role/ModelFactoryBedrockAccessRole",
                 "region": "us-west-2",
                 "rate_limit": {
                     "max_rate": 1,  # Limit to 5 requests per 10 seconds for testing
@@ -118,7 +117,7 @@ async def distributed_llm_test():
                 }
             },
             {
-                "role_arn": "arn:aws:iam::<accoutId>:role/<roleId>",
+                "role_arn": "arn:aws:iam::136238946932:role/ModelFactoryBedrockAccessRole",
                 "region": "us-east-1",
                 "rate_limit": {
                     "max_rate": 1,  # Limit to 5 requests per 10 seconds for testing
@@ -135,6 +134,32 @@ async def distributed_llm_test():
     llm = BaseLLM.of(llm_config=llm_config)
     await invoke_llm(llm)
 
+async def lambda_test():
+    lambda_config_dict = {
+        "provider_type": "LAMBDA",
+        "model_id": "mistralai/Mistral-Nemo-Instruct-2407",
+        "model_params": {
+            "temperature": 0.5,
+            "max_tokens": 1024
+        },
+        "provider_params": {
+            "role_arn": "arn:aws:iam::136238946932:role/ModelFactoryBedrockAccessRole",
+            "function_name": "MistralNemo",
+            "region": "us-west-2",
+            "rate_limit": {
+                "max_rate": 100,
+                "time_period": 60
+            },
+            "retries": {
+                "max_retries": 3
+            }
+        }
+    }
+
+    llm_config = LLMConfig(**lambda_config_dict)
+    llm = BaseLLM.of(llm_config=llm_config)
+    sync_test(llm)
+    await async_test(llm)
 
 async def main():
     # Create LLM once and use for both tests
@@ -144,6 +169,8 @@ async def main():
     print("Running distributed LLM test...")
     await distributed_llm_test()
     print("===")
+    print("Running Lambda LLM test...")
+    await lambda_test()
 
 
 if __name__ == "__main__":

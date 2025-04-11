@@ -66,8 +66,6 @@ class LLMConfig(MutableTyped):
         Returns:
             Dict: The transformed values with provider_params converted to the appropriate class.
         """
-        if cls is not LLMConfig:
-            return values
 
         if isinstance(values.get("provider_params"), Dict):  # Only transform if it's a dict
             values["provider_params"] = BaseProviderParams.from_dict(
