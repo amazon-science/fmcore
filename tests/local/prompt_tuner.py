@@ -198,7 +198,7 @@ async def prompt_tuner_with_llm_as_judge_boolean():
     prompt_tuner_config = PromptTunerConfig(**prompt_tuner_config)
     print(prompt_tuner_config.model_dump())
     tuner = BasePromptTuner.of(config=prompt_tuner_config)
-    #await tuner.tune()
+    await tuner.tune()
 
 
 

@@ -49,12 +49,10 @@ class MultiProcessInferenceManager(BaseInferenceManager[List[List[BaseMessage]],
         tasks = [llm.ainvoke(messages=messages) for messages in worker_config.dataset_chunk]
 
         results = []
-        for task in tqdm(
-            asyncio.as_completed(tasks), total=len(tasks), desc=f"Processing chunk {worker_config.chunk_id}"
+        for task in tqdm(tasks, total=len(tasks), desc=f"Processing chunk {worker_config.chunk_id}"
         ):
-            abc = await task
-            print(abc)
-            results.append(abc)
+            result = await task
+            results.append(result)
 
         return results
 
@@ -101,7 +99,7 @@ class MultiProcessInferenceManager(BaseInferenceManager[List[List[BaseMessage]],
         )
 
         num_process: int = min(num_process, len(configs))
-        chunks: List[List[BaseMessage]] = CollectionUtils.split_into_equal_parts_randomized(
+        chunks: List[List[BaseMessage]] = CollectionUtils.split_into_equal_parts(
             items=dataset, num_parts=num_process
         )
 
