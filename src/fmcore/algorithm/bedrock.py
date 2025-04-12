@@ -313,6 +313,80 @@ with optional_dependency("boto3", "imageio"):
         response_body: Dict = json.loads(response.get("body").read())
         return "\n".join([d["text"] for d in response_body.get("content")])
 
+    def call_llama_3(
+        bedrock_client,
+        model_name: str,
+        prompt: str,
+        max_tokens_to_sample: int,
+        temperature: Optional[float] = None,
+        top_k: Optional[int] = None,
+        top_p: Optional[float] = None,
+        **kwargs,
+    ) -> str:
+        assert any_are_none(top_k, top_p), "At least one of top_k, top_p must be None"
+        bedrock_params = {
+            "prompt": prompt,
+            "max_gen_len": max_tokens_to_sample,
+        }
+        if top_p is not None and temperature is not None:
+            raise ValueError("Cannot specify both top_p and temperature; at most one must be specified.")
+
+        if top_k is not None:
+            assert isinstance(top_k, int)
+            bedrock_params["top_k"] = top_k
+        elif temperature is not None:
+            assert isinstance(temperature, (float, int)) and 0 <= temperature <= 1
+            bedrock_params["temperature"] = temperature
+        elif top_p is not None:
+            assert isinstance(top_p, (float, int)) and 0 <= top_p <= 1
+            bedrock_params["top_p"] = top_p
+
+        response = bedrock_client.invoke_model(
+            body=json.dumps(bedrock_params),
+            modelId=model_name,
+            accept="application/json",
+            contentType="application/json",
+        )
+        response_body: Dict = json.loads(response.get("body").read())
+        return response_body.get("generation")
+
+    def call_mistral(
+        bedrock_client,
+        model_name: str,
+        prompt: str,
+        max_tokens_to_sample: int,
+        temperature: Optional[float] = None,
+        top_k: Optional[int] = None,
+        top_p: Optional[float] = None,
+        **kwargs,
+    ) -> str:
+        assert any_are_none(top_k, top_p), "At least one of top_k, top_p must be None"
+        bedrock_params = {
+            "prompt": prompt,
+            "max_tokens": max_tokens_to_sample,
+        }
+        if top_p is not None and temperature is not None:
+            raise ValueError("Cannot specify both top_p and temperature; at most one must be specified.")
+
+        if top_k is not None:
+            assert isinstance(top_k, int)
+            bedrock_params["top_k"] = top_k
+        elif temperature is not None:
+            assert isinstance(temperature, (float, int)) and 0 <= temperature <= 1
+            bedrock_params["temperature"] = temperature
+        elif top_p is not None:
+            assert isinstance(top_p, (float, int)) and 0 <= top_p <= 1
+            bedrock_params["top_p"] = top_p
+
+        response = bedrock_client.invoke_model(
+            body=json.dumps(bedrock_params),
+            modelId=model_name,
+            accept="application/json",
+            contentType="application/json",
+        )
+        response_body: Dict = json.loads(response.get("body").read())
+        return "\n".join([d["text"] for d in response_body["outputs"]])
+
     def call_bedrock(
         *,
         bedrock_client: Any,
@@ -362,6 +436,22 @@ with optional_dependency("boto3", "imageio"):
                 return result
         elif "claude" in model_name:
             generated_text: str = call_claude_v1_v2(
+                bedrock_client=bedrock_client,
+                prompt=prompt,
+                model_name=model_name,
+                **generation_params,
+            )
+            return generated_text
+        elif "meta.llama3" in model_name:
+            generated_text: str = call_llama_3(
+                bedrock_client=bedrock_client,
+                prompt=prompt,
+                model_name=model_name,
+                **generation_params,
+            )
+            return generated_text
+        elif "mistral" in model_name:
+            generated_text: str = call_mistral(
                 bedrock_client=bedrock_client,
                 prompt=prompt,
                 model_name=model_name,
