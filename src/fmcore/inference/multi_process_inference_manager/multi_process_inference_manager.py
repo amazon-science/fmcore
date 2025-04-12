@@ -15,6 +15,7 @@ from fmcore.inference.types.inference_manager_types import InferenceManagerConfi
 from fmcore.llm import BaseLLM
 from fmcore.llm.types.llm_types import LLMConfig, DistributedLLMConfig
 from fmcore.utils.collection_utils import CollectionUtils
+from fmcore.utils.logging_utils import Log
 
 
 class MultiProcessInferenceManager(BaseInferenceManager[List[List[BaseMessage]], List[BaseMessage]]):
@@ -51,8 +52,11 @@ class MultiProcessInferenceManager(BaseInferenceManager[List[List[BaseMessage]],
         results = []
         for task in tqdm(tasks, total=len(tasks), desc=f"Processing chunk {worker_config.chunk_id}"
         ):
-            result = await task
-            results.append(result)
+            try:
+                result = await task
+                results.append(result)
+            except Exception as e:
+                Log.info(f"Error processing chunk {worker_config.chunk_id}: {e}, Gracefully ignoring the row")
 
         return results
 
