@@ -3,7 +3,6 @@ from langchain.schema import BaseMessage
 
 from fmcore.llm import BaseLLM
 from fmcore.mapper.base_mapper import BaseMapper
-from fmcore.utils.async_utils import AsyncUtils
 
 
 class LLMInferenceMapper(BaseMapper[List[BaseMessage], BaseMessage]):
@@ -22,7 +21,7 @@ class LLMInferenceMapper(BaseMapper[List[BaseMessage], BaseMessage]):
         Returns:
             BaseMessage: The generated response message.
         """
-        return AsyncUtils.execute(self.llm.ainvoke(messages=data))
+        return self.llm.invoke(messages=data)
 
     async def amap(self, data: List[BaseMessage]) -> BaseMessage:
         """

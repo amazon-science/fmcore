@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict
 
 from bears import FileMetadata
 from pydantic import Field
@@ -30,18 +30,6 @@ class RetryConfig(MutableTyped):
     max_retries: int = Field(default=3)
     backoff_factor: float = Field(default=1.0)
     jitter: float = Field(default=1.0)
-    retryable_exceptions: List[str] = Field(
-        default_factory=lambda: [
-            "InvalidSignatureException",
-            "ThrottlingException",
-            "ModelTimeoutException",
-            "ServiceUnavailableException",
-            "ModelNotReadyException",
-            "ServiceQuotaExceededException",
-            "ModelErrorException",
-            "EndpointConnectionError",
-        ]
-    )
 
 
 class DatasetConfig(MutableTyped):
