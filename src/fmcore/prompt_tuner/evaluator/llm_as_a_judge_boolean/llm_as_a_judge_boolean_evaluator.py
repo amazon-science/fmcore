@@ -80,11 +80,17 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
         Returns:
             BooleanLLMJudgeOutput: Evaluation result as a boolean decision.
         """
-        # Format the context into messages using the template
-        formatted_message: BaseMessage = self.text_prompt_mapper.map(data)
-        llm_response: BaseMessage = self.llm_inference_mapper.map([formatted_message])
-        json_response: Dict = self.json_mapper.map(llm_response.content)
-        decision: bool = self.criteria_checker.map(json_response)
+
+        try:
+            # Format the context into messages using the template
+            formatted_message: BaseMessage = self.text_prompt_mapper.map(data)
+            llm_response: BaseMessage = self.llm_inference_mapper.map([formatted_message])
+            json_response: Dict = self.json_mapper.map(llm_response.content)
+            decision: bool = self.criteria_checker.map(json_response)
+        except Exception as e:
+            print(f"Error during evaluation: {e}")
+            print(data)
+            decision = False
         return decision
 
     async def aevaluate(self, data: Dict) -> bool:

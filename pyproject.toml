@@ -4,6 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "fmcore"
+version = "0.1.6.dev22"
+
 authors = [
     { name = "Abhishek Divekar", email = "adivekar@utexas.edu" },
     { name = "Siba Rajendran", email = "rsiba234@gmail.com" }
@@ -29,8 +31,10 @@ dependencies = [
     "langchain-community==0.3.20",
     "json-repair==0.40.0",
     "Jinja2==3.1.6",
-    "dspy==2.6.*",
-    "asteval==1.0.6"
+    "dspy==2.6.11",
+    "asteval==1.0.6",
+    "glom==24.11.0",
+    "aioboto3==14.1.0"
 ]
 
 [project.optional-dependencies]
@@ -77,8 +81,6 @@ all = [
     "faiss-cpu",
 ]
 
-[tool.hatch.version]
-source = "vcs"
 
 [tool.hatch.metadata]
 allow-direct-references = true
