@@ -9,10 +9,9 @@ from fmcore.aws.factory.bedrock_factory import BedrockFactory
 from fmcore.llm.base_llm import BaseLLM
 from fmcore.llm.types.llm_types import LLMConfig
 from fmcore.utils.rate_limit_utils import RateLimiterUtils
-from fmcore.utils.retry_utils import RetryUtil
 
 
-class BedrockLLM(BaseLLM[List[BaseMessage], BaseMessage, BaseMessageChunk], BaseModel):
+class BedrockLLM(BaseLLM, BaseModel):
     """
     AWS Bedrock language model with built-in asynchronous rate limiting.
 
@@ -59,7 +58,6 @@ class BedrockLLM(BaseLLM[List[BaseMessage], BaseMessage, BaseMessageChunk], Base
         """
         return self.client.invoke(input=messages)
 
-    @RetryUtil.with_backoff(lambda self: self.config.provider_params.retries)
     async def ainvoke(self, messages: List[BaseMessage]) -> BaseMessage:
         """
         Asynchronously invokes the model with rate limiting.
@@ -85,7 +83,6 @@ class BedrockLLM(BaseLLM[List[BaseMessage], BaseMessage, BaseMessageChunk], Base
         """
         return self.client.stream(input=messages)
 
-    @RetryUtil.with_backoff(lambda self: self.config.provider_params.retries)
     async def astream(self, messages: List[BaseMessage]) -> AsyncIterator[BaseMessageChunk]:
         """
         Asynchronously streams response chunks from the model with rate limiting.

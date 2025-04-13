@@ -4,8 +4,6 @@ from fmcore.llm.base_llm import BaseLLM
 from fmcore.llm.types.llm_types import LLMConfig
 from langchain_core.messages import BaseMessage
 
-from fmcore.utils.async_utils import AsyncUtils
-
 
 class DSPyLLMAdapter(dspy.LM):
     """
@@ -67,7 +65,7 @@ class DSPyLLMAdapter(dspy.LM):
         if prompt:
             messages = [{"role": "user", "content": prompt}]
 
-        response = AsyncUtils.execute(self.llm.ainvoke(messages))
+        response = self.llm.invoke(messages)
         result = [response.content]
 
         # Update history with DSPy constructs, which currently support only dictionaries
@@ -80,5 +78,3 @@ class DSPyLLMAdapter(dspy.LM):
         self.update_global_history(entry)
 
         return result
-
-
