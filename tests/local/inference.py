@@ -34,6 +34,33 @@ bedrock_config_dict = {
     "inference_manager_params": {"num_process": 10},
 }
 
+lambda_inference_manager_config = {
+    "inference_manager_type": "MULTI_PROCESS",
+    "llm_config": {
+        "provider_type": "LAMBDA",
+        "model_id": "mistralai/Mistral-Nemo-Instruct-2407",
+        "model_params": {
+            "temperature": 0.5,
+            "max_tokens": 1024
+        },
+        "provider_params": {
+            "role_arn": "arn:aws:iam::<accountId>:role/<roleId>",
+            "function_arn": "arn:aws:lambda:<region>:<accountId>:function:<function_arn>",
+            "region": "us-west-2",
+            "rate_limit": {
+                "max_rate": 10000,
+                "time_period": 60
+            },
+            "retries": {
+                "max_retries": 3
+            }
+        }
+    },
+    "inference_manager_params": {
+        "num_process": 10
+    }
+}
+
 # -------------------------------
 # Question Generator
 # -------------------------------
@@ -87,4 +114,5 @@ def run_inference(config_dict, num_questions=100):
 
 if __name__ == "__main__":
     # Choose one:
-    run_inference(bedrock_config_dict)
+    #run_inference(bedrock_config_dict)
+    run_inference(lambda_inference_manager_config)
