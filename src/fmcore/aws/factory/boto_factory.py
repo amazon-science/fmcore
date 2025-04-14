@@ -102,29 +102,32 @@ class BotoFactory:
 
     @classmethod
     def get_async_session(cls, *, service_name: str, region: str, role_arn: str = None) -> aioboto3.Session:
-        session_name: str = f"Async-{service_name}-Session"
+        if role_arn:
+            session_name = f"Async-{service_name}-Session"
+            def refresh():
+                sts_client = boto3.client("sts", region_name=region)
+                creds = sts_client.assume_role(RoleArn=role_arn, RoleSessionName=session_name)["Credentials"]
+                return {
+                    "access_key": creds["AccessKeyId"],
+                    "secret_key": creds["SecretAccessKey"],
+                    "token": creds["SessionToken"],
+                    "expiry_time": creds["Expiration"].astimezone(timezone.utc).isoformat(),
+                }
 
-        def refresh():
-            sts_client = boto3.client("sts", region_name=region)
-            creds = sts_client.assume_role(RoleArn=role_arn, RoleSessionName=session_name)["Credentials"]
-            return {
-                "access_key": creds["AccessKeyId"],
-                "secret_key": creds["SecretAccessKey"],
-                "token": creds["SessionToken"],
-                "expiry_time": creds["Expiration"].astimezone(timezone.utc).isoformat(),
-            }
+            creds = RefreshableCredentials.create_from_metadata(
+                metadata=refresh(), refresh_using=refresh, method="sts-assume-role"
+            )
 
-        creds = RefreshableCredentials.create_from_metadata(
-            metadata=refresh(), refresh_using=refresh, method="sts-assume-role"
-        )
+            frozen = creds.get_frozen_credentials()
 
-        frozen = creds.get_frozen_credentials()
-
-        session = aioboto3.Session(
-            aws_access_key_id=frozen.access_key,
-            aws_secret_access_key=frozen.secret_key,
-            aws_session_token=frozen.token,
-            region_name=region,
-        )
+            session = aioboto3.Session(
+                aws_access_key_id=frozen.access_key,
+                aws_secret_access_key=frozen.secret_key,
+                aws_session_token=frozen.token,
+                region_name=region,
+            )
+        else:
+            # Use default AWS credentials (from environment, config, IAM role, etc.)
+            session = aioboto3.Session(region_name=region)
 
         return session

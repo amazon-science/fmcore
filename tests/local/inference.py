@@ -44,8 +44,8 @@ lambda_inference_manager_config = {
             "max_tokens": 1024
         },
         "provider_params": {
-            "role_arn": "arn:aws:iam::<accountId>:role/<roleId>",
-            "function_arn": "arn:aws:lambda:<region>:<accountId>:function:<function_arn>",
+            "role_arn": "",
+            "function_arn": "arn:aws:lambda:us-west-2:136238946932:function:MistralNemo",
             "region": "us-west-2",
             "rate_limit": {
                 "max_rate": 10000,
