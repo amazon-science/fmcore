@@ -4,6 +4,8 @@ from fmcore.llm.base_llm import BaseLLM
 from fmcore.llm.types.llm_types import LLMConfig
 from langchain_core.messages import BaseMessage
 
+from fmcore.utils.async_utils import AsyncUtils
+
 
 class DSPyLLMAdapter(dspy.LM):
     """
@@ -65,7 +67,8 @@ class DSPyLLMAdapter(dspy.LM):
         if prompt:
             messages = [{"role": "user", "content": prompt}]
 
-        response = self.llm.invoke(messages)
+        # We are using this hack because dspy doesn't support async
+        response = AsyncUtils.execute(self.llm.ainvoke(messages))
         result = [response.content]
 
         # Update history with DSPy constructs, which currently support only dictionaries

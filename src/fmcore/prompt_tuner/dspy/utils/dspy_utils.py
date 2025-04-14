@@ -9,6 +9,8 @@ from fmcore.prompt_tuner.evaluator import BaseEvaluator
 from fmcore.prompt_tuner.evaluator.types.evaluator_types import EvaluatorConfig
 from fmcore.prompt_tuner.types.prompt_tuner_types import PromptConfig, PromptEvaluationResult
 from fmcore.types.enums.dataset_enums import DatasetType
+from fmcore.utils.async_utils import AsyncUtils
+from fmcore.utils.logging_utils import Log
 
 
 class DSPyUtils:
@@ -166,7 +168,15 @@ class DSPyUtils:
                 "output": prediction.toDict(),
             }
 
-            return evaluator.evaluate(data=row)
+            try:
+                # We are using this hack because dspy doesn't support async
+                decision = AsyncUtils.execute(evaluator.aevaluate(data=row))
+            except Exception as e:
+                # Defaulting to false incase of failures
+                Log.info(f"Error {e} during evaluating {row}")
+                decision = False
+
+            return decision
 
         return evaluate_func
 
