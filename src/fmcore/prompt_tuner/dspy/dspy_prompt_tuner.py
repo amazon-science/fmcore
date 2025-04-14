@@ -1,3 +1,10 @@
+import os
+import tempfile
+
+# Set the DSP_CACHEDIR environment variable to the system's default temporary directory
+os.environ["DSP_CACHEDIR"] = tempfile.gettempdir()
+os.environ["DSPY_CACHEDIR"] = tempfile.gettempdir()
+
 import dspy
 import pandas as pd
 from typing import Dict, List

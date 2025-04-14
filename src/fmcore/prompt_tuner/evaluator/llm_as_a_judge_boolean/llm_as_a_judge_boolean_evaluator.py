@@ -98,7 +98,7 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
             BooleanLLMJudgeOutput: Evaluation result as a boolean decision.
         """
         # Format the context into messages using the template
-        formatted_message: BaseMessage = await self.text_prompt_mapper.amap(data.context)
+        formatted_message: BaseMessage = await self.text_prompt_mapper.amap(data)
         llm_response: BaseMessage = await self.llm_inference_mapper.amap([formatted_message])
         json_response: Dict = await self.json_mapper.amap(llm_response.content)
         decision: bool = await self.criteria_checker.amap(json_response)
