@@ -72,9 +72,7 @@ class BotoFactory:
 
         # Get a botocore session with refreshable credentials
         botocore_session = cls.__get_refreshable_session(
-            role_arn=role_arn,
-            region=region,
-            session_name=session_name
+            role_arn=role_arn, region=region, session_name=session_name
         )
 
         return boto3.Session(botocore_session=botocore_session)
@@ -96,16 +94,14 @@ class BotoFactory:
 
         if key not in cls.__clients:
             session = cls.__create_session(
-                region=region,
-                role_arn=role_arn,
-                session_name=f"{service_name}-Session"
+                region=region, role_arn=role_arn, session_name=f"{service_name}-Session"
             )
             cls.__clients[key] = session.client(service_name, region_name=region)
 
         return cls.__clients[key]
 
     @classmethod
-    def get_async_session(cls, *,  service_name: str, region: str, role_arn: str = None) -> aioboto3.Session:
+    def get_async_session(cls, *, service_name: str, region: str, role_arn: str = None) -> aioboto3.Session:
         session_name: str = f"Async-{service_name}-Session"
 
         def refresh():
@@ -119,9 +115,7 @@ class BotoFactory:
             }
 
         creds = RefreshableCredentials.create_from_metadata(
-            metadata=refresh(),
-            refresh_using=refresh,
-            method="sts-assume-role"
+            metadata=refresh(), refresh_using=refresh, method="sts-assume-role"
         )
 
         frozen = creds.get_frozen_credentials()
@@ -130,7 +124,7 @@ class BotoFactory:
             aws_access_key_id=frozen.access_key,
             aws_secret_access_key=frozen.secret_key,
             aws_session_token=frozen.token,
-            region_name=region
+            region_name=region,
         )
 
         return session
