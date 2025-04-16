@@ -24,10 +24,10 @@ class MIPROv2OptimizerParams(BaseOptimizerParams):
     """
 
     optimizer_metric: str = OptimizerMetricType.ACCURACY
-    auto: Optional[str] = Field(default="light")
     num_candidates: Optional[int] = Field(default=7)
     max_errors: Optional[int] = Field(default=10)
     minibatch: Optional[bool] = Field(default=False)
+    auto: Optional[str] = None
 
 
 class MIPROv2OptimizerConfig(

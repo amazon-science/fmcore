@@ -94,14 +94,13 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
 
         except Exception as e:
             Log.error(
-                "[SYNC EVALUATION ERROR]\n"
-                "------------------------------\n"
-                f"[INPUT DATA]: {data}\n\n"
-                f"[PROMPT]: {self.evaluator_config.evaluator_params.prompt}\n\n"
-                f"[FORMATTED MESSAGE]: {formatted_message}\n\n"
-                f"[LLM RESPONSE]: {llm_response}\n\n"
-                f"[JSON RESPONSE]: {json_response}\n\n"
-                f"[DECISION]: {decision}\n\n"
+                "[SYNC EVALUATION ERROR]\t\t ->"
+                f"[INPUT DATA]: {data}\t\t ->"
+                f"[PROMPT]: {self.evaluator_config.evaluator_params.prompt}\t\t ->"
+                f"[FORMATTED MESSAGE]: {formatted_message}\t\t ->"
+                f"[LLM RESPONSE]: {llm_response}\t\t ->"
+                f"[JSON RESPONSE]: {json_response}\t\t ->"
+                f"[DECISION]: {decision}\t\t ->"
                 f"[ERROR]: {e}"
             )
             raise
@@ -131,14 +130,13 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
 
         except Exception as e:
             Log.error(
-                "[ASYNC EVALUATION ERROR]\n"
-                "--------------------------------\n"
-                f"[INPUT DATA]: {data}\n\n"
-                f"[PROMPT]: {self.evaluator_config.evaluator_params.prompt}\n\n"
-                f"[FORMATTED MESSAGE]: {formatted_message}\n\n"
-                f"[LLM RESPONSE]: {llm_response}\n\n"
-                f"[JSON RESPONSE]: {json_response}\n\n"
-                f"[DECISION]: {decision}\n\n"
+                "[ASYNC EVALUATION ERROR]\t\t->"
+                f"[INPUT DATA]: {data}\t\t ->"
+                f"[PROMPT]: {self.evaluator_config.evaluator_params.prompt}\t\t ->"
+                f"[FORMATTED MESSAGE]: {formatted_message}\t\t ->"
+                f"[LLM RESPONSE]: {llm_response}\t\t ->"
+                f"[JSON RESPONSE]: {json_response}\t\t ->"
+                f"[DECISION]: {decision}\t\t ->"
                 f"[ERROR]: {e}"
             )
             raise
