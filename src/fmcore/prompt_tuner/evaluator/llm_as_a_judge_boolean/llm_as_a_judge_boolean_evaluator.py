@@ -11,6 +11,7 @@ from fmcore.mapper.text_prompt_mapper import TextPromptMapper
 from fmcore.mapper.llm_response_json_mapper import LLMResponseJsonMapper
 from fmcore.mapper.criteria_checker_mapper import CriteriaCheckerMapper
 from fmcore.mapper.llm_inference_mapper import LLMInferenceMapper
+from fmcore.utils.logging_utils import Log
 
 
 class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
@@ -80,12 +81,26 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
         Returns:
             BooleanLLMJudgeOutput: Evaluation result as a boolean decision.
         """
-        # Format the context into messages using the template
-        formatted_message: BaseMessage = self.text_prompt_mapper.map(data)
-        llm_response: BaseMessage = self.llm_inference_mapper.map([formatted_message])
-        json_response: Dict = self.json_mapper.map(llm_response.content)
-        decision: bool = self.criteria_checker.map(json_response)
-        return decision
+        formatted_message = None
+        llm_response = None
+        json_response = None
+        decision = None
+
+        try:
+            formatted_message = self.text_prompt_mapper.map(data)
+            llm_response = self.llm_inference_mapper.map([formatted_message])
+            json_response = self.json_mapper.map(llm_response.content)
+            decision = self.criteria_checker.map(json_response)
+            return decision
+        except Exception as e:
+            Log.error(
+                "Exception during aevaluate:\n"
+                f"formatted_message: {formatted_message}\n"
+                f"llm_response: {llm_response}\n"
+                f"json_response: {json_response}\n"
+                f"decision: {decision}"
+            )
+            raise
 
     async def aevaluate(self, data: Dict) -> bool:
         """
@@ -97,9 +112,27 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
         Returns:
             BooleanLLMJudgeOutput: Evaluation result as a boolean decision.
         """
-        # Format the context into messages using the template
-        formatted_message: BaseMessage = await self.text_prompt_mapper.amap(data)
-        llm_response: BaseMessage = await self.llm_inference_mapper.amap([formatted_message])
-        json_response: Dict = await self.json_mapper.amap(llm_response.content)
-        decision: bool = await self.criteria_checker.amap(json_response)
+
+        formatted_message = None
+        llm_response = None
+        json_response = None
+        decision = None
+
+        try:
+            formatted_message = await self.text_prompt_mapper.amap(data)
+            llm_response = await self.llm_inference_mapper.amap([formatted_message])
+            json_response = await self.json_mapper.amap(llm_response.content)
+            decision = await self.criteria_checker.amap(json_response)
+            if not isinstance(decision, bool):
+                raise ValueError("Decision is not a boolean value")
+        except Exception as e:
+            Log.error(
+                "Exception during aevaluate:\n"
+                f"formatted_message: {formatted_message}\n"
+                f"llm_response: {llm_response}\n"
+                f"json_response: {json_response}\n"
+                f"decision: {decision}"
+            )
+            raise e
+
         return decision
