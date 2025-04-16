@@ -16,8 +16,8 @@ class AWSAccountMixin(MutableTyped, Mixin):
         region (str): The AWS region where the account operates. Defaults to 'us-east-1'.
     """
 
-    role_arn: str
-    region: str = Field(default=AWSRegion.US_EAST_1.value)
+    role_arn: Optional[str] = Field(default=None)
+    region: Optional[str] = Field(default="us-east-1")
 
 
 class APIKeyServiceMixin(MutableTyped, Mixin):
