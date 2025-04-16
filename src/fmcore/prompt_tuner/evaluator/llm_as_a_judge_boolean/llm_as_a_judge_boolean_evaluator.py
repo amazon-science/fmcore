@@ -96,7 +96,7 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
             Log.error(
                 "[SYNC EVALUATION ERROR]\t\t ->"
                 f"[INPUT DATA]: {data}\t\t ->"
-                f"[PROMPT]: {self.evaluator_config.evaluator_params.prompt}\t\t ->"
+                f"[PROMPT]: {self.config.evaluator_params.prompt}\t\t ->"
                 f"[FORMATTED MESSAGE]: {formatted_message}\t\t ->"
                 f"[LLM RESPONSE]: {llm_response}\t\t ->"
                 f"[JSON RESPONSE]: {json_response}\t\t ->"
@@ -132,7 +132,7 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
             Log.error(
                 "[ASYNC EVALUATION ERROR]\t\t->"
                 f"[INPUT DATA]: {data}\t\t ->"
-                f"[PROMPT]: {self.evaluator_config.evaluator_params.prompt}\t\t ->"
+                f"[PROMPT]: {self.config.evaluator_params.prompt}\t\t ->"
                 f"[FORMATTED MESSAGE]: {formatted_message}\t\t ->"
                 f"[LLM RESPONSE]: {llm_response}\t\t ->"
                 f"[JSON RESPONSE]: {json_response}\t\t ->"
