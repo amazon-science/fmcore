@@ -40,7 +40,7 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
     criteria_checker: CriteriaCheckerMapper
 
     @classmethod
-    def _get_instance(cls, *, evaluator_config: EvaluatorConfig) -> "LLMAsJudgeBooleanEvaluator":
+    def _get_instance(cls, *, config: EvaluatorConfig) -> "LLMAsJudgeBooleanEvaluator":
         """
         Factory method to create an instance of LLMAsJudgeBooleanEvaluator using the provided configuration.
 
@@ -48,13 +48,13 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
         (such as mappers and the LLM), and returns a fully constructed evaluator instance.
 
         Args:
-            evaluator_config (EvaluatorConfig): The configuration object containing evaluator parameters.
+            config (EvaluatorConfig): The configuration object containing evaluator parameters.
 
         Returns:
             LLMAsJudgeBooleanEvaluator: A fully initialized evaluator instance.
         """
 
-        boolean_llm_judge_params: BooleanLLMJudgeParams = evaluator_config.evaluator_params
+        boolean_llm_judge_params: BooleanLLMJudgeParams = config.evaluator_params
         # Create required mappers
         text_prompt_mapper = TextPromptMapper(prompt_template=boolean_llm_judge_params.prompt)
         llm_inference_mapper = LLMInferenceMapper(
@@ -64,7 +64,7 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
         criteria_checker = CriteriaCheckerMapper(criteria=boolean_llm_judge_params.criteria)
 
         return LLMAsJudgeBooleanEvaluator(
-            config=evaluator_config,
+            config=config,
             text_prompt_mapper=text_prompt_mapper,
             llm_inference_mapper=llm_inference_mapper,
             json_mapper=json_mapper,
@@ -96,7 +96,7 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
             Log.error(
                 "[SYNC EVALUATION ERROR]\t\t ->"
                 f"[INPUT DATA]: {data}\t\t ->"
-                f"[PROMPT]: {self.evaluator_config.evaluator_params.prompt}\t\t ->"
+                f"[PROMPT]: {self.config.evaluator_params.prompt}\t\t ->"
                 f"[FORMATTED MESSAGE]: {formatted_message}\t\t ->"
                 f"[LLM RESPONSE]: {llm_response}\t\t ->"
                 f"[JSON RESPONSE]: {json_response}\t\t ->"
@@ -132,7 +132,7 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
             Log.error(
                 "[ASYNC EVALUATION ERROR]\t\t->"
                 f"[INPUT DATA]: {data}\t\t ->"
-                f"[PROMPT]: {self.evaluator_config.evaluator_params.prompt}\t\t ->"
+                f"[PROMPT]: {self.config.evaluator_params.prompt}\t\t ->"
                 f"[FORMATTED MESSAGE]: {formatted_message}\t\t ->"
                 f"[LLM RESPONSE]: {llm_response}\t\t ->"
                 f"[JSON RESPONSE]: {json_response}\t\t ->"
