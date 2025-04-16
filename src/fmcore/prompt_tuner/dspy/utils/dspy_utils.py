@@ -168,13 +168,8 @@ class DSPyUtils:
                 "output": prediction.toDict(),
             }
 
-            try:
-                # We are using this hack because dspy doesn't support async
-                decision = AsyncUtils.execute(evaluator.aevaluate(data=row))
-            except Exception as e:
-                # Defaulting to false incase of failures
-                Log.info(f"Error {e} during evaluating {row}")
-                decision = False
+            # We are using this hack because dspy doesn't support async
+            decision = AsyncUtils.execute(evaluator.aevaluate(data=row))
 
             return decision
 

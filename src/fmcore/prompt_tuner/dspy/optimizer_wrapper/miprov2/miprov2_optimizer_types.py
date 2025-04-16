@@ -1,5 +1,7 @@
 from typing import Optional
 
+from pydantic import Field
+
 from fmcore.prompt_tuner.types.enums.optimizer_enums import OptimizerMetricType, DSPyOptimizerType
 from fmcore.prompt_tuner.types.mixins.optimizer_mixins import (
     StudentConfigMixin,
@@ -22,8 +24,10 @@ class MIPROv2OptimizerParams(BaseOptimizerParams):
     """
 
     optimizer_metric: str = OptimizerMetricType.ACCURACY
-    auto: Optional[str] = "light"
-    num_candidates: int = 7
+    num_candidates: Optional[int] = Field(default=7)
+    max_errors: Optional[int] = Field(default=10)
+    minibatch: Optional[bool] = Field(default=False)
+    auto: Optional[str] = None
 
 
 class MIPROv2OptimizerConfig(

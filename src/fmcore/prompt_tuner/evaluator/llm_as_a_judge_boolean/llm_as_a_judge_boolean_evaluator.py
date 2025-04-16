@@ -11,6 +11,7 @@ from fmcore.mapper.text_prompt_mapper import TextPromptMapper
 from fmcore.mapper.llm_response_json_mapper import LLMResponseJsonMapper
 from fmcore.mapper.criteria_checker_mapper import CriteriaCheckerMapper
 from fmcore.mapper.llm_inference_mapper import LLMInferenceMapper
+from fmcore.utils.logging_utils import Log
 
 
 class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
@@ -72,19 +73,38 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
 
     def evaluate(self, data: Dict) -> bool:
         """
-        Processes the input data by using the llm_as_a_judge_boolean_mapper to evaluate the context.
+        Processes the input data using the llm_as_a_judge_boolean_mapper to evaluate the context.
 
         Args:
             data (BooleanLLMJudgeInput): Input data containing context for evaluation.
 
         Returns:
-            BooleanLLMJudgeOutput: Evaluation result as a boolean decision.
+            bool: Evaluation result as a boolean decision.
         """
-        # Format the context into messages using the template
-        formatted_message: BaseMessage = self.text_prompt_mapper.map(data)
-        llm_response: BaseMessage = self.llm_inference_mapper.map([formatted_message])
-        json_response: Dict = self.json_mapper.map(llm_response.content)
-        decision: bool = self.criteria_checker.map(json_response)
+        formatted_message = llm_response = json_response = decision = None
+
+        try:
+            formatted_message = self.text_prompt_mapper.map(data)
+            llm_response = self.llm_inference_mapper.map([formatted_message])
+            json_response = self.json_mapper.map(llm_response.content)
+            decision = self.criteria_checker.map(json_response)
+
+            if not isinstance(decision, bool):
+                raise ValueError("Decision is not a boolean value")
+
+        except Exception as e:
+            Log.error(
+                "[SYNC EVALUATION ERROR]\t\t ->"
+                f"[INPUT DATA]: {data}\t\t ->"
+                f"[PROMPT]: {self.evaluator_config.evaluator_params.prompt}\t\t ->"
+                f"[FORMATTED MESSAGE]: {formatted_message}\t\t ->"
+                f"[LLM RESPONSE]: {llm_response}\t\t ->"
+                f"[JSON RESPONSE]: {json_response}\t\t ->"
+                f"[DECISION]: {decision}\t\t ->"
+                f"[ERROR]: {e}"
+            )
+            raise
+
         return decision
 
     async def aevaluate(self, data: Dict) -> bool:
@@ -95,11 +115,30 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
             data (BooleanLLMJudgeInput): Input data containing context for evaluation.
 
         Returns:
-            BooleanLLMJudgeOutput: Evaluation result as a boolean decision.
+            bool: Evaluation result as a boolean decision.
         """
-        # Format the context into messages using the template
-        formatted_message: BaseMessage = await self.text_prompt_mapper.amap(data)
-        llm_response: BaseMessage = await self.llm_inference_mapper.amap([formatted_message])
-        json_response: Dict = await self.json_mapper.amap(llm_response.content)
-        decision: bool = await self.criteria_checker.amap(json_response)
+        formatted_message = llm_response = json_response = decision = None
+
+        try:
+            formatted_message = await self.text_prompt_mapper.amap(data)
+            llm_response = await self.llm_inference_mapper.amap([formatted_message])
+            json_response = await self.json_mapper.amap(llm_response.content)
+            decision = await self.criteria_checker.amap(json_response)
+
+            if not isinstance(decision, bool):
+                raise ValueError("Decision is not a boolean value")
+
+        except Exception as e:
+            Log.error(
+                "[ASYNC EVALUATION ERROR]\t\t->"
+                f"[INPUT DATA]: {data}\t\t ->"
+                f"[PROMPT]: {self.evaluator_config.evaluator_params.prompt}\t\t ->"
+                f"[FORMATTED MESSAGE]: {formatted_message}\t\t ->"
+                f"[LLM RESPONSE]: {llm_response}\t\t ->"
+                f"[JSON RESPONSE]: {json_response}\t\t ->"
+                f"[DECISION]: {decision}\t\t ->"
+                f"[ERROR]: {e}"
+            )
+            raise
+
         return decision
