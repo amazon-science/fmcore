@@ -15,4 +15,4 @@ class LLMConfigMixin(MutableTyped, Mixin):
         llm_config (Optional[LLMConfig]): The LLM configuration object.
     """
 
-    llm_config: Union[LLMConfig, DistributedLLMConfig] = Field(union_mode='left_to_right')
+    llm_config: Union[LLMConfig, DistributedLLMConfig] = Field(union_mode="left_to_right")

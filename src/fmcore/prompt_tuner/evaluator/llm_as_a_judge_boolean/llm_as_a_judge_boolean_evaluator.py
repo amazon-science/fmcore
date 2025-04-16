@@ -73,34 +73,40 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
 
     def evaluate(self, data: Dict) -> bool:
         """
-        Processes the input data by using the llm_as_a_judge_boolean_mapper to evaluate the context.
+        Processes the input data using the llm_as_a_judge_boolean_mapper to evaluate the context.
 
         Args:
             data (BooleanLLMJudgeInput): Input data containing context for evaluation.
 
         Returns:
-            BooleanLLMJudgeOutput: Evaluation result as a boolean decision.
+            bool: Evaluation result as a boolean decision.
         """
-        formatted_message = None
-        llm_response = None
-        json_response = None
-        decision = None
+        formatted_message = llm_response = json_response = decision = None
 
         try:
             formatted_message = self.text_prompt_mapper.map(data)
             llm_response = self.llm_inference_mapper.map([formatted_message])
             json_response = self.json_mapper.map(llm_response.content)
             decision = self.criteria_checker.map(json_response)
-            return decision
+
+            if not isinstance(decision, bool):
+                raise ValueError("Decision is not a boolean value")
+
         except Exception as e:
             Log.error(
-                "Exception during aevaluate:\n"
-                f"formatted_message: {formatted_message}\n"
-                f"llm_response: {llm_response}\n"
-                f"json_response: {json_response}\n"
-                f"decision: {decision}"
+                "[SYNC EVALUATION ERROR]\n"
+                "------------------------------\n"
+                f"[INPUT DATA]: {data}\n\n"
+                f"[PROMPT]: {self.evaluator_config.evaluator_params.prompt}\n\n"
+                f"[FORMATTED MESSAGE]: {formatted_message}\n\n"
+                f"[LLM RESPONSE]: {llm_response}\n\n"
+                f"[JSON RESPONSE]: {json_response}\n\n"
+                f"[DECISION]: {decision}\n\n"
+                f"[ERROR]: {e}"
             )
             raise
+
+        return decision
 
     async def aevaluate(self, data: Dict) -> bool:
         """
@@ -110,29 +116,31 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
             data (BooleanLLMJudgeInput): Input data containing context for evaluation.
 
         Returns:
-            BooleanLLMJudgeOutput: Evaluation result as a boolean decision.
+            bool: Evaluation result as a boolean decision.
         """
-
-        formatted_message = None
-        llm_response = None
-        json_response = None
-        decision = None
+        formatted_message = llm_response = json_response = decision = None
 
         try:
             formatted_message = await self.text_prompt_mapper.amap(data)
             llm_response = await self.llm_inference_mapper.amap([formatted_message])
             json_response = await self.json_mapper.amap(llm_response.content)
             decision = await self.criteria_checker.amap(json_response)
+
             if not isinstance(decision, bool):
                 raise ValueError("Decision is not a boolean value")
+
         except Exception as e:
             Log.error(
-                "Exception during aevaluate:\n"
-                f"formatted_message: {formatted_message}\n"
-                f"llm_response: {llm_response}\n"
-                f"json_response: {json_response}\n"
-                f"decision: {decision}"
+                "[ASYNC EVALUATION ERROR]\n"
+                "--------------------------------\n"
+                f"[INPUT DATA]: {data}\n\n"
+                f"[PROMPT]: {self.evaluator_config.evaluator_params.prompt}\n\n"
+                f"[FORMATTED MESSAGE]: {formatted_message}\n\n"
+                f"[LLM RESPONSE]: {llm_response}\n\n"
+                f"[JSON RESPONSE]: {json_response}\n\n"
+                f"[DECISION]: {decision}\n\n"
+                f"[ERROR]: {e}"
             )
-            raise e
+            raise
 
         return decision
