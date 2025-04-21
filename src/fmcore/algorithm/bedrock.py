@@ -350,6 +350,44 @@ with optional_dependency("boto3", "imageio"):
         response_body: Dict = json.loads(response.get("body").read())
         return response_body.get("generation")
 
+    def call_nova(
+        bedrock_client,
+        model_name: str,
+        prompt: str,
+        max_tokens_to_sample: int,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
+        stop_sequences: Optional[List[str]] = None,
+        **kwargs,
+    ):
+        messages = [
+            {
+                "role": "user",
+                "content": [{"text": prompt}],
+            }
+        ]
+
+        inference_config = {
+            "maxTokens": max_tokens_to_sample,
+        }
+        if temperature is not None:
+            assert isinstance(temperature, (float, int)) and 0 <= temperature <= 1
+            inference_config["temperature"] = temperature
+        if top_p is not None:
+            assert isinstance(top_p, (float, int)) and 0 <= top_p <= 1
+            inference_config["topP"] = top_p
+        if stop_sequences is not None:
+            assert isinstance(stop_sequences, list)
+            if len(stop_sequences) > 0:
+                inference_config["stopSequences"] = stop_sequences
+
+        response_body: Dict = bedrock_client.converse(
+            modelId=model_name,
+            messages=messages,
+            inferenceConfig=inference_config,
+        )
+        return "\n".join([d["text"] for d in response_body["output"]["message"]["content"]])
+
     def call_mistral(
         bedrock_client,
         model_name: str,
@@ -452,6 +490,14 @@ with optional_dependency("boto3", "imageio"):
             return generated_text
         elif "mistral" in model_name:
             generated_text: str = call_mistral(
+                bedrock_client=bedrock_client,
+                prompt=prompt,
+                model_name=model_name,
+                **generation_params,
+            )
+            return generated_text
+        elif "nova" in model_name:
+            generated_text: str = call_nova(
                 bedrock_client=bedrock_client,
                 prompt=prompt,
                 model_name=model_name,
