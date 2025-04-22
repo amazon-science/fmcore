@@ -1,4 +1,4 @@
-from typing import Union, Optional, List, Dict
+from typing import Union, Optional, List, Dict, Any
 
 from pydantic import model_validator, SerializeAsAny
 
@@ -18,11 +18,13 @@ class ModelParams(MutableTyped):
         max_tokens (Optional[int]): Specifies the maximum number of tokens to generate in the response.
         top_p (Optional[float]): Enables nucleus sampling, where the model considers
             only the tokens comprising the top `p` cumulative probability mass.
+        additional_model_request_fields: Additional inference parameters that the model supports
     """
 
     temperature: Optional[float] = 0.5
     max_tokens: Optional[int] = 1024
     top_p: Optional[float] = 0.5
+    additional_model_request_fields: Optional[Dict[str, Any]] = None
 
 
 class LLMConfig(MutableTyped):
