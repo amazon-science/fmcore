@@ -13,6 +13,9 @@ CODE: str = "Code"
 CREDENTIALS: str = "Credentials"
 ERROR: str = "Error"
 EXPIRATION: str = "Expiration"
+EXTENDED_THINKING_MODELS: list = [
+    'us.anthropic.claude-3-7-sonnet-20250219-v1:0'
+]
 REGION: str = "region"
 REGION_NAME: str = "region_name"
 ROLE_ARN: str = "role_arn"

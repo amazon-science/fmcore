@@ -1,4 +1,4 @@
-from typing import Union, Optional, List, Dict
+from typing import Union, Optional, List, Dict, Any
 
 from pydantic import model_validator, SerializeAsAny
 
@@ -23,6 +23,7 @@ class ModelParams(MutableTyped):
     temperature: Optional[float] = 0.5
     max_tokens: Optional[int] = 1024
     top_p: Optional[float] = 0.5
+    additional_model_request_fields: Optional[Dict[str, Any]] = None
 
 
 class LLMConfig(MutableTyped):
