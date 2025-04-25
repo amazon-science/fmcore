@@ -20,9 +20,9 @@ class ModelParams(MutableTyped):
             only the tokens comprising the top `p` cumulative probability mass.
     """
 
-    temperature: Optional[float] = 0.5
-    max_tokens: Optional[int] = 1024
-    top_p: Optional[float] = 0.5
+    temperature: Optional[float] = None
+    max_tokens: Optional[int] = None
+    top_p: Optional[float] = None
 
 
 class LLMConfig(MutableTyped):
