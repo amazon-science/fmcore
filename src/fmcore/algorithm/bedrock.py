@@ -843,12 +843,21 @@ with optional_dependency("boto3", "imageio"):
             generated_texts: List[str] = []
 
             for result in results:
-                if isinstance(result, dict) and "thinking" in result and "generated_text" in result:
-                    thinking_outputs.append(result["thinking"])
-                    generated_texts.append(result["generated_text"])
-                else:
+                if isinstance(result, dict):
+                    if "thinking" in result:
+                        thinking_outputs.append(result["thinking"])
+                    else:
+                        thinking_outputs.append("")
+                    if "generated_text" in result:
+                        generated_texts.append(result["generated_text"])
+                    else:
+                        generated_texts.append("")
+                elif isinstance(result, str):
+                    ## Handle case where result is a string:
                     thinking_outputs.append("")
-                    generated_texts.append(result if isinstance(result, str) else "")
+                    generated_texts.append(result)
+                else:
+                    raise ValueError(f"Unexpected result type: {type(result)} with value:\n{result}")
 
             ## Return both thinking and responses:
             output_dict = {GENERATED_TEXTS_COL: generated_texts}
