@@ -687,7 +687,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
     def evaluate(
         self,
         dataset: Any,
-        metrics: Optional[Union[Union[Metric, Dict, str], List[Union[Metric, Dict, str]]]] = None,
+        metrics: Optional[List[Union[Metric, Dict, str]]] = None,
         **kwargs,
     ) -> List[Metric]:
         if metrics is None and "metric" in kwargs:
