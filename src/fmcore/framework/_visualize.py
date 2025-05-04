@@ -158,7 +158,7 @@ class Visualization(Parameters, Registry, ABC):
 
     @model_validator(mode="before")
     @classmethod
-    def convert_params(cls, params: Dict):
+    def _visualize_convert_params(cls, params: Dict):
         params["params"] = super(Visualization, cls)._convert_params(cls.Params, params.get("params"))
         params["name"] = cls.class_name
         return params

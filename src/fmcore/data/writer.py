@@ -25,7 +25,7 @@ class MetricsWriter(DataFrameWriter):
 
         @model_validator(mode="before")
         @classmethod
-        def convert_params(cls, params: Dict):
+        def _metrics_writer_params_convert_params(cls, params: Dict):
             metric_list: List[Metric] = [
                 Metric.of(
                     metric_dict.get("metric_name"),
@@ -42,7 +42,7 @@ class MetricsWriter(DataFrameWriter):
 
     @model_validator(mode="before")
     @classmethod
-    def convert_params(cls, params: Dict):
+    def _metrics_writer_convert_params(cls, params: Dict):
         params["params"] = cls._convert_params(cls.Params, params)
         return params
 

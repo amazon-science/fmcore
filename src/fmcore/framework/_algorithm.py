@@ -230,7 +230,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
 
     @model_validator(mode="before")
     @classmethod
-    def convert_params(cls, params: Dict) -> Dict:
+    def _algorithm_convert_params(cls, params: Dict) -> Dict:
         ## Convert and validate parameters for the algorithm
         # print(f'params for {cls.class_name}=\n{params}')
         cls.set_default_param_values(params)
