@@ -123,6 +123,7 @@ class Metric(MutableParameters, Registry):
     @model_validator(mode="before")
     @classmethod
     def convert_params(cls, params: Dict):
+        print(f'Metric params: {params}')
         params["params"] = super(Metric, cls)._convert_params(cls.Params, params.get("params"))
         params["name"] = cls.class_name
         if "value" in params:
@@ -451,7 +452,6 @@ class Metrics(MutableParameters):
         params["metrics"] = metrics_dict
         return params
 
-    @safe_validate_arguments
     def find(
         self,
         select: Union[Union[Metric, Dict, str], List[Union[Metric, Dict, str]]],
