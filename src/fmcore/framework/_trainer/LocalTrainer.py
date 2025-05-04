@@ -10,6 +10,7 @@ from typing import (
 
 from bears import FileMetadata
 from bears.util import String, Timer, safe_validate_arguments
+from pydantic import model_validator
 
 from fmcore.framework._algorithm import Algorithm
 from fmcore.framework._dataset import Dataset, Datasets, DataSplit
@@ -23,6 +24,12 @@ class LocalTrainer(Trainer):
 
     def initialize(self, **kwargs):
         pass
+
+    @model_validator(mode="before")
+    @classmethod
+    def local_trainer_params(cls, params: Dict) -> Dict:
+        params: Dict = cls._set_common_trainer_params(params)
+        return params
 
     @staticmethod
     def local_logger(text: str, verbosity: int, tracker: Tracker):
