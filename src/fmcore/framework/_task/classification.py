@@ -569,9 +569,9 @@ class Classifier(Algorithm, ABC):
     dataset_statistics = ("labelspace",)
 
     label_encoding_range: ClassVar[Optional[EncodingRange]] = None  ## Only used to create `label_encoder`
-    label_normalizer: Optional[Callable[[Any], str]]
-    labelspace: Optional[Tuple[str, ...]]
-    label_encoder: Optional[LabelEncoding]
+    label_normalizer: Optional[Callable[[Any], str]] = None
+    labelspace: Optional[Tuple[str, ...]] = None
+    label_encoder: Optional[LabelEncoding] = None
 
     def __init__(
         self,
