@@ -122,8 +122,8 @@ class ClassificationPredictions(Predictions, ABC):
 
     _allow_multiple_subclasses: ClassVar[bool] = True
 
-    _top_k_predictions: Optional[TopKClassificationPredictions] = None
-    _labelwise_predictions: Optional[LabelwiseClassificationPredictions] = None
+    top_k_predictions: Optional[TopKClassificationPredictions] = None
+    labelwise_predictions: Optional[LabelwiseClassificationPredictions] = None
     labelspace: Tuple[str, ...]  ## Assume normalized
     negative_label: Optional[str] = None
     positive_label: Optional[str] = None
@@ -238,14 +238,14 @@ class TopKClassificationPredictions(ClassificationPredictions):
     }
 
     def to_top_k(self, **kwargs) -> TopKClassificationPredictions:
-        if self._top_k_predictions is None:
-            self._top_k_predictions = self
-        return self._top_k_predictions
+        if self.top_k_predictions is None:
+            self.top_k_predictions = self
+        return self.top_k_predictions
 
     def to_labelwise(self, **kwargs) -> LabelwiseClassificationPredictions:
-        if self._labelwise_predictions is None:
-            self._labelwise_predictions = self._top_k_to_labelwise(self, **kwargs)
-        return self._labelwise_predictions
+        if self.labelwise_predictions is None:
+            self.labelwise_predictions = self._top_k_to_labelwise(self, **kwargs)
+        return self.labelwise_predictions
 
     @classmethod
     def _top_k_to_labelwise(
@@ -334,14 +334,14 @@ class LabelwiseClassificationPredictions(ClassificationPredictions):
     }
 
     def to_top_k(self, **kwargs) -> TopKClassificationPredictions:
-        if self._top_k_predictions is None:
-            self._top_k_predictions: TopKClassificationPredictions = self._labelwise_to_top_k(self, **kwargs)
-        return self._top_k_predictions
+        if self.top_k_predictions is None:
+            self.top_k_predictions: TopKClassificationPredictions = self._labelwise_to_top_k(self, **kwargs)
+        return self.top_k_predictions
 
     def to_labelwise(self, **kwargs) -> LabelwiseClassificationPredictions:
-        if self._labelwise_predictions is None:
-            self._labelwise_predictions: LabelwiseClassificationPredictions = self
-        return self._labelwise_predictions
+        if self.labelwise_predictions is None:
+            self.labelwise_predictions: LabelwiseClassificationPredictions = self
+        return self.labelwise_predictions
 
     @classmethod
     def _labelwise_to_top_k(
