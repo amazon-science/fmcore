@@ -81,21 +81,42 @@ class BasePromptTuner(MutableTyped, Registry, ABC):
             output_metadata (FileMetadata): Metadata specifying output location and format.
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_directory = f"{output_metadata.path.rstrip('/')}/{timestamp}/"
+        output_directory = f"{output_metadata.path.rstrip('/')}/{timestamp}"
 
-        prompt_records = [
-            {
+        prompt_file_metadata = FileMetadata(
+            name="prompts", path=f"{output_directory}/", format=output_metadata.format
+        )
+        writer: Writer = Writer.of(file_format=prompt_file_metadata.format)
+
+        prompt_records = []
+        for prompt in tuner_result.prompts:
+            prompt_record = {"prompt_id": prompt.prompt_id, "prompt": prompt.prompt}
+            prompt_records.append({
                 "prompt_id": prompt.prompt_id,
                 "prompt": prompt.prompt,
                 "validation_score": prompt.validation_result.score if prompt.validation_result else None,
                 "test_score": prompt.test_result.score if prompt.test_result else None,
-            }
-            for prompt in tuner_result.prompts
-        ]
-        prompts_df = pd.DataFrame(prompt_records)
+            })
 
-        prompt_file_metadata = FileMetadata(
-            name="prompts", path=output_directory, format=output_metadata.format
-        )
-        writer: Writer = Writer.of(file_format=prompt_file_metadata.format)
+            if prompt.validation_result:
+                prompt_record["validation_score"] = prompt.validation_result.score
+                validation_metadata = FileMetadata(
+                    name="validation",
+                    path=f"{output_directory}/tuner_results/{prompt.prompt_id}/",
+                    format=output_metadata.format
+                )
+                writer.write(destination=validation_metadata, data=prompt.validation_result.data)
+
+            if prompt.test_result:
+                prompt_record["test_score"] = prompt.test_result.score
+                test_metadata = FileMetadata(
+                    name="test",
+                    path=f"{output_directory}/tuner_results/{prompt.prompt_id}/",
+                    format=output_metadata.format
+                )
+                writer.write(destination=test_metadata, data=prompt.test_result.data)
+
+            prompt_records.append(prompt_record)
+
+        prompts_df = pd.DataFrame(prompt_records)
         writer.write(destination=prompt_file_metadata, data=prompts_df)

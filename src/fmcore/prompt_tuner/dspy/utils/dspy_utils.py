@@ -25,7 +25,7 @@ class DSPyUtils:
 
     @staticmethod
     def create_dspy_dataset(
-        data: Dict[DatasetType, pd.DataFrame], prompt_config: PromptConfig
+            data: Dict[DatasetType, pd.DataFrame], prompt_config: PromptConfig
     ) -> DspyDataset:
         """
         Creates a DSPy dataset from a DataFrame and prompt configuration.
@@ -190,7 +190,7 @@ class DSPyUtils:
         return DSPyUtils.create_evaluation_function_from_evaluator(evaluator=evaluator)
 
     @staticmethod
-    def convert_module_to_messages(module: dspy.Module) -> List[Dict[str, str]]:
+    def convert_module_to_messages(module: dspy.Module, inputs: Dict = None) -> List[Dict[str, str]]:
         """
         Converts a DSPy module to a list of chat messages.
 
@@ -200,6 +200,7 @@ class DSPyUtils:
 
         Args:
             module: The DSPy module to convert
+            inputs: Dict for value substitution
 
         Returns:
             A list of dictionaries representing chat messages, where each dictionary
@@ -210,7 +211,8 @@ class DSPyUtils:
 
         # Get input field names from signature and create template variables
         signature: dspy.Signature = module.signature
-        inputs = {field_name: f"{{{field_name}}}" for field_name in signature.input_fields.keys()}
+        if not inputs:
+            inputs = {field_name: f"{{{field_name}}}" for field_name in signature.input_fields.keys()}
 
         # Format the module into chat messages using the adapter
         messages = adapter.format(signature=signature, demos=module.demos, inputs=inputs)
@@ -218,7 +220,7 @@ class DSPyUtils:
         return messages
 
     @staticmethod
-    def convert_module_to_prompt(module: dspy.Module) -> str:
+    def convert_module_to_prompt(module: dspy.Module, inputs: Dict = None) -> str:
         """
         Converts a DSPy module to a single prompt string.
 
@@ -229,22 +231,22 @@ class DSPyUtils:
 
         Args:
             module: The DSPy module to convert
+            inputs: Dict for value substitution
 
         Returns:
             A string containing the concatenated content from all chat messages
         """
         # First get the messages using the existing method
-        messages = DSPyUtils.convert_module_to_messages(module)
-        prompt_template: ChatPromptTemplate = ChatPromptTemplate.from_messages(messages=messages)
-        keys: List[str] = list(module.signature.input_fields.keys()) + list(
-            module.signature.output_fields.keys()
-        )
-        prompt = prompt_template.format(**{key: "{{{}}}".format(key) for key in keys})
+        messages = DSPyUtils.convert_module_to_messages(module=module, inputs=inputs)
+        prompt = "\n".join([msg.get("content") for msg in messages])
+
         return prompt
 
     @staticmethod
     def evaluate_module(
-        module: dspy.Module, dataset: List[dspy.Example], evaluator: dspy.Evaluate
+            module: dspy.Module,
+            dataset: List[dspy.Example],
+            evaluator: dspy.Evaluate
     ) -> PromptEvaluationResult:
         """
         Evaluates a DSPy module using a dataset and an evaluation metric.
@@ -259,15 +261,22 @@ class DSPyUtils:
         """
         score, evaluation_results = evaluator(module, devset=dataset)
 
-        prompt_template = ChatPromptTemplate.from_messages(
-            messages=DSPyUtils.convert_module_to_messages(module)
-        )
-
         processed_results = []
         for example, prediction, is_correct in evaluation_results:
-            record = {**example.inputs().toDict(), **prediction.toDict()}
-            prompt = prompt_template.format(**record)
-            row = {**record, "prompt": prompt, "is_correct": is_correct}
+            try:
+                record = {**example.toDict(), **prediction.toDict()}
+                prompt = DSPyUtils.convert_module_to_prompt(module=module, inputs=record)
+            except Exception as e:
+                Log.error("Unable to parse example")
+                prompt = "<UNPARSABLE_PROMPT_FAILURE>"
+
+            row = {
+                "prompt": prompt,
+                "is_correct": is_correct,
+                **{f"input_{k}": v for k, v in example.toDict().items()},
+                **{f"output_{k}": v for k, v in prediction.toDict().items()},
+            }
             processed_results.append(row)
 
         return PromptEvaluationResult(score=score, data=pd.DataFrame(processed_results))
+
