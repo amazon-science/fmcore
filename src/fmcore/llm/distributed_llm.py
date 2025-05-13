@@ -3,7 +3,7 @@ from typing import List, Iterator, AsyncIterator, Any
 
 from fmcore.llm.base_llm import BaseLLM, Input, Output, Chunk
 from fmcore.llm.types.llm_types import DistributedLLMConfig, LLMConfig
-
+from fmcore.utils.retry_utils import RetryUtil
 
 class DistributedLLM(BaseLLM[Input, Output, Chunk]):
     """
@@ -75,6 +75,7 @@ class DistributedLLM(BaseLLM[Input, Output, Chunk]):
         """
         return self.get_random_client().invoke(messages)
 
+    @RetryUtil.with_backoff(lambda self: self.config.provider_params.retries)
     async def ainvoke(self, messages: Input) -> Output:
         """
         Asynchronously invokes one of the distributed LLM clients with rate limiting.
