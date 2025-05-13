@@ -3,6 +3,8 @@ from datetime import datetime, timedelta, timezone
 
 from fmcore.aws.constants import aws_constants as AWSConstants
 from fmcore.aws.factory.boto_utils import assume_role_and_get_credentials
+from dateutil.parser import parse
+from datetime import timezone
 
 REFRESH_MARGIN = timedelta(minutes=5)
 
@@ -20,12 +22,15 @@ class RefreshingAioboto3Session:
             AWSConstants.AWS_SECRET_ACCESS_KEY: creds[AWSConstants.AWS_CREDENTIALS_SECRET_KEY],
             AWSConstants.AWS_SESSION_TOKEN: creds[AWSConstants.AWS_CREDENTIALS_TOKEN]
         }
-        self._expiry = creds[AWSConstants.AWS_CREDENTIALS_EXPIRY_TIME].replace(tzinfo=timezone.utc)
+        expiry_str = creds[AWSConstants.AWS_CREDENTIALS_EXPIRY_TIME]
+        expiry_dt = parse(expiry_str).astimezone(timezone.utc)
+        self._expiry = expiry_dt
 
-
+    def get_session_name(service_name: str):
+        return f"Async-{service_name}-Session"
 
     async def get_client(self, service_name: str, region_name: str, role_arn: str = None):
-        session_name: str = self._session.name
+        session_name: str = RefreshingAioboto3Session.get_session_name(service_name)
         now = datetime.now(timezone.utc)
         if not self._creds or now + REFRESH_MARGIN >= self._expiry:
             await self._refresh_credentials(session_name, region_name, role_arn)

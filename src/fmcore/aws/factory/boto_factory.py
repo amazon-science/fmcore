@@ -17,7 +17,7 @@ class BotoFactory:
 
 
     @classmethod
-    def __get_refreshable_session(cls, role_arn: str, region: str, session_name: str) -> boto3.Session:
+    def __get_refreshable_session(cls, role_arn: str, region_name: str, session_name: str) -> boto3.Session:
         """
         Creates a botocore session with refreshable credentials for the assumed IAM role.
 
@@ -31,7 +31,7 @@ class BotoFactory:
         """
 
         def refresh() -> dict:
-            return assume_role_and_get_credentials(role_arn, region, session_name)
+            return assume_role_and_get_credentials(role_arn, region_name, session_name)
 
         # Create refreshable credentials
         refreshable_credentials = RefreshableCredentials.create_from_metadata(
@@ -43,7 +43,7 @@ class BotoFactory:
         # Attach credentials to a botocore session
         botocore_session = get_session()
         botocore_session._credentials = refreshable_credentials
-        botocore_session.set_config_variable(AWSConstants.REGION, region)
+        botocore_session.set_config_variable(AWSConstants.REGION, region_name)
 
         return botocore_session
 
@@ -61,7 +61,7 @@ class BotoFactory:
             boto3.Session: A configured Boto3 session.
         """
         if not role_arn:
-            return boto3.Session(region_name=region)
+            return boto3.Session(region_name=region_name)
 
         # Get a botocore session with refreshable credentials
         botocore_session = cls.__get_refreshable_session(
@@ -83,7 +83,7 @@ class BotoFactory:
         Returns:
             boto3.client: A configured Boto3 client.
         """
-        key = f"{service_name}-{region}-{role_arn or 'default'}"
+        key = f"{service_name}-{region_name}-{role_arn or 'default'}"
 
         if key not in cls.__clients:
             session = cls.__create_session(
@@ -95,7 +95,7 @@ class BotoFactory:
 
     @classmethod
     def get_async_session(cls, *, service_name: str, region_name: str, role_arn: str = None) -> RefreshingAioboto3Session:
-        session_name: str = f"Async-{service_name}-Session"
+        session_name: str = RefreshingAioboto3Session.get_session_name(service_name=service_name)
 
         creds = assume_role_and_get_credentials(role_arn, region_name, session_name)
 
