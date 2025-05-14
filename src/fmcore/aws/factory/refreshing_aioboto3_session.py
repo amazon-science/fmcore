@@ -15,7 +15,6 @@ class RefreshingAioboto3Session(MutableTyped):
     expiry: Optional[datetime] = None
 
     async def _refresh_credentials(self, session_name: str, region_name: str, role_arn: str = None):
-        print("Refreshing credentials...")
         creds = assume_role_and_get_credentials(role_arn, region_name, session_name)
         self.creds = {
             AWSConstants.AWS_ACCESS_KEY_ID: creds[AWSConstants.AWS_CREDENTIALS_ACCESS_KEY],

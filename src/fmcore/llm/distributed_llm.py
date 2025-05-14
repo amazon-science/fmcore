@@ -75,7 +75,6 @@ class DistributedLLM(BaseLLM[Input, Output, Chunk]):
         """
         return self.get_random_client().invoke(messages)
 
-    @RetryUtil.with_backoff(lambda self: self.config.provider_params.retries)
     async def ainvoke(self, messages: Input) -> Output:
         """
         Asynchronously invokes one of the distributed LLM clients with rate limiting.
