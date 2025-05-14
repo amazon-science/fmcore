@@ -3,6 +3,7 @@ from typing import List, Iterator, AsyncIterator, Any
 
 from fmcore.llm.base_llm import BaseLLM, Input, Output, Chunk
 from fmcore.llm.types.llm_types import DistributedLLMConfig, LLMConfig
+from fmcore.utils.retry_utils import RetryUtil
 
 
 class DistributedLLM(BaseLLM[Input, Output, Chunk]):
