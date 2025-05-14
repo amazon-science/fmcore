@@ -10,11 +10,11 @@ from fmcore.aws.constants import aws_constants as AWSConstants
 from fmcore.aws.factory.refreshing_aioboto3_session import RefreshingAioboto3Session
 from fmcore.aws.factory.boto_utils import assume_role_and_get_credentials
 
+
 class BotoFactory:
     """Factory to create and manage Boto3 clients with optional role-based authentication."""
 
     __clients: Dict[str, boto3.client] = {}
-
 
     @classmethod
     def __get_refreshable_session(cls, role_arn: str, region_name: str, session_name: str) -> boto3.Session:
@@ -94,7 +94,9 @@ class BotoFactory:
         return cls.__clients[key]
 
     @classmethod
-    def get_async_session(cls, *, service_name: str, region_name: str, role_arn: str = None) -> RefreshingAioboto3Session:
+    def get_async_session(
+        cls, *, service_name: str, region_name: str, role_arn: str = None
+    ) -> RefreshingAioboto3Session:
         session_name: str = RefreshingAioboto3Session.get_session_name(service_name=service_name)
 
         creds = assume_role_and_get_credentials(role_arn, region_name, session_name)

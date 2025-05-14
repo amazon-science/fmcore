@@ -1,4 +1,3 @@
-
 import boto3
 
 from fmcore.aws.constants import aws_constants as AWSConstants

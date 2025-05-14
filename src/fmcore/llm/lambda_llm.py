@@ -147,7 +147,9 @@ class LambdaLLM(BaseLLM[List[BaseMessage], BaseMessage, BaseMessageChunk], BaseM
             BaseMessage: Response message from the model.
         """
         async with self.rate_limiter:
-            lambda_client_context = await self.async_session.get_client("lambda", self.config.provider_params.region, self.config.provider_params.role_arn)
+            lambda_client_context = await self.async_session.get_client(
+                "lambda", self.config.provider_params.region, self.config.provider_params.role_arn
+            )
             async with lambda_client_context as lambda_client:
                 payload = self.convert_messages_to_lambda_payload(messages)
                 response = await lambda_client.invoke(

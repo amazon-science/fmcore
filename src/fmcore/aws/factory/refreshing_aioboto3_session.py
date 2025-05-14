@@ -9,6 +9,7 @@ from fmcore.aws.factory.boto_utils import assume_role_and_get_credentials
 
 REFRESH_MARGIN = timedelta(minutes=5)
 
+
 class RefreshingAioboto3Session(MutableTyped):
     session: aioboto3.Session
     creds: Optional[Dict[str, str]] = None
@@ -19,7 +20,7 @@ class RefreshingAioboto3Session(MutableTyped):
         self.creds = {
             AWSConstants.AWS_ACCESS_KEY_ID: creds[AWSConstants.AWS_CREDENTIALS_ACCESS_KEY],
             AWSConstants.AWS_SECRET_ACCESS_KEY: creds[AWSConstants.AWS_CREDENTIALS_SECRET_KEY],
-            AWSConstants.AWS_SESSION_TOKEN: creds[AWSConstants.AWS_CREDENTIALS_TOKEN]
+            AWSConstants.AWS_SESSION_TOKEN: creds[AWSConstants.AWS_CREDENTIALS_TOKEN],
         }
         expiry_str = creds[AWSConstants.AWS_CREDENTIALS_EXPIRY_TIME]
         expiry_dt = parse(expiry_str).astimezone(timezone.utc)
