@@ -39,6 +39,7 @@ PROMPT_TEMPLATE_ID_COL: str = "prompt_template_id"
 PROMPT_TEMPLATE_EXPANDER_SEP: str = "-prompt_template="
 PROMPT_TEMPLATE_INDEX_COL_PREFIX: str = "original_"
 GENERATED_TEXTS_COL: str = "generations"
+GENERATED_TIME_COL: str = "generations_time"
 THINKING_COL: str = "thinking"
 GENERATED_TOKEN_SCORES_COL_TEMPLATE: str = "generated_token_{token_timestep_i}_scores"
 

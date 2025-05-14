@@ -1,4 +1,5 @@
 import json
+import math
 import random
 from typing import Any, ClassVar, Dict, List, Optional, Set, Tuple, Union
 
@@ -11,6 +12,7 @@ from bears.util import (
     Log,
     Parameters,
     String,
+    Timer,
     accumulate,
     any_are_none,
     as_list,
@@ -27,6 +29,7 @@ from pydantic import confloat, conint, constr, model_validator
 
 from fmcore.framework._task.text_generation import (
     GENERATED_TEXTS_COL,
+    GENERATED_TIME_COL,
     THINKING_COL,
     GenerativeLM,
     Prompts,
@@ -779,18 +782,22 @@ with optional_dependency("boto3", "imageio"):
                     generation_params["image"] = image
                     generation_params["image_media_type"] = "image/png"
 
-                return retry(
-                    call_bedrock,
-                    bedrock_client=self.bedrock_client,
-                    prompt=prompt,
-                    model_name=self.hyperparams.model_name,
-                    generation_params=generation_params,
-                    retries=self.hyperparams.retries,
-                    wait=self.hyperparams.retry_wait,
-                    jitter=self.hyperparams.retry_jitter,
-                    error_handler=self.bedrock_error_handler,
-                    silent=True,
-                )
+                with Timer(silent=True) as gen_timer:
+                    out: Union[str, Dict] = retry(
+                        call_bedrock,
+                        bedrock_client=self.bedrock_client,
+                        prompt=prompt,
+                        model_name=self.hyperparams.model_name,
+                        generation_params=generation_params,
+                        retries=self.hyperparams.retries,
+                        wait=self.hyperparams.retry_wait,
+                        jitter=self.hyperparams.retry_jitter,
+                        error_handler=self.bedrock_error_handler,
+                        silent=True,
+                    )
+                if isinstance(out, dict):
+                    out[GENERATED_TIME_COL] = gen_timer.time_taken_sec
+                return out
             except Exception as e:
                 if self.hyperparams.raise_on_error:
                     raise e
@@ -841,9 +848,15 @@ with optional_dependency("boto3", "imageio"):
             ## Extract thinking and responses:
             thinking_outputs: List[str] = []
             generated_texts: List[str] = []
+            generation_times: List[float] = []
 
             for result in results:
                 if isinstance(result, dict):
+                    if GENERATED_TIME_COL in result:
+                        generation_times.append(result[GENERATED_TIME_COL])
+                    else:
+                        generation_times.append(math.nan)
+
                     if "thinking" in result:
                         thinking_outputs.append(result["thinking"])
                     else:
@@ -863,5 +876,7 @@ with optional_dependency("boto3", "imageio"):
             output_dict = {GENERATED_TEXTS_COL: generated_texts}
             if any(len(t) > 0 for t in thinking_outputs):
                 output_dict[THINKING_COL] = thinking_outputs
+            if any(not math.isnan(t) for t in generation_times):
+                output_dict[GENERATED_TIME_COL] = generation_times
 
             return output_dict
