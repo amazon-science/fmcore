@@ -46,7 +46,7 @@ class BedrockFactory:
 
         boto_client = BotoFactory.get_client(
             service_name="bedrock-runtime",
-            region=provider_params.region,
+            region_name=provider_params.region,
             role_arn=provider_params.role_arn,
         )
 
