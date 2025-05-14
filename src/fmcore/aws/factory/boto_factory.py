@@ -106,4 +106,4 @@ class BotoFactory:
             region_name=region_name,
         )
 
-        return RefreshingAioboto3Session(session)
+        return RefreshingAioboto3Session(session=session)
