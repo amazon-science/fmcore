@@ -37,16 +37,16 @@ class LLMResponseJsonMapper(BaseMapper[str, List[Dict]]):
             3. Invalid JSON -> returns empty list
         """
         response = json_repair.loads(json_str)
-        
+
         if isinstance(response, dict):
             # Wrap dict inside a list
             return [response]
-        
+
         if isinstance(response, list):
             # Filter list elements, keep only dicts
             filtered = [item for item in response if isinstance(item, dict)]
             return filtered
-        
+
         # If neither dict nor list, return empty list
         return []
 

@@ -111,12 +111,12 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
                     f"[JUDGE RESPONSE]: {judge_response}\t\t ->"
                     f"[DECISION]: {decision}"
                 )
-        
+
         if not found_boolean:
             raise ValueError("None of the decisions are boolean values")
 
         return False
-        
+
     def evaluate(self, data: Dict) -> bool:
         """
         Processes the input data using the llm_as_a_judge_boolean_mapper to evaluate the context.
@@ -139,7 +139,7 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
             formatted_prompt = self.text_prompt_mapper.map(data)
             llm_response = self.llm_inference_mapper.map([formatted_prompt])
             judge_responses = self.json_mapper.map(llm_response.content)
-            
+
             return self._process_judge_json_responses(
                 judge_responses=judge_responses,
                 context=data,
@@ -200,10 +200,10 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
                     f"[JUDGE RESPONSE]: {judge_response}\t\t ->"
                     f"[DECISION]: {decision}"
                 )
-        
+
         if not found_boolean:
             raise ValueError("None of the decisions are boolean values")
-        
+
         return False
 
     async def aevaluate(self, data: Dict) -> bool:
@@ -228,7 +228,7 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
             formatted_prompt = await self.text_prompt_mapper.amap(data)
             llm_response = await self.llm_inference_mapper.amap([formatted_prompt])
             judge_responses = await self.json_mapper.amap(llm_response.content)
-            
+
             return await self._aprocess_judge_json_responses(
                 judge_responses=judge_responses,
                 context=data,
