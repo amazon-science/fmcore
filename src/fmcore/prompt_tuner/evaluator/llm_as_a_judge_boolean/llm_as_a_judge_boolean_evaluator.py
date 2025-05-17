@@ -159,53 +159,6 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
             )
             raise
 
-    async def _aprocess_judge_json_responses(
-        self,
-        judge_responses: list,
-        context: Dict,
-        formatted_prompt: BaseMessage,
-        llm_response: BaseMessage,
-    ) -> bool:
-        """
-        Async version of _process_judge_json_responses.
-        Process a list of JSON responses from judge responses and return True if any response is True.
-        Logs warnings for non-boolean responses and raises an exception if no boolean values are found.
-
-        Args:
-            judge_responses (list): List of JSON responses from the judge
-            context (Dict): Original input context
-            formatted_prompt (BaseMessage): The formatted prompt sent to the LLM
-            llm_response (BaseMessage): The raw response from the LLM
-
-        Returns:
-            bool: True if any response is True, False if all responses are False
-
-        Raises:
-            ValueError: If no boolean values are found in any response
-        """
-        found_boolean = False
-        for judge_response in judge_responses:
-            decision = await self.criteria_checker.amap(judge_response)
-            if isinstance(decision, bool):
-                found_boolean = True
-                if decision:
-                    return True
-            else:
-                Log.warning(
-                    "[NON-BOOLEAN RESPONSE]\t\t ->"
-                    f"[INPUT DATA]: {context}\t\t ->"
-                    f"[PROMPT]: {self.config.evaluator_params.prompt}\t\t ->"
-                    f"[FORMATTED MESSAGE]: {formatted_prompt}\t\t ->"
-                    f"[LLM RESPONSE]: {llm_response}\t\t ->"
-                    f"[JUDGE RESPONSE]: {judge_response}\t\t ->"
-                    f"[DECISION]: {decision}"
-                )
-
-        if not found_boolean:
-            raise ValueError("None of the decisions are boolean values")
-
-        return False
-
     async def aevaluate(self, data: Dict) -> bool:
         """
         Asynchronous version of `evaluate` that processes the input data.
@@ -229,7 +182,7 @@ class LLMAsJudgeBooleanEvaluator(BaseEvaluator[Dict, bool]):
             llm_response = await self.llm_inference_mapper.amap([formatted_prompt])
             judge_responses = await self.json_mapper.amap(llm_response.content)
 
-            return await self._aprocess_judge_json_responses(
+            return self._process_judge_json_responses(
                 judge_responses=judge_responses,
                 context=data,
                 formatted_prompt=formatted_prompt,
