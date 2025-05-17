@@ -15,7 +15,7 @@ class LLMResponseJsonMapper(BaseMapper[str, List[Dict]]):
     Reference: https://pypi.org/project/json-repair/
     """
 
-    def normalize_json_response(json_str) -> List[Dict]:
+    def normalize_json_response(self, json_str: str) -> List[Dict]:
         """
         Normalize and repair JSON response into a list of dictionaries.
 
