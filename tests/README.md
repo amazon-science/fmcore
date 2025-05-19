@@ -3,7 +3,7 @@
 ## Setup
 ```bash
 # Set Python path to include fmcore source
-export PYTHONPATH="/Users/aashok/workspace/github-projects/fmcore/src/:$PYTHONPATH"
+export PYTHONPATH="<fmcore_git_repo_path>/fmcore/src/:$PYTHONPATH"
 ```
 
 ## Run Tests
