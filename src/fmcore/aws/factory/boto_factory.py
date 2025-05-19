@@ -1,4 +1,3 @@
-from datetime import timezone
 from typing import Dict
 
 import aioboto3
@@ -6,8 +5,11 @@ import boto3
 from botocore.credentials import RefreshableCredentials
 from botocore.session import get_session
 
+from aiobotocore.session import AioSession
+from aiobotocore.credentials import AioRefreshableCredentials
+
+from fmcore.utils.string_utils import is_empty_or_none
 from fmcore.aws.constants import aws_constants as AWSConstants
-from fmcore.aws.factory.refreshing_aioboto3_session import RefreshingAioboto3Session
 from fmcore.aws.factory.boto_utils import assume_role_and_get_credentials
 
 
@@ -60,7 +62,7 @@ class BotoFactory:
         Returns:
             boto3.Session: A configured Boto3 session.
         """
-        if not role_arn:
+        if is_empty_or_none(role_arn=role_arn):
             return boto3.Session(region_name=region_name)
 
         # Get a botocore session with refreshable credentials
@@ -94,18 +96,47 @@ class BotoFactory:
         return cls.__clients[key]
 
     @classmethod
-    def get_async_session(
-        cls, *, service_name: str, region_name: str, role_arn: str = None
-    ) -> RefreshingAioboto3Session:
-        session_name: str = RefreshingAioboto3Session.get_session_name(service_name=service_name)
+    def __get_refreshable_async_session(
+        cls, role_arn: str, region_name: str, session_name: str
+    ) -> AioSession:
+        """
+        Creates a botocore session with refreshable credentials for the assumed IAM role.
 
-        creds = assume_role_and_get_credentials(role_arn, region_name, session_name)
+        Args:
+            role_arn (str): ARN of the IAM role to assume.
+            session_name (str): Name for the assumed session.
+            region (str, optional): AWS region for the session..
 
-        session = aioboto3.Session(
-            aws_access_key_id=creds[AWSConstants.AWS_CREDENTIALS_ACCESS_KEY],
-            aws_secret_access_key=creds[AWSConstants.AWS_CREDENTIALS_SECRET_KEY],
-            aws_session_token=creds[AWSConstants.AWS_CREDENTIALS_TOKEN],
-            region_name=region_name,
+        Returns:
+            boto3.Session: A session with automatically refreshed credentials.
+        """
+
+        def refresh() -> dict:
+            return assume_role_and_get_credentials(role_arn, region_name, session_name)
+
+        # Create refreshable credentials
+        refreshable_credentials = AioRefreshableCredentials.create_from_metadata(
+            metadata=refresh(),
+            refresh_using=refresh,
+            method=AWSConstants.STS_ASSUME_ROLE_METHOD,
         )
 
-        return RefreshingAioboto3Session(session=session)
+        # Attach credentials to a botocore session
+        botocore_session = AioSession()
+        botocore_session._credentials = refreshable_credentials
+        botocore_session.set_config_variable(AWSConstants.REGION, region_name)
+
+        return botocore_session
+
+    @classmethod
+    def get_async_session(
+        cls, *, service_name: str, region_name: str, role_arn: str = None
+    ) -> aioboto3.Session:
+        if is_empty_or_none(role_arn=role_arn):
+            return aioboto3.Session(region_name=region_name)
+
+        botocore_session = cls.__get_refreshable_async_session(
+            role_arn=role_arn, region_name=region_name, session_name=f"Async-{service_name}-Session"
+        )
+
+        return aioboto3.Session(botocore_session=botocore_session)

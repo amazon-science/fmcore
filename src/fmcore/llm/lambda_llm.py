@@ -1,6 +1,8 @@
 import json
 from typing import List, Iterator, AsyncIterator, Dict
 
+import aioboto3
+
 from aiolimiter import AsyncLimiter
 from botocore.client import BaseClient
 from langchain_community.adapters.openai import convert_dict_to_message
@@ -12,7 +14,6 @@ from langchain_core.messages import (
 )
 
 from fmcore.aws.factory.boto_factory import BotoFactory
-from fmcore.aws.factory.refreshing_aioboto3_session import RefreshingAioboto3Session
 from fmcore.llm.base_llm import BaseLLM
 from fmcore.llm.types.llm_types import LLMConfig
 from fmcore.llm.types.provider_types import LambdaProviderParams
@@ -45,7 +46,7 @@ class LambdaLLM(BaseLLM[List[BaseMessage], BaseMessage, BaseMessageChunk], BaseM
     aliases = ["LAMBDA"]
 
     sync_client: BaseClient
-    async_session: RefreshingAioboto3Session  # Using session here as aioboto3.client returns context manager
+    async_session: aioboto3.Session  # Using session here as aioboto3.client returns context manager
     rate_limiter: AsyncLimiter
 
     @classmethod
@@ -147,10 +148,7 @@ class LambdaLLM(BaseLLM[List[BaseMessage], BaseMessage, BaseMessageChunk], BaseM
             BaseMessage: Response message from the model.
         """
         async with self.rate_limiter:
-            lambda_client_context = await self.async_session.get_client(
-                "lambda", self.config.provider_params.region, self.config.provider_params.role_arn
-            )
-            async with lambda_client_context as lambda_client:
+            async with self.async_session.client("lambda") as lambda_client:
                 payload = self.convert_messages_to_lambda_payload(messages)
                 response = await lambda_client.invoke(
                     FunctionName=self.config.provider_params.function_arn,
