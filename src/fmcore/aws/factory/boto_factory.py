@@ -94,9 +94,11 @@ class BotoFactory:
             cls.__clients[key] = session.client(service_name, region_name=region_name)
 
         return cls.__clients[key]
-    
+
     @classmethod
-    def __get_refreshable_async_session(cls, role_arn: str, region_name: str, session_name: str) -> boto3.Session:
+    def __get_refreshable_async_session(
+        cls, role_arn: str, region_name: str, session_name: str
+    ) -> AioSession:
         """
         Creates a botocore session with refreshable credentials for the assumed IAM role.
 
