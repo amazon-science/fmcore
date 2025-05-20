@@ -91,19 +91,21 @@ class BasePromptTuner(MutableTyped, Registry, ABC):
         prompt_records = []
         for prompt in tuner_result.prompts:
             prompt_record = {"prompt_id": prompt.prompt_id, "prompt": prompt.prompt}
-            prompt_records.append({
-                "prompt_id": prompt.prompt_id,
-                "prompt": prompt.prompt,
-                "validation_score": prompt.validation_result.score if prompt.validation_result else None,
-                "test_score": prompt.test_result.score if prompt.test_result else None,
-            })
+            prompt_records.append(
+                {
+                    "prompt_id": prompt.prompt_id,
+                    "prompt": prompt.prompt,
+                    "validation_score": prompt.validation_result.score if prompt.validation_result else None,
+                    "test_score": prompt.test_result.score if prompt.test_result else None,
+                }
+            )
 
             if prompt.validation_result:
                 prompt_record["validation_score"] = prompt.validation_result.score
                 validation_metadata = FileMetadata(
                     name="validation",
                     path=f"{output_directory}/tuner_results/{prompt.prompt_id}/",
-                    format=output_metadata.format
+                    format=output_metadata.format,
                 )
                 writer.write(destination=validation_metadata, data=prompt.validation_result.data)
 
@@ -112,7 +114,7 @@ class BasePromptTuner(MutableTyped, Registry, ABC):
                 test_metadata = FileMetadata(
                     name="test",
                     path=f"{output_directory}/tuner_results/{prompt.prompt_id}/",
-                    format=output_metadata.format
+                    format=output_metadata.format,
                 )
                 writer.write(destination=test_metadata, data=prompt.test_result.data)
 

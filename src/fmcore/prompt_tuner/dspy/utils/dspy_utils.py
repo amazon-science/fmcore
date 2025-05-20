@@ -25,7 +25,7 @@ class DSPyUtils:
 
     @staticmethod
     def create_dspy_dataset(
-            data: Dict[DatasetType, pd.DataFrame], prompt_config: PromptConfig
+        data: Dict[DatasetType, pd.DataFrame], prompt_config: PromptConfig
     ) -> DspyDataset:
         """
         Creates a DSPy dataset from a DataFrame and prompt configuration.
@@ -244,9 +244,7 @@ class DSPyUtils:
 
     @staticmethod
     def evaluate_module(
-            module: dspy.Module,
-            dataset: List[dspy.Example],
-            evaluator: dspy.Evaluate
+        module: dspy.Module, dataset: List[dspy.Example], evaluator: dspy.Evaluate
     ) -> PromptEvaluationResult:
         """
         Evaluates a DSPy module using a dataset and an evaluation metric.
@@ -279,4 +277,3 @@ class DSPyUtils:
             processed_results.append(row)
 
         return PromptEvaluationResult(score=score, data=pd.DataFrame(processed_results))
-
