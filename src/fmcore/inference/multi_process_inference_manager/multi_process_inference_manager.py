@@ -1,5 +1,5 @@
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from typing import List
 
 from langchain_core.messages import BaseMessage, AIMessage
@@ -47,7 +47,14 @@ class MultiProcessInferenceManager(BaseInferenceManager[List[List[BaseMessage]],
             List[BaseMessage]: Responses generated for each message group in the chunk.
         """
         llm = BaseLLM.of(llm_config=worker_config.llm_config)
-        tasks = [llm.ainvoke(messages=messages) for messages in worker_config.dataset_chunk]
+
+        tasks = []
+        for messages in worker_config.dataset_chunk:
+            # Iterate all the rows, creating a task in an event loop
+            task = asyncio.create_task(
+                llm.ainvoke(messages=messages)
+            )
+            tasks.append(task)
 
         results = []
         for task in tqdm(tasks, total=len(tasks), desc=f"Processing chunk {worker_config.chunk_id}"):
@@ -115,7 +122,7 @@ class MultiProcessInferenceManager(BaseInferenceManager[List[List[BaseMessage]],
 
         result_list: List[List[BaseMessage]] = []
 
-        with ThreadPoolExecutor(max_workers=num_process) as executor:
+        with ProcessPoolExecutor(max_workers=num_process) as executor:
             future_list = []
             for chunk_id, (chunk, llm_config) in enumerate(zip(chunks, configs)):
                 worker_config: MultiProcessWorkerConfig = MultiProcessWorkerConfig(
