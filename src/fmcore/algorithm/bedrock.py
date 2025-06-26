@@ -132,7 +132,7 @@ with optional_dependency("boto3", "imageio"):
         *,
         model_name: str,
         prompt: str,
-        image: Optional[Any] = None,
+        images: Optional[List[Any]] = None,
         image_media_type: Optional[str] = None,
         max_tokens_to_sample: int,
         thinking_tokens: Optional[int] = None,
@@ -144,14 +144,14 @@ with optional_dependency("boto3", "imageio"):
         **kwargs,
     ) -> Union[str, Dict[str, str]]:
         """
-        Call Claude v3 models with support for images and thinking parameter.
+        Call Claude v3 models with support for multiple images and thinking parameter.
 
         Args:
             bedrock_client: Boto3 bedrock client
             model_name (str): Claude model name
             prompt (str): Text prompt to send
-            image (Optional[Any]): Base64-encoded image data
-            image_media_type (Optional[str]): Media type of the image (e.g., "image/png")
+            images (Optional[List[Any]]): List of base64-encoded image data
+            image_media_type (Optional[str]): Media type of the images (e.g., "image/png")
             max_tokens_to_sample (int): Maximum tokens to generate
             thinking_tokens (Optional[int]): Number of tokens allocated for model thinking (Claude 3.7 only)
             temperature (Optional[float]): Temperature parameter for generation
@@ -168,10 +168,10 @@ with optional_dependency("boto3", "imageio"):
             >>> bedrock_client = boto3.client(service_name="bedrock-runtime")
             >>> result = call_claude_v3(
             >>>     bedrock_client=bedrock_client,
-            >>>     prompt="Describe this image",
+            >>>     prompt="Describe these images",
             >>>     model_name="anthropic.claude-3-sonnet-20240229-v1:0",
             >>>     max_tokens_to_sample=500,
-            >>>     image=base64_encoded_image,
+            >>>     images=[base64_encoded_image1, base64_encoded_image2],
             >>>     image_media_type="image/png"
             >>> )
         """
@@ -180,18 +180,20 @@ with optional_dependency("boto3", "imageio"):
         ## Prepare the message content:
         message_content: List[Dict[str, Any]] = []
 
-        ## Add image if provided:
-        if image is not None:
-            message_content.append(
-                {
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": image_media_type,
-                        "data": image,
-                    },
-                }
-            )
+        ## Add images if provided:
+        if images is not None:
+            for image in as_list(images):
+                if image is not None:
+                    message_content.append(
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": image_media_type,
+                                "data": image,
+                            },
+                        }
+                    )
 
         ## Add text prompt:
         message_content.append({"type": "text", "text": prompt})
@@ -751,14 +753,14 @@ with optional_dependency("boto3", "imageio"):
             self,
             *,
             prompt: str,
-            image: Optional = None,
+            images: Optional[List[Any]] = None,
         ) -> Union[str, Dict[str, str]]:
             """
-            Prompt the model with retries, supporting both text and image inputs.
+            Prompt the model with retries, supporting both text and multiple image inputs.
 
             Args:
                 prompt (str): Text prompt
-                image: URL or data of an image to include
+                images: List of URLs or data of images to include
 
             Returns:
                 Union[str, Dict[str, str]]: Generated text or dict with response and thinking
@@ -769,17 +771,29 @@ with optional_dependency("boto3", "imageio"):
             if self.bedrock_client is None:
                 raise SystemError("BedrockPrompter not initialized. Call initialize() first.")
 
-            ## Process image if provided:
-            image: Optional = None
-            if isinstance(image, str):
-                ## Check if the image is a URL:
-                if image.startswith("http://") or image.startswith("https://"):
-                    image = process_image_url(image)
+            ## Process images if provided:
+            processed_images = []
+            if images is not None:
+                for image in as_list(images):
+                    if image is None:
+                        continue
+                    if isinstance(image, str):
+                        ## Check if the image is a URL:
+                        if image.startswith("http://") or image.startswith("https://"):
+                            processed_image = process_image_url(image)
+                            if processed_image is not None:
+                                processed_images.append(processed_image)
+                        else:
+                            ## Assume it's already base64 encoded:
+                            processed_images.append(image)
+                    elif image is not None:
+                        ## Assume it's raw image data that needs to be sent:
+                        processed_images.append(image)
 
             try:
                 generation_params = self.bedrock_text_generation_params
-                if image is not None:
-                    generation_params["image"] = image
+                if len(processed_images) > 0:
+                    generation_params["images"] = processed_images
                     generation_params["image_media_type"] = "image/png"
 
                 with Timer(silent=True) as gen_timer:
@@ -817,24 +831,25 @@ with optional_dependency("boto3", "imageio"):
             """
             generated_texts: List[Union[str, Dict[str, str]]] = []
 
-            ## Identify image column if available:
-            image_column: Optional[str] = None
+            ## Identify all image columns:
+            image_columns: List[str] = []
             for col_name, col_type in batch.data_schema.flatten().items():
                 if col_type == MLType.IMAGE:
-                    image_column = col_name
-                    break
+                    image_columns.append(col_name)
 
             for i, prompt in enumerate(batch.prompts().tolist()):
-                ## Get image URL if available:
-                image: Optional = None
-                if image_column is not None:
-                    image = batch.data[image_column].iloc[i]
+                ## Get all images if available:
+                images: List = []
+                for image_column in image_columns:
+                    image_value = batch.data[image_column].iloc[i]
+                    if image_value is not None:
+                        images.append(image_value)
 
-                ## Generate text with image if available:
+                ## Generate text with images if available:
                 result: Union[str, Dict[str, str]] = dispatch(
                     self.prompt_model_with_retries,
                     prompt=prompt,
-                    image=image,
+                    images=images if len(images) > 0 else None,
                     executor=self.executor,
                     parallelize=Parallelize.sync
                     if self.hyperparams.max_workers is None
@@ -869,6 +884,7 @@ with optional_dependency("boto3", "imageio"):
                     ## Handle case where result is a string:
                     thinking_outputs.append("")
                     generated_texts.append(result)
+                    generation_times.append(math.nan)
                 else:
                     raise ValueError(f"Unexpected result type: {type(result)} with value:\n{result}")
 
