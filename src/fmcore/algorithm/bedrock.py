@@ -36,6 +36,7 @@ from fmcore.framework._task.text_generation import (
     TextGenerationParams,
     TextGenerationParamsMapper,
 )
+from botocore.config import Config as BotoConfig
 
 
 class ConfigSelectionStrategy(AutoEnum):
@@ -711,6 +712,7 @@ with optional_dependency("boto3", "imageio"):
             self.bedrock_client = self.boto3_session.client(
                 service_name="bedrock-runtime",
                 region_name=self.current_account_config.region_name,
+                config=BotoConfig(read_timeout=60 * 10),
             )
 
         def cleanup(self):
