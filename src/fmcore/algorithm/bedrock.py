@@ -49,6 +49,7 @@ with optional_dependency("boto3", "imageio"):
     import base64
     from io import BytesIO
 
+    import boto3
     import imageio
     from botocore.exceptions import ClientError
 
@@ -85,6 +86,57 @@ with optional_dependency("boto3", "imageio"):
             return base64_image
         except Exception as e:
             Log.error(f"Failed to process image from URL {image_url}: {e}")
+            return None
+
+    def process_image_s3(s3_path: str, aws_session: Optional[Any] = None) -> Optional[str]:
+        """
+        Process an image from S3 by downloading it and converting it to base64.
+
+        Args:
+            s3_path (str): S3 path to the image (e.g., "s3://bucket-name/path/to/image.jpg")
+            aws_session (Optional[Any]): boto3 session to use. If None, uses default session.
+
+        Returns:
+            Optional[str]: Base64-encoded image or None if processing failed
+
+        Example usage:
+            >>> base64_image = process_image_s3("s3://my-bucket/images/photo.jpg")
+            >>> if base64_image is not None:
+            >>>     print("Successfully processed image from S3")
+        """
+        try:
+            # Parse S3 path to extract bucket and key
+            if not s3_path.startswith("s3://"):
+                raise ValueError(f"Invalid S3 path format: {s3_path}. Expected format: s3://bucket-name/key")
+            
+            s3_path_parts = s3_path[5:].split("/", 1)  # Remove "s3://" and split into bucket and key
+            if len(s3_path_parts) != 2:
+                raise ValueError(f"Invalid S3 path format: {s3_path}. Expected format: s3://bucket-name/key")
+            
+            bucket_name, object_key = s3_path_parts
+
+            # Create S3 client using provided session or default
+            if aws_session is not None:
+                s3_client = aws_session.client("s3")
+            else:
+                s3_client = boto3.client("s3")
+
+            # Download the image from S3
+            response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+            image_bytes = response["Body"].read()
+
+            # Convert the image to a standard format (PNG)
+            image_array = imageio.imread(BytesIO(image_bytes))
+            memfile = BytesIO()
+            imageio.imwrite(memfile, image_array, format="png")
+            memfile.seek(0)
+            png_bytes = memfile.read()
+
+            # Encode as base64
+            base64_image = base64.b64encode(png_bytes).decode("utf-8")
+            return base64_image
+        except Exception as e:
+            Log.error(f"Failed to process image from S3 {s3_path}: {e}")
             return None
 
     def call_claude_v1_v2(
@@ -783,6 +835,10 @@ with optional_dependency("boto3", "imageio"):
                         ## Check if the image is a URL:
                         if image.startswith("http://") or image.startswith("https://"):
                             processed_image = process_image_url(image)
+                            if processed_image is not None:
+                                processed_images.append(processed_image)
+                        elif image.startswith("s3://"):
+                            processed_image = process_image_s3(image)
                             if processed_image is not None:
                                 processed_images.append(processed_image)
                         else:
