@@ -635,7 +635,7 @@ class Algorithm(TaskRegistryMixin, Registry, ABC):
         *,
         data_split: Optional[DataSplit] = None,
         validate_inputs: Optional[FractionalBool] = None,
-        fetch_assets: bool = True,
+        fetch_assets: bool = False,
         **kwargs,
     ) -> Generator[Union[Dataset, Any], None, None]:
         """
