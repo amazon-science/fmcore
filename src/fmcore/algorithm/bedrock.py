@@ -52,6 +52,68 @@ with optional_dependency("boto3", "imageio"):
     import boto3
     import imageio
     from botocore.exceptions import ClientError
+    from PIL import Image
+
+    def _compress_image_for_bedrock(image_bytes: bytes, max_size_mb: float = 3.5) -> bytes:
+        """
+        Compress an image to stay under the specified size limit for Bedrock.
+        
+        Args:
+            image_bytes (bytes): Original image bytes
+            max_size_mb (float): Maximum size in MB (default 4.5 to stay well under 5MB limit)
+            
+        Returns:
+            bytes: Compressed image bytes in PNG format
+        """
+        max_size_bytes = int(max_size_mb * 1024 * 1024)
+        
+        # Load image using PIL for better compression control
+        image = Image.open(BytesIO(image_bytes))
+        
+        # Convert to RGB if necessary (for PNG compatibility)
+        if image.mode in ('RGBA', 'LA', 'P'):
+            # Convert RGBA/LA to RGB with white background
+            background = Image.new('RGB', image.size, (255, 255, 255))
+            if image.mode == 'P':
+                image = image.convert('RGBA')
+            background.paste(image, mask=image.split()[-1] if image.mode in ('RGBA', 'LA') else None)
+            image = background
+        elif image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # Start with original size and progressively reduce if needed
+        quality = 95
+        scale_factor = 1.0
+        
+        while True:
+            # Scale down image if needed
+            if scale_factor < 1.0:
+                new_width = int(image.width * scale_factor)
+                new_height = int(image.height * scale_factor)
+                resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            else:
+                resized_image = image
+            
+            # Compress to PNG with specified quality
+            output = BytesIO()
+            resized_image.save(output, format='PNG', optimize=True)
+            compressed_bytes = output.getvalue()
+            
+            # Check if we're under the size limit
+            if len(compressed_bytes) <= max_size_bytes:
+                # print(f'Final compressed image is {len(compressed_bytes) / (1024*1024):.2f}MB')
+                return compressed_bytes
+                
+            # If still too large, try reducing quality or scale
+            if quality > 60:
+                quality -= 10
+            elif scale_factor > 0.5:
+                scale_factor -= 0.1
+                quality = 95  # Reset quality when scaling
+            else:
+                # If we can't compress enough, return what we have
+                raise ValueError(f"Unable to compress image below {max_size_mb}MB limit. "
+                                 f"Final size: {len(compressed_bytes) / (1024*1024):.2f}MB")
 
     def process_image_url(image_url: str) -> Optional[str]:
         """
@@ -74,15 +136,11 @@ with optional_dependency("boto3", "imageio"):
             response.raise_for_status()
             image_bytes = response.content
 
-            ## Convert the image to a standard format (PNG):
-            image_array = imageio.imread(BytesIO(image_bytes))
-            memfile = BytesIO()
-            imageio.imwrite(memfile, image_array, format="png")
-            memfile.seek(0)
-            png_bytes = memfile.read()
+            ## Compress the image to stay under Bedrock's 5MB limit:
+            compressed_bytes = _compress_image_for_bedrock(image_bytes)
 
             ## Encode as base64:
-            base64_image = base64.b64encode(png_bytes).decode("utf-8")
+            base64_image = base64.b64encode(compressed_bytes).decode("utf-8")
             return base64_image
         except Exception as e:
             Log.error(f"Failed to process image from URL {image_url}: {e}")
@@ -125,15 +183,11 @@ with optional_dependency("boto3", "imageio"):
             response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
             image_bytes = response["Body"].read()
 
-            # Convert the image to a standard format (PNG)
-            image_array = imageio.imread(BytesIO(image_bytes))
-            memfile = BytesIO()
-            imageio.imwrite(memfile, image_array, format="png")
-            memfile.seek(0)
-            png_bytes = memfile.read()
+            # Compress the image to stay under Bedrock's 5MB limit
+            compressed_bytes = _compress_image_for_bedrock(image_bytes)
 
             # Encode as base64
-            base64_image = base64.b64encode(png_bytes).decode("utf-8")
+            base64_image = base64.b64encode(compressed_bytes).decode("utf-8")
             return base64_image
         except Exception as e:
             Log.error(f"Failed to process image from S3 {s3_path}: {e}")
