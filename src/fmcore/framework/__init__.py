@@ -10,3 +10,4 @@ from fmcore.framework._trainer import *
 from fmcore.framework._evaluator import *
 from fmcore.framework._chain import *
 from fmcore.framework._task import *
+from fmcore.framework.bert_training import *
